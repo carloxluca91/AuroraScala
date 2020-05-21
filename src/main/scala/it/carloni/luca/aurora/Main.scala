@@ -1,7 +1,7 @@
 package it.carloni.luca.aurora
 
 import it.carloni.luca.aurora.option.ScoptOption
-import it.carloni.luca.aurora.spark.common.SparkEngine
+import it.carloni.luca.aurora.spark.engine.SparkEngine
 import org.apache.log4j.Logger
 import org.apache.spark.{SparkConf, SparkContext}
 import scopt.OptionParser

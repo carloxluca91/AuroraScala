@@ -1,4 +1,4 @@
-package it.carloni.luca.aurora.spark.common
+package it.carloni.luca.aurora.spark.engine
 
 import org.apache.log4j.Logger
 import org.apache.spark.SparkContext
