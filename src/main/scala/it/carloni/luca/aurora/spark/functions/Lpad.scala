@@ -8,8 +8,8 @@ class Lpad(column: Column, functionToApply: String)
 
   override def transform: Column = {
 
-    val paddingLength: Int = matcher.group(3).toInt
-    val paddingString: String = matcher.group(4)
+    val paddingLength: Int = signatureMatch.group(3).toInt
+    val paddingString: String = signatureMatch.group(4)
 
     logger.info(s"function: $functionName, length to pad: $paddingLength, padding charsequence: $paddingString ")
     lpad(nestedFunctionCol, paddingLength, paddingString)

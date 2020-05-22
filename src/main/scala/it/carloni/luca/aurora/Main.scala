@@ -2,7 +2,9 @@ package it.carloni.luca.aurora
 
 import it.carloni.luca.aurora.option.ScoptOption
 import it.carloni.luca.aurora.spark.engine.SparkEngine
+import it.carloni.luca.aurora.spark.functions.Factory
 import org.apache.log4j.Logger
+import org.apache.spark.sql.functions
 import org.apache.spark.{SparkConf, SparkContext}
 import scopt.OptionParser
 
@@ -43,8 +45,13 @@ object Main extends App {
       logger.info(value.toString)
 
       val applicationName: String = s"Aurora - DataLoad(${value.rawSRCName})"
-      val sparkContext: SparkContext = new SparkContext(new SparkConf().setAppName(applicationName))
-      new SparkEngine(sparkContext, value.applicationPropertiesFile).run(value.rawSRCName)
+      // val sparkContext: SparkContext = new SparkContext(new SparkConf().setAppName(applicationName))
+      // new SparkEngine(sparkContext, value.applicationPropertiesFile).run(value.rawSRCName)
+
+      val s = "date_format(lpad(10, '0'), 'we', 'aaa')"
+      val c = functions.lit("ciao")
+      val cc = Factory(c, s)
+      logger.info(cc)
 
     case None => logger.error("Error during parsing of command line args")
   }

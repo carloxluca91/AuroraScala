@@ -8,10 +8,10 @@ class DateFormat(column: Column, functionToApply: String)
 
   override def transform: Column = {
 
-    val inputFormat: String = matcher.group(3)
-    val outputFormat: String = matcher.group(4)
+    val inputFormat: String = signatureMatch.group(3)
+    val outputFormat: String = signatureMatch.group(4)
 
-    logger.info(s"function: $functionName, Input format: $inputFormat, Output format: $outputFormat")
+    logger.info(s"Function: $functionName, Input format: $inputFormat, Output format: $outputFormat")
     from_unixtime(unix_timestamp(nestedFunctionCol, inputFormat), outputFormat)
 
   }
