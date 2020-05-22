@@ -46,5 +46,6 @@ object Main extends App {
       val sparkContext: SparkContext = new SparkContext(new SparkConf().setAppName(applicationName))
       new SparkEngine(sparkContext, value.applicationPropertiesFile).run(value.rawSRCName)
 
+    case None => logger.error("Error during parsing of command line args")
   }
 }

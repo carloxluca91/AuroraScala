@@ -3,13 +3,13 @@ package it.carloni.luca.aurora.spark.functions
 import org.apache.log4j.Logger
 import org.apache.spark.sql.Column
 
-object FunctionFactory {
+object Factory {
 
   private final val logger = Logger.getLogger(getClass)
 
   def apply(column: Column, functionToApply: String): Column = {
 
-    val matchingSignatures: FunctionSignature.ValueSet = FunctionSignature.values
+    val matchingSignatures: Signature.ValueSet = Signature.values
       .filter(_.signatureRegex
         .findFirstMatchIn(functionToApply)
         .nonEmpty)
@@ -17,12 +17,12 @@ object FunctionFactory {
     // IF A FUNCTION MATCHES
     if (matchingSignatures.nonEmpty) {
 
-      val matchingSignature: FunctionSignature.Value = matchingSignatures.head
+      val matchingSignature: Signature.Value = matchingSignatures.head
       matchingSignature match {
 
-        case FunctionSignature.dateFormat => column
-        case FunctionSignature.lpad => column
-        case FunctionSignature.rpad => column
+        case Signature.dateFormat => new DateFormat(column, functionToApply).transform
+        case Signature.lpad => new Lpad(column, functionToApply).transform
+        case Signature.rpad => new Rpad(column, functionToApply).transform
       }
     }
 
@@ -33,5 +33,4 @@ object FunctionFactory {
       throw new Exception
     }
   }
-
 }

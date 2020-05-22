@@ -8,6 +8,7 @@ lazy val auroraScala = (project in file("."))
     scalaVersion := "2.10.5",
     scalacOptions ++= Seq(
 
+      "-target:jvm-1.7",
       "-encoding", "UTF-8"
     ),
 
