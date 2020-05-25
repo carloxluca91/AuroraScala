@@ -13,7 +13,7 @@ abstract class AbstractEngine(private final val sparkContext: SparkContext,
                               private final val applicationPropertiesFile: String) {
 
   private final val logger = Logger.getLogger(getClass)
-  protected final val hiveContext: HiveContext = new HiveContext(sparkContext)
+  protected final val sqlContext: HiveContext = new HiveContext(sparkContext)
   protected final val jobProperties: PropertiesConfiguration = new PropertiesConfiguration()
   loadJobProperties(applicationPropertiesFile)
 
@@ -44,6 +44,6 @@ abstract class AbstractEngine(private final val sparkContext: SparkContext,
     }
   }
 
-  protected def existsTableInDatabase(tableName: String, databaseName: String): Boolean = hiveContext.tableNames(databaseName).contains(tableName)
+  protected def existsTableInDatabase(tableName: String, databaseName: String): Boolean = sqlContext.tableNames(databaseName).contains(tableName)
 
 }
