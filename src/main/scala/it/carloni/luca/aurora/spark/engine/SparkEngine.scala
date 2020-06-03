@@ -1,15 +1,12 @@
 package it.carloni.luca.aurora.spark.engine
 
-import it.carloni.luca.aurora.spark.exceptions.{NoSpecificationException, TableNotFoundException}
+import it.carloni.luca.aurora.spark.exceptions.NoSpecificationException
 import org.apache.log4j.Logger
-import org.apache.spark.SparkContext
 import org.apache.spark.sql.functions.col
 import org.apache.spark.sql.{DataFrame, Row}
 
-import scala.util.Try
-
-class SparkEngine(val sparkContext: SparkContext, val applicationPropertiesFile: String)
-  extends AbstractEngine(sparkContext, applicationPropertiesFile) {
+class SparkEngine(applicationPropertiesFile: String)
+  extends AbstractEngine(applicationPropertiesFile) {
 
   private final val logger = Logger.getLogger(getClass)
 
@@ -18,10 +15,8 @@ class SparkEngine(val sparkContext: SparkContext, val applicationPropertiesFile:
     logger.info(s"Provided BANCLL name: $bancllName")
 
     // TRY TO GET TABLE CONTAINING INGESTION SPECIFICATION
-    val tryMappingSpecification: Try[DataFrame] = Try(sqlContext.table(s"$mappingSpecificationFullTBLName"))
-    if (tryMappingSpecification.isFailure) throw new TableNotFoundException(mappingSpecificationFullTBLName)
-
-    val rawSRCSpecificationRows: List[Row] = tryMappingSpecification.get
+    val mappingSpecification: DataFrame = readFromJDBC(pcAuroraDBName, mappingSpecificationTBLName)
+    val rawSRCSpecificationRows: List[Row] = mappingSpecification
       .filter(col("flusso") === bancllName)
       .collect()
       .toList
@@ -48,12 +43,7 @@ class SparkEngine(val sparkContext: SparkContext, val applicationPropertiesFile:
         logger.info(s"Trusted table for BANCLL $rawBancllTblName: $trustedTableName")
 
         // TRY TO GET RAW TABLE
-        val rawSRCFullTableName: String = s"$lakeCedacriDBName.$rawBancllTblName"
-        val tryRawSourceDataFrame: Try[DataFrame] = Try(sqlContext.table(rawSRCFullTableName))
-        if (tryRawSourceDataFrame.isFailure) throw new TableNotFoundException(rawSRCFullTableName)
-
-        logger.info(s"Starting to process table $rawSRCFullTableName")
-        val rawSourceDataframe: DataFrame = tryRawSourceDataFrame.get
+        val rawSourceDataFrame: DataFrame = readFromJDBC(lakeCedacriDBName, rawBancllTblName)
 
       }
 

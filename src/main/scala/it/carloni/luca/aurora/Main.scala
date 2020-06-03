@@ -1,11 +1,9 @@
 package it.carloni.luca.aurora
 
 import it.carloni.luca.aurora.option.ScoptOption
-import it.carloni.luca.aurora.spark.engine.SparkEngine
 import it.carloni.luca.aurora.spark.functions.Factory
 import org.apache.log4j.Logger
 import org.apache.spark.sql.functions
-import org.apache.spark.{SparkConf, SparkContext}
 import scopt.OptionParser
 
 object Main extends App {
@@ -14,8 +12,8 @@ object Main extends App {
 
   logger.info("Starting application main program")
 
-  case class Config(rawSRCName: String = "",
-                    applicationPropertiesFile: String = "") {
+  case class Config(rawSRCName: Option[String] = None,
+                    applicationPropertiesFile: Option[String] = None) {
 
     override def toString: String =
 
@@ -28,12 +26,12 @@ object Main extends App {
     opt[String](ScoptOption.rawSourceNameOption.shortOption, ScoptOption.rawSourceNameOption.longOption)
       .text(ScoptOption.rawSourceNameOption.text)
       .required()
-      .action((x, c) => c.copy(rawSRCName = x))
+      .action((x, c) => c.copy(rawSRCName = Some(x)))
 
     opt[String](ScoptOption.fileOption.shortOption, ScoptOption.fileOption.longOption)
       .text(ScoptOption.fileOption.text)
       .required()
-      .action((x, c) => c.copy(applicationPropertiesFile = x))
+      .action((x, c) => c.copy(applicationPropertiesFile = Some(x)))
 
   }
 
@@ -43,10 +41,6 @@ object Main extends App {
 
       logger.info("Successfully parsed command line args")
       logger.info(value.toString)
-
-      val applicationName: String = s"Aurora - DataLoad(${value.rawSRCName})"
-      // val sparkContext: SparkContext = new SparkContext(new SparkConf().setAppName(applicationName))
-      // new SparkEngine(sparkContext, value.applicationPropertiesFile).run(value.rawSRCName)
 
       val s = "date_format(lpad(10, '0'), 'we', 'aaa')"
       val c = functions.lit("ciao")

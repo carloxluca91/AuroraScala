@@ -1,21 +1,20 @@
-val sparkVersion = "1.6.0"
+val sparkVersion = "2.2.3"
 
 lazy val auroraScala = (project in file("."))
   .settings(
 
     name := "aurora_scala",
-    version := "1.0",
-    scalaVersion := "2.10.5",
+    version := "0.0.1",
+    scalaVersion := "2.11.8",
     scalacOptions ++= Seq(
 
-      "-target:jvm-1.7",
       "-encoding", "UTF-8"
     ),
 
     libraryDependencies += ("org.apache.spark" %% "spark-core" % sparkVersion % "provided"),
     libraryDependencies += ("org.apache.spark" %% "spark-sql" % sparkVersion % "provided"),
-    libraryDependencies += ("org.apache.spark" %% "spark-hive" % sparkVersion % "provided"),
     libraryDependencies += ("com.github.scopt" %% "scopt" % "3.3.0"),
+    libraryDependencies += ("mysql" % "mysql-connector-java" % "5.1.47"),
 
     (unmanagedResources in Compile) := (unmanagedResources in Compile)
       .value
