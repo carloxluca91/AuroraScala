@@ -7,28 +7,37 @@ import scala.util.matching.Regex
 
 abstract class ETLFunction(val column: Column, val functionToApply: String, val signature: Regex) {
 
-  protected final val logger: Logger = Logger.getLogger(getClass)
+  private final val logger: Logger = Logger.getLogger(getClass)
   protected final val signatureMatch: Regex.Match = signature.findFirstMatchIn(functionToApply).get
   protected final val functionName: String = signatureMatch.group(1)
 
   logger.info(s"Identified function $functionName")
 
-  protected final val nestedFunctionOpt: Option[String] = Option(signatureMatch.group(2))
+  protected final val nestedFunctionGroup2Opt: Option[String] = Option(signatureMatch.group(2))
+  protected final val nestedFunctionGroup3Opt: Option[String] = Option(signatureMatch.group(3))
   protected final val nestedFunctionCol: Column = getNestedFunctionCol
 
-  protected def getNestedFunctionCol: Column = {
+  private def getNestedFunctionCol: Column = {
 
-    nestedFunctionOpt match {
+    nestedFunctionGroup2Opt match {
 
       case None =>
 
         logger.info("No further nested function has been found")
         column
 
-      case Some(value) =>
+      case Some(group2Value) =>
 
-        logger.info(s"Nested function identified: $value")
-        Factory(column, value)
+        logger.info(s"Identified string related to a nested function: $group2Value")
+        val nestedFunctionValue: String = nestedFunctionGroup3Opt match {
+
+          case None => group2Value
+          case Some(group3Value) => group3Value
+        }
+
+        logger.info(s"Nested function \"clean\" definition: $nestedFunctionValue")
+
+        Factory(column, nestedFunctionValue)
     }
   }
 

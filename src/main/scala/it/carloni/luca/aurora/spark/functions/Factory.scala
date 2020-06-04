@@ -23,6 +23,8 @@ object Factory {
         case Signature.dateFormat => new DateFormat(column, functionToApply).transform
         case Signature.lpad => new Lpad(column, functionToApply).transform
         case Signature.rpad => new Rpad(column, functionToApply).transform
+        case Signature.toDate => new ToDateFunction(column, functionToApply).transform
+        case Signature.toTimestamp => new ToTimestampFunction(column, functionToApply).transform
       }
     }
 

@@ -1,11 +1,11 @@
-package it.carloni.luca.aurora.spark.engine
+package it.carloni.luca.aurora.spark.engines
 
-import it.carloni.luca.aurora.spark.exceptions.NoSpecificationException
+import it.carloni.luca.aurora.spark.exceptions.{MultipleRdSourceException, MultipleTrdDestinationException, NoSpecificationException}
 import org.apache.log4j.Logger
 import org.apache.spark.sql.functions.col
 import org.apache.spark.sql.{DataFrame, Row}
 
-class SparkEngine(applicationPropertiesFile: String)
+class DataLoadEngine(applicationPropertiesFile: String)
   extends AbstractEngine(applicationPropertiesFile) {
 
   private final val logger = Logger.getLogger(getClass)
@@ -49,9 +49,26 @@ class SparkEngine(applicationPropertiesFile: String)
 
       else {
 
-        //TODO: eccezione MultipleRawSourceException
+        logger.error(s"Multiple sources or destination found within specification of BANCLL $bancllName")
+        val exceptionToThrow: Exception = if (!rawSRCTableNames.length.equals(1)) {
+
+          logger.error(s"Multiple sources found within specification of BANCLL $bancllName")
+          new MultipleRdSourceException(bancllName, rawSRCTableNames)
+        }
+
+        else {
+
+          logger.error(s"Multiple destination found within specification of BANCLL $bancllName")
+          new MultipleTrdDestinationException(bancllName, trustedTableNames)
+        }
+
+        throw exceptionToThrow
       }
     }
-    else throw new NoSpecificationException(bancllName)
+    else {
+
+      logger.error(s"Unable to retrieve any specification for BANCLL $bancllName. Related exception will be thrown")
+      throw new NoSpecificationException(bancllName)
+    }
   }
 }

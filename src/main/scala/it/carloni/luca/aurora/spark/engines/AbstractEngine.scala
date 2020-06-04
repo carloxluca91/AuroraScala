@@ -1,9 +1,10 @@
-package it.carloni.luca.aurora.spark.engine
+package it.carloni.luca.aurora.spark.engines
 
 import java.io.File
 
 import org.apache.commons.configuration.PropertiesConfiguration
 import org.apache.log4j.Logger
+import org.apache.spark.sql
 import org.apache.spark.sql.{DataFrame, DataFrameReader, SaveMode, SparkSession}
 
 import scala.util.{Failure, Success, Try}
@@ -11,33 +12,31 @@ import scala.util.{Failure, Success, Try}
 abstract class AbstractEngine(private final val applicationPropertiesFile: String) {
 
   private final val logger = Logger.getLogger(getClass)
-
-  logger.info("Trying to create SparkSession")
-
-  protected final val sparkSession: SparkSession = SparkSession.builder().getOrCreate()
+  protected final val sparkSession: SparkSession = getOrCreateSparkSession
   protected final val jobProperties: PropertiesConfiguration = new PropertiesConfiguration()
   loadJobProperties(applicationPropertiesFile)
 
-  logger.info(s"Successfully created SparkSession for application ${sparkSession.sparkContext.appName}")
-  logger.info(s"Spark application UI url: ${sparkSession.sparkContext.uiWebUrl.get}")
+  // JDBC OPTIONS AND DATAFRAME READER
+  protected final val jdbcUrl: String = jobProperties.getString("jdbc.url")
+  protected final val jdbcUser: String = jobProperties.getString("jdbc.user")
+  protected final val jdbcPassword: String = jobProperties.getString("jdbc.password")
+  protected final val jdbcUseSSL: String = jobProperties.getString("jdbc.useSSL")
+  private final val jdbcOptions: Map[String, String] = Map(
 
-  // JDBC SETTINGS
-  private final val jdbcUrl: String = jobProperties.getString("jdbc.url")
-  private final val jdbcDriverClassName: String = jobProperties.getString("jdbc.driver.className")
-  private final val jdbcUser: String = jobProperties.getString("jdbc.user")
-  private final val jdbcPassword: String = jobProperties.getString("jdbc.password")
+    "url" -> jdbcUrl,
+    "driver" -> jobProperties.getString("jdbc.driver.className"),
+    "user" -> jdbcUser,
+    "passowrd" -> jdbcPassword,
+    "useSSL" -> jdbcUseSSL
+  )
 
-  // JDBC DATAFRAME READER
   private final val jdbcReader: DataFrameReader = sparkSession.read
     .format("jdbc")
-    .option("url", jdbcUrl)
-    .option("driver", jdbcDriverClassName)
-    .option("user", jdbcUser)
-    .option("password", jdbcPassword)
+    .options(jdbcOptions)
 
   // DATABASES
-  protected final val pcAuroraDBName: String = jobProperties.getString("database.pc_aurora.name")
-  protected final val lakeCedacriDBName: String = jobProperties.getString("database.lake_cedacri.name")
+  protected final val pcAuroraDBName: String = jobProperties.getString("database.pc_aurora")
+  protected final val lakeCedacriDBName: String = jobProperties.getString("database.lake_cedacri")
 
   // TABLES
   protected final val mappingSpecificationTBLName: String = jobProperties.getString("table.mapping_specification.name")
@@ -45,6 +44,19 @@ abstract class AbstractEngine(private final val applicationPropertiesFile: Strin
 
   protected final val dataLoadLogTBLName: String = jobProperties.getString("table.dataload_log.name")
   protected final val dataLoadLogFullTBLName: String = s"$pcAuroraDBName.$dataLoadLogTBLName"
+
+  private def getOrCreateSparkSession: SparkSession = {
+
+    logger.info("Trying to get or create SparkSession")
+
+    val sparkSession: sql.SparkSession = SparkSession
+      .builder()
+      .getOrCreate()
+
+    logger.info(s"Successfully created SparkSession for application ${sparkSession.sparkContext.appName}")
+    logger.info(s"Spark application UI url: ${sparkSession.sparkContext.uiWebUrl.get}")
+    sparkSession
+  }
 
   private def loadJobProperties(propertiesFile: String): Unit = {
 
@@ -94,10 +106,7 @@ abstract class AbstractEngine(private final val applicationPropertiesFile: Strin
 
     val tryWriteDfToJDBC: Try[Unit] = Try(outputDataFrame.write
       .format("jdbc")
-      .option("url", jdbcUrl)
-      .option("driver", jdbcDriverClassName)
-      .option("user", jdbcUser)
-      .option("password", jdbcPassword)
+      .options(jdbcOptions)
       .option("dbtable", fullTableName)
       .mode(saveMode)
       .save())
