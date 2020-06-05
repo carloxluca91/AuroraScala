@@ -43,7 +43,7 @@ abstract class AbstractEngine(private final val applicationPropertiesFile: Strin
 
   // TABLES
   protected final val mappingSpecificationTBLName: String = jobProperties.getString("table.mapping_specification.name")
-  protected final val dataLoadLogTBLName: String = jobProperties.getString("table.dataload_log.name")
+  protected final val dataLoadLogTBLName: String = jobProperties.getString("table.sourceload_log.name")
   protected final val lookupSpecificationTBLName: String = jobProperties.getString("table.lookup.name")
 
   private def getOrCreateSparkSession: SparkSession = {
@@ -77,6 +77,7 @@ abstract class AbstractEngine(private final val applicationPropertiesFile: Strin
   protected def insertIntoDataloadLog(branchName: String,
                                       bancllNameOpt: Option[String],
                                       dtBusinessDateOpt: Option[String],
+                                      impactedTable: String,
                                       exceptionMsgOpt: Option[String] = None): Unit = {
 
     import java.util.Collections
@@ -103,15 +104,16 @@ abstract class AbstractEngine(private final val applicationPropertiesFile: Strin
     val dataloadRecord: Row = Row(applicationId,
       applicationName,
       branchName,
-      bancllName,
-      dtBusinessDate,
       applicationStartTime,
       applicationEndTime,
+      bancllName,
+      dtBusinessDate,
+      impactedTable,
       exceptionMessage,
       applicationFinishCode,
       applicationFinishStatus)
 
-    val dataloadTableStringSchema: String = jobProperties.getString("table.dataload_log.schema")
+    val dataloadTableStringSchema: String = jobProperties.getString("table.sourceload_log.schema")
     val dataloadRecordDfSchema: StructType = retrieveStructTypeFromString(dataloadTableStringSchema)
     val dataloadRecordDf: DataFrame = sparkSession.createDataFrame(Collections.singletonList(dataloadRecord), dataloadRecordDfSchema)
     writeToJDBC(dataloadRecordDf, pcAuroraDBName, dataLoadLogTBLName, SaveMode.Append)

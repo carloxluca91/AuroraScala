@@ -14,6 +14,8 @@ class InitialLoadEngine(applicationPropertiesFile: String)
 
   def run(): Unit = {
 
+    Class.forName("com.mysql.jdbc.Driver")
+
     val jdbcUrlUseSSLConnectionString: String = s"$jdbcUrl/?useSSL=$jdbcUseSSL"
     logger.info(s"Attempting to connect to JDBC url $jdbcUrlUseSSLConnectionString with credentials ($jdbcUser, $jdbcPassword)")
     val jdbcConnection: Connection = DriverManager.getConnection(jdbcUrlUseSSLConnectionString, jdbcUser, jdbcPassword)
@@ -25,14 +27,12 @@ class InitialLoadEngine(applicationPropertiesFile: String)
       case Failure(exception) =>
 
         logger.error(s"Error while trying to load table $pcAuroraDBName.$mappingSpecificationTBLName")
-        insertIntoDataloadLog("INITIAL_LOAD",
-        bancllNameOpt = None,
-        dtBusinessDateOpt = None,
-        exceptionMsgOpt = Some(exception.getMessage))
+        logger.error(s"Message: ${exception.getMessage}")
+        exception.printStackTrace()
 
       case Success(_) =>
 
-        logger.info(s"Successfully created table $pcAuroraDBName.$mappingSpecificationTBLName")
+        logger.info(s"Successfully loaded table $pcAuroraDBName.$mappingSpecificationTBLName")
     }
 
     Try(createLookupTable()) match {
@@ -40,14 +40,12 @@ class InitialLoadEngine(applicationPropertiesFile: String)
       case Failure(exception) =>
 
         logger.error(s"Error while trying to load table $pcAuroraDBName.$lookupSpecificationTBLName")
-        insertIntoDataloadLog("INITIAL_LOAD",
-          bancllNameOpt = None,
-          dtBusinessDateOpt = None,
-          exceptionMsgOpt = Some(exception.getMessage))
+        logger.error(s"Message: ${exception.getMessage}")
+        exception.printStackTrace()
 
       case Success(_) =>
 
-        logger.info(s"Successfully created table $pcAuroraDBName.$lookupSpecificationTBLName")
+        logger.info(s"Successfully loaded table $pcAuroraDBName.$lookupSpecificationTBLName")
     }
 
     logger.info("Attempting to close JDBC connection")
@@ -89,15 +87,6 @@ class InitialLoadEngine(applicationPropertiesFile: String)
 
     databasesToCreate
       .foreach(createDatabaseIfNotExists(_, existingDatabases, connection))
-  }
-
-  private def existsTableInDatabase(databaseName: String, tableName: String, databaseMetaData: DatabaseMetaData): Boolean = {
-
-    val resultSet: ResultSet = databaseMetaData.getTables(databaseName, null, tableName, null)
-    val existsTable: Boolean = resultSet.next()
-    if (existsTable) logger.info(s"Table $databaseName.$tableName already exists")
-    else logger.info(s"Table $databaseName.$tableName does not exist yet")
-    existsTable
   }
 
   private def createMappingSpecificationTable(): Unit = {

@@ -7,6 +7,8 @@ object ScoptOption extends Enumeration {
   import scala.language.implicitConversions
   implicit def valueToScoptOptionVal(x: Value): Val = x.asInstanceOf[Val]
 
-  val rawSourceNameOption: Val = Val('r', "raw-source", "Raw source (BANCLL) for which ingestion must be triggered")
-  val fileOption: Val = Val('f', "file", "Name of .properties file supplied via --files option of spark-submit")
+  val applicationBranchOption: Val = Val('b', "branch", "Application branch to run")
+  val propertiesOption: Val = Val('p', "properties", "Name of .properties file")
+  val sourceOption: Val = Val('s', "source", "Source name (BANCLL) for which ingestion must be triggered")
+  val businessDateOption: Val = Val('d', "date", "Working business date")
 }
