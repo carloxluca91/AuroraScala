@@ -35,7 +35,7 @@ abstract class ETLFunction(val column: Column, val functionToApply: String, val 
           case Some(group3Value) => group3Value
         }
 
-        logger.info(s"Nested function \"clean\" definition: $nestedFunctionValue")
+        logger.info(s"Nested function clean definition: $nestedFunctionValue")
 
         Factory(column, nestedFunctionValue)
     }

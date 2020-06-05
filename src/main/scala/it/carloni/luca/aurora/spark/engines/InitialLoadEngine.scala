@@ -1,8 +1,11 @@
 package it.carloni.luca.aurora.spark.engines
 
-import java.sql.{Connection, DatabaseMetaData, DriverManager, ResultSet, Statement}
+import java.sql._
 
 import org.apache.log4j.Logger
+import org.apache.spark.sql.{DataFrame, SaveMode}
+
+import scala.util.{Failure, Success, Try}
 
 class InitialLoadEngine(applicationPropertiesFile: String)
   extends AbstractEngine(applicationPropertiesFile) {
@@ -12,15 +15,70 @@ class InitialLoadEngine(applicationPropertiesFile: String)
   def run(): Unit = {
 
     val jdbcUrlUseSSLConnectionString: String = s"$jdbcUrl/?useSSL=$jdbcUseSSL"
-
     logger.info(s"Attempting to connect to JDBC url $jdbcUrlUseSSLConnectionString with credentials ($jdbcUser, $jdbcPassword)")
-
     val jdbcConnection: Connection = DriverManager.getConnection(jdbcUrlUseSSLConnectionString, jdbcUser, jdbcPassword)
-
     logger.info(s"Successfully connected to JDBC url $jdbcUrlUseSSLConnectionString with credentials ($jdbcUser, $jdbcPassword)")
-    val databaseMetaData: DatabaseMetaData = jdbcConnection.getMetaData
 
-    val resultSet: ResultSet = databaseMetaData.getCatalogs
+    createDatabasesIfNotExist(Seq(lakeCedacriDBName, pcAuroraDBName), jdbcConnection)
+    Try(createMappingSpecificationTable()) match {
+
+      case Failure(exception) =>
+
+        logger.error(s"Error while trying to load table $pcAuroraDBName.$mappingSpecificationTBLName")
+        insertIntoDataloadLog("INITIAL_LOAD",
+        bancllNameOpt = None,
+        dtBusinessDateOpt = None,
+        exceptionMsgOpt = Some(exception.getMessage))
+
+      case Success(_) =>
+
+        logger.info(s"Successfully created table $pcAuroraDBName.$mappingSpecificationTBLName")
+    }
+
+    Try(createLookupTable()) match {
+
+      case Failure(exception) =>
+
+        logger.error(s"Error while trying to load table $pcAuroraDBName.$lookupSpecificationTBLName")
+        insertIntoDataloadLog("INITIAL_LOAD",
+          bancllNameOpt = None,
+          dtBusinessDateOpt = None,
+          exceptionMsgOpt = Some(exception.getMessage))
+
+      case Success(_) =>
+
+        logger.info(s"Successfully created table $pcAuroraDBName.$lookupSpecificationTBLName")
+    }
+
+    logger.info("Attempting to close JDBC connection")
+    jdbcConnection.close()
+    logger.info("Successfully closed JDBC connection")
+  }
+
+  private def createDatabasesIfNotExist(databasesToCreate: Seq[String], connection: Connection): Unit = {
+
+    def createDatabaseIfNotExists(databaseToCreate: String, existingDatabases: Seq[String], connection: Connection): Unit = {
+
+      val databaseToCreateUpper: String = databaseToCreate.toUpperCase
+      if (existingDatabases.contains(databaseToCreateUpper)) {
+
+        logger.info(s"Database $databaseToCreateUpper already exists, so it will not be recreated")
+      }
+
+      else {
+
+        val createDbStatement: Statement = connection.createStatement()
+        createDbStatement.executeUpdate(s"CREATE DATABASE IF NOT EXISTS $databaseToCreate")
+        logger.info(s"Successfully created database $databaseToCreate")
+      }
+    }
+
+    // RESULT SET CONTAINING DATABASE NAMES
+    val resultSet: ResultSet = connection
+      .getMetaData
+      .getCatalogs
+
+    // EXTRACT THOSE NAMES
     val existingDatabases: Seq[String] = Iterator.continually((resultSet.next(), resultSet))
       .takeWhile(_._1)
       .map(_._2.getString("TABLE_CAT"))
@@ -28,23 +86,69 @@ class InitialLoadEngine(applicationPropertiesFile: String)
       .toSeq
 
     logger.info(s"Existing databases: ${existingDatabases.mkString(", ")}")
-    createDatabaseIfNotExists(lakeCedacriDBName, existingDatabases, jdbcConnection)
-    createDatabaseIfNotExists(pcAuroraDBName, existingDatabases, jdbcConnection)
+
+    databasesToCreate
+      .foreach(createDatabaseIfNotExists(_, existingDatabases, connection))
   }
 
-  private def createDatabaseIfNotExists(databaseToCreate: String, existingDatabases: Seq[String], connection: Connection): Unit = {
+  private def existsTableInDatabase(databaseName: String, tableName: String, databaseMetaData: DatabaseMetaData): Boolean = {
 
-    val databaseToCreateUpper: String = databaseToCreate.toUpperCase
-    if (existingDatabases.contains(databaseToCreateUpper)) {
+    val resultSet: ResultSet = databaseMetaData.getTables(databaseName, null, tableName, null)
+    val existsTable: Boolean = resultSet.next()
+    if (existsTable) logger.info(s"Table $databaseName.$tableName already exists")
+    else logger.info(s"Table $databaseName.$tableName does not exist yet")
+    existsTable
+  }
 
-      logger.info(s"Database $databaseToCreateUpper already exists, so it will not be recreated")
-    }
+  private def createMappingSpecificationTable(): Unit = {
 
-    else {
+    val mappingSpecificationFilePath: String = jobProperties.getString("table.mapping_specification.file.path")
+    val mappingSpecificationFileSep: String = jobProperties.getString("table.mapping_specification.file.sep")
+    val mappingSpecificationFileHeader: Boolean = jobProperties.getBoolean("table.mapping_specification.file.header")
+    val mappingSpecificationFileSchema: String = jobProperties.getString("table.mapping_specification.schema")
 
-      val createDbStatement: Statement = connection.createStatement()
-      createDbStatement.executeUpdate(s"CREATE DATABASE IF NOT EXISTS $databaseToCreate")
-      logger.info(s"Successfully created database $databaseToCreate")
-    }
+    logger.info(s"Mapping specification file: $mappingSpecificationFilePath")
+    logger.info(s"Separator to be used for file reading: $mappingSpecificationFileSep")
+    logger.info(s"Does the file has a header? $mappingSpecificationFileHeader")
+
+    logger.info(s"Attempting to load mapping specification file as a spark.sql.DataFrame")
+
+    val mappingSpecificationDf: DataFrame = sparkSession.read
+      .format("csv")
+      .option("path", mappingSpecificationFilePath)
+      .option("sep", mappingSpecificationFileSep)
+      .option("header", mappingSpecificationFileHeader)
+      .schema(retrieveStructTypeFromString(mappingSpecificationFileSchema))
+      .load()
+
+    logger.info(s"Successfully loaded mapping specification file as a spark.sql.DataFrame")
+    mappingSpecificationDf.printSchema()
+    writeToJDBC(mappingSpecificationDf, pcAuroraDBName, mappingSpecificationTBLName, SaveMode.Overwrite)
+  }
+
+  private def createLookupTable(): Unit = {
+
+    val lookupSpecificationFilePath: String = jobProperties.getString("table.lookup.file.path")
+    val lookupSpecificationFileSep: String = jobProperties.getString("table.lookup.file.sep")
+    val lookupSpecificationFileHeader: Boolean = jobProperties.getBoolean("table.lookup.file.header")
+    val lookupSpecificationFileSchema: String = jobProperties.getString("table.lookup.schema")
+
+    logger.info(s"Lookup specification file: $lookupSpecificationFilePath")
+    logger.info(s"Separator to be used for file reading: $lookupSpecificationFileSep")
+    logger.info(s"Does the file has a header? $lookupSpecificationFileHeader")
+
+    logger.info(s"Attempting to load lookup specification file as a spark.sql.DataFrame")
+
+    val lookupSpecificationDf: DataFrame = sparkSession.read
+      .format("csv")
+      .option("path", lookupSpecificationFilePath)
+      .option("sep", lookupSpecificationFileSep)
+      .option("header", lookupSpecificationFileHeader)
+      .schema(retrieveStructTypeFromString(lookupSpecificationFileSchema))
+      .load()
+
+    logger.info(s"Successfully loaded lookup specification file as a spark.sql.DataFrame")
+    lookupSpecificationDf.printSchema()
+    writeToJDBC(lookupSpecificationDf, pcAuroraDBName, lookupSpecificationTBLName, SaveMode.Overwrite)
   }
 }

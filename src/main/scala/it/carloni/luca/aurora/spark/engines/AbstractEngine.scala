@@ -1,10 +1,13 @@
 package it.carloni.luca.aurora.spark.engines
 
 import java.io.File
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
 
 import org.apache.commons.configuration.PropertiesConfiguration
 import org.apache.log4j.Logger
 import org.apache.spark.sql
+import org.apache.spark.sql.types.{DataType, DataTypes, StructField, StructType}
 import org.apache.spark.sql.{DataFrame, DataFrameReader, SaveMode, SparkSession}
 
 import scala.util.{Failure, Success, Try}
@@ -40,10 +43,8 @@ abstract class AbstractEngine(private final val applicationPropertiesFile: Strin
 
   // TABLES
   protected final val mappingSpecificationTBLName: String = jobProperties.getString("table.mapping_specification.name")
-  protected final val mappingSpecificationFullTBLName: String = s"$pcAuroraDBName.$mappingSpecificationTBLName"
-
   protected final val dataLoadLogTBLName: String = jobProperties.getString("table.dataload_log.name")
-  protected final val dataLoadLogFullTBLName: String = s"$pcAuroraDBName.$dataLoadLogTBLName"
+  protected final val lookupSpecificationTBLName: String = jobProperties.getString("table.lookup.name")
 
   private def getOrCreateSparkSession: SparkSession = {
 
@@ -73,6 +74,49 @@ abstract class AbstractEngine(private final val applicationPropertiesFile: Strin
     }
   }
 
+  protected def insertIntoDataloadLog(branchName: String,
+                                      bancllNameOpt: Option[String],
+                                      dtBusinessDateOpt: Option[String],
+                                      exceptionMsgOpt: Option[String] = None): Unit = {
+
+    import java.util.Collections
+    import java.sql.{Date, Timestamp}
+    import java.time.{Instant, ZoneId, ZonedDateTime}
+
+    import org.apache.spark.sql.Row
+
+    val applicationId: String = sparkSession.sparkContext.applicationId
+    val applicationName: String = sparkSession.sparkContext.appName
+    val bancllName: String = bancllNameOpt.orNull
+    val dtBusinessDate: Date = if (dtBusinessDateOpt.nonEmpty)
+      Date.valueOf(LocalDate.parse(dtBusinessDateOpt.get,
+          DateTimeFormatter.ofPattern("yyyy-MM-dd")))
+    else null
+
+    val applicationStartTime: Timestamp = Timestamp.from(Instant.ofEpochSecond(sparkSession.sparkContext.startTime))
+    val applicationEndTime: Timestamp = Timestamp.from(ZonedDateTime.now(ZoneId.of("Europe/Rome")).toInstant)
+
+    val exceptionMessage: String = exceptionMsgOpt.orNull
+    val applicationFinishCode: Int = if (exceptionMsgOpt.isEmpty) 0 else -1
+    val applicationFinishStatus: String = if (exceptionMsgOpt.isEmpty) "SUCCESSED" else "FAILED"
+
+    val dataloadRecord: Row = Row(applicationId,
+      applicationName,
+      branchName,
+      bancllName,
+      dtBusinessDate,
+      applicationStartTime,
+      applicationEndTime,
+      exceptionMessage,
+      applicationFinishCode,
+      applicationFinishStatus)
+
+    val dataloadTableStringSchema: String = jobProperties.getString("table.dataload_log.schema")
+    val dataloadRecordDfSchema: StructType = retrieveStructTypeFromString(dataloadTableStringSchema)
+    val dataloadRecordDf: DataFrame = sparkSession.createDataFrame(Collections.singletonList(dataloadRecord), dataloadRecordDfSchema)
+    writeToJDBC(dataloadRecordDf, pcAuroraDBName, dataLoadLogTBLName, SaveMode.Append)
+  }
+
   protected def readFromJDBC(databaseName: String, tableName: String): DataFrame = {
 
     val fullTableName: String = s"$databaseName.$tableName"
@@ -98,6 +142,37 @@ abstract class AbstractEngine(private final val applicationPropertiesFile: Strin
     }
   }
 
+  protected def retrieveStructTypeFromString(stringSchema: String): StructType = {
+
+    def resolveDataType(columnType: String): DataType = {
+
+      columnType.toLowerCase match {
+
+        case "string" => DataTypes.StringType
+        case "int" => DataTypes.IntegerType
+        case "date" => DataTypes.DateType
+        case "timestamp" => DataTypes.TimestampType
+      }
+    }
+
+    new StructType(stringSchema
+      .split(";")
+      .map(columnSpecification => {
+
+        // ELIMINATE PARENTHESES AND SPLIT BY ", " IN ORDER TO EXTRACT NAME, TYPE AND NULLABLE FLAG
+        val columnDetails: Array[String] = columnSpecification
+          .replaceAll("\\(", "")
+          .split(",\\s")
+
+        val columnName: String = columnDetails(0)
+        val columnType: DataType = resolveDataType(columnDetails(1))
+        val nullable: Boolean = if (columnDetails(2).equalsIgnoreCase("true")) true else false
+
+        logger.info(s"Defining column with name $columnName, type $columnType, nullable $nullable")
+        StructField(columnDetails(0), columnType, nullable)
+      }))
+  }
+
   protected def writeToJDBC(outputDataFrame: DataFrame, databaseName: String, tableName: String, saveMode: SaveMode): Unit = {
 
     val fullTableName: String = s"$databaseName.$tableName"
@@ -115,13 +190,13 @@ abstract class AbstractEngine(private final val applicationPropertiesFile: Strin
 
       case Failure(exception) =>
 
-        logger.error(s"Error while trying to write dataframe to JDBC table $fullTableName with savemode $saveMode. Rationale: ${exception.getMessage}")
+        logger.error(s"Error while trying to write dataframe to JDBC table $fullTableName using savemode $saveMode. Rationale: ${exception.getMessage}")
         exception.printStackTrace()
         throw exception
 
       case Success(_) =>
 
-        logger.info(s"Successfully saved dataframe into JDBC table $fullTableName with savemode $saveMode")
+        logger.info(s"Successfully saved dataframe into JDBC table $fullTableName using savemode $saveMode")
     }
   }
 }

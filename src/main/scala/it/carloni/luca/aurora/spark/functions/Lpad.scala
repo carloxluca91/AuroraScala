@@ -1,10 +1,13 @@
 package it.carloni.luca.aurora.spark.functions
 
+import org.apache.log4j.Logger
 import org.apache.spark.sql.Column
 import org.apache.spark.sql.functions.lpad
 
 class Lpad(column: Column, functionToApply: String)
   extends ETLFunction(column, functionToApply, Signature.lpad.signatureRegex) {
+
+  private final val logger: Logger = Logger.getLogger(getClass)
 
   override def transform: Column = {
 
@@ -13,6 +16,5 @@ class Lpad(column: Column, functionToApply: String)
 
     logger.info(s"function: $functionName, length to pad: $paddingLength, padding charsequence: $paddingString ")
     lpad(nestedFunctionCol, paddingLength, paddingString)
-
   }
 }
