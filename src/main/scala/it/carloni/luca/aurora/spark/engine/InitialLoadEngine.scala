@@ -1,4 +1,4 @@
-package it.carloni.luca.aurora.spark.engines
+package it.carloni.luca.aurora.spark.engine
 
 import java.sql._
 

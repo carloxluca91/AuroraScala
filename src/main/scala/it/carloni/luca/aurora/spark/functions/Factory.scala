@@ -20,9 +20,9 @@ object Factory {
       val matchingSignature: Signature.Value = matchingSignatures.head
       matchingSignature match {
 
-        case Signature.dateFormat => new DateFormat(column, functionToApply).transform
-        case Signature.lpad => new Lpad(column, functionToApply).transform
-        case Signature.rpad => new Rpad(column, functionToApply).transform
+        case Signature.dateFormat => new DateFormatFunction(column, functionToApply).transform
+        case Signature.lpad => new LpadFunction(column, functionToApply).transform
+        case Signature.rpad => new RpadFunction(column, functionToApply).transform
         case Signature.toDate => new ToDateFunction(column, functionToApply).transform
         case Signature.toTimestamp => new ToTimestampFunction(column, functionToApply).transform
       }

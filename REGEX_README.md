@@ -12,6 +12,7 @@ If not present, the match will extract null.
 Then, a group for each parameter of function identified by Group 1, if any. Thus
 
 `[a.4]` Group 4: first parameter of function identified by Group 1
+
 `[a.5]` Group 5: second parameter of function identified by Group 1
 
 and so on ... )

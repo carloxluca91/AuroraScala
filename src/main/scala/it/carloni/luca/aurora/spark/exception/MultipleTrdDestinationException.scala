@@ -1,4 +1,4 @@
-package it.carloni.luca.aurora.spark.exceptions
+package it.carloni.luca.aurora.spark.exception
 
 class MultipleTrdDestinationException(bancllName: String, trdDestinations: List[String])
   extends Exception(MultipleTrdDestinationException.msg

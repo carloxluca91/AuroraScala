@@ -1,4 +1,4 @@
-package it.carloni.luca.aurora.spark.exceptions
+package it.carloni.luca.aurora.spark.exception
 
 class NoSpecificationException(bancllName: String)
   extends Exception(NoSpecificationException.msg.format(bancllName))

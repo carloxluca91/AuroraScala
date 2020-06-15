@@ -1,6 +1,6 @@
-package it.carloni.luca.aurora.spark.engines
+package it.carloni.luca.aurora.spark.engine
 
-import it.carloni.luca.aurora.spark.exceptions.{MultipleRdSourceException, MultipleTrdDestinationException, NoSpecificationException}
+import it.carloni.luca.aurora.spark.exception.{MultipleRdSourceException, MultipleTrdDestinationException, NoSpecificationException}
 import org.apache.log4j.Logger
 import org.apache.spark.sql.functions.col
 import org.apache.spark.sql.{DataFrame, Row}

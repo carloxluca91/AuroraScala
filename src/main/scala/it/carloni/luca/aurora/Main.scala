@@ -4,7 +4,7 @@ import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
 import it.carloni.luca.aurora.option.{Branch, ScoptOption}
-import it.carloni.luca.aurora.spark.engines.{InitialLoadEngine, SourceLoadEngine}
+import it.carloni.luca.aurora.spark.engine.{InitialLoadEngine, SourceLoadEngine}
 import org.apache.log4j.Logger
 import scopt.OptionParser
 

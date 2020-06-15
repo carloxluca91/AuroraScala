@@ -4,7 +4,7 @@ import org.apache.log4j.Logger
 import org.apache.spark.sql.Column
 import org.apache.spark.sql.functions.{from_unixtime, unix_timestamp}
 
-class DateFormat(column: Column, functionToApply: String)
+class DateFormatFunction(column: Column, functionToApply: String)
   extends ETLFunction(column, functionToApply, Signature.dateFormat.signatureRegex) {
 
   private final val logger: Logger = Logger.getLogger(getClass)

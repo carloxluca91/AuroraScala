@@ -1,4 +1,4 @@
-package it.carloni.luca.aurora.spark.exceptions
+package it.carloni.luca.aurora.spark.exception
 
 class MultipleRdSourceException(bancllName: String, multipleRawSources: List[String])
   extends Exception(MultipleRdSourceException.msg

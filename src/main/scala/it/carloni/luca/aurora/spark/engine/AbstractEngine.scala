@@ -1,4 +1,4 @@
-package it.carloni.luca.aurora.spark.engines
+package it.carloni.luca.aurora.spark.engine
 
 import java.io.File
 import java.time.LocalDate
@@ -29,7 +29,7 @@ abstract class AbstractEngine(private final val applicationPropertiesFile: Strin
     "url" -> jdbcUrl,
     "driver" -> jobProperties.getString("jdbc.driver.className"),
     "user" -> jdbcUser,
-    "passowrd" -> jdbcPassword,
+    "password" -> jdbcPassword,
     "useSSL" -> jdbcUseSSL
   )
 
