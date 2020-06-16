@@ -2,8 +2,11 @@ package it.carloni.luca.aurora.option
 
 object Branch extends Enumeration {
 
-  type Branch = Value
+  protected case class BranchName(name: String) extends super.Val(name)
 
-  val initialLoad: Value = Value("INITIAL_LOAD")
-  val sourceLoad: Value = Value("SOURCE_LOAD")
+  import scala.language.implicitConversions
+  implicit def asBranchName(x: Value): BranchName = x.asInstanceOf[BranchName]
+
+  val InitialLoad: BranchName = BranchName("INITIAL_LOAD")
+  val SourceLoad: BranchName = BranchName("SOURCE_LOAD")
 }

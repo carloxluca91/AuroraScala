@@ -4,6 +4,8 @@ import java.io.File
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
+import it.carloni.luca.aurora.spark.data.LoggingRecord
+import it.carloni.luca.aurora.time.DateFormat
 import org.apache.commons.configuration.PropertiesConfiguration
 import org.apache.log4j.Logger
 import org.apache.spark.sql
@@ -44,7 +46,7 @@ abstract class AbstractEngine(private final val applicationPropertiesFile: Strin
   // TABLES
   protected final val mappingSpecificationTBLName: String = jobProperties.getString("table.mapping_specification.name")
   protected final val dataLoadLogTBLName: String = jobProperties.getString("table.sourceload_log.name")
-  protected final val lookupSpecificationTBLName: String = jobProperties.getString("table.lookup.name")
+  protected final val lookupTBLName: String = jobProperties.getString("table.lookup.name")
 
   private def getOrCreateSparkSession: SparkSession = {
 
@@ -54,7 +56,7 @@ abstract class AbstractEngine(private final val applicationPropertiesFile: Strin
       .builder()
       .getOrCreate()
 
-    logger.info(s"Successfully created SparkSession for application ${sparkSession.sparkContext.appName}")
+    logger.info(s"Successfully got or created SparkSession for application \'${sparkSession.sparkContext.appName}\'")
     logger.info(s"Spark application UI url: ${sparkSession.sparkContext.uiWebUrl.get}")
     sparkSession
   }
@@ -74,49 +76,60 @@ abstract class AbstractEngine(private final val applicationPropertiesFile: Strin
     }
   }
 
-  protected def insertIntoDataloadLog(branchName: String,
-                                      bancllNameOpt: Option[String],
-                                      dtBusinessDateOpt: Option[String],
-                                      impactedTable: String,
-                                      exceptionMsgOpt: Option[String] = None): Unit = {
+  protected def createLoggingRecord(branchName: String,
+                                    bancllNameOpt: Option[String],
+                                    dtBusinessDateOpt: Option[String],
+                                    impactedTable: String,
+                                    exceptionMsgOpt: Option[String] = None): LoggingRecord = {
 
-    import java.util.Collections
     import java.sql.{Date, Timestamp}
     import java.time.{Instant, ZoneId, ZonedDateTime}
 
-    import org.apache.spark.sql.Row
-
     val applicationId: String = sparkSession.sparkContext.applicationId
     val applicationName: String = sparkSession.sparkContext.appName
-    val bancllName: String = bancllNameOpt.orNull
-    val dtBusinessDate: Date = if (dtBusinessDateOpt.nonEmpty)
-      Date.valueOf(LocalDate.parse(dtBusinessDateOpt.get,
-          DateTimeFormatter.ofPattern("yyyy-MM-dd")))
-    else null
+    val dtBusinessDateSQLDateOpt: Option[Date] = if (dtBusinessDateOpt.nonEmpty) {
 
-    val applicationStartTime: Timestamp = Timestamp.from(Instant.ofEpochSecond(sparkSession.sparkContext.startTime))
+      val dtBusinessDateString: String = dtBusinessDateOpt.get
+      logger.info(s"Converting $dtBusinessDateString to java.sql.Date")
+      val dtBusinessDateLocalDate: LocalDate = LocalDate.parse(dtBusinessDateString, DateTimeFormatter.ofPattern(DateFormat.DtBusinessDate.format))
+      val dtBusinessDateSQLDateOpt: Option[Date] = Some(Date.valueOf(dtBusinessDateLocalDate))
+      logger.info(s"Successfullt converted $dtBusinessDateString to java.sql.Date")
+      dtBusinessDateSQLDateOpt
+
+    } else None
+
+    val applicationStartTime: Timestamp = Timestamp.from(Instant.ofEpochMilli(sparkSession.sparkContext.startTime))
     val applicationEndTime: Timestamp = Timestamp.from(ZonedDateTime.now(ZoneId.of("Europe/Rome")).toInstant)
 
-    val exceptionMessage: String = exceptionMsgOpt.orNull
     val applicationFinishCode: Int = if (exceptionMsgOpt.isEmpty) 0 else -1
     val applicationFinishStatus: String = if (exceptionMsgOpt.isEmpty) "SUCCESSED" else "FAILED"
 
-    val dataloadRecord: Row = Row(applicationId,
+    LoggingRecord(applicationId,
       applicationName,
       branchName,
       applicationStartTime,
       applicationEndTime,
-      bancllName,
-      dtBusinessDate,
+      bancllNameOpt,
+      dtBusinessDateSQLDateOpt,
       impactedTable,
-      exceptionMessage,
+      exceptionMsgOpt,
       applicationFinishCode,
       applicationFinishStatus)
+  }
 
-    val dataloadTableStringSchema: String = jobProperties.getString("table.sourceload_log.schema")
-    val dataloadRecordDfSchema: StructType = retrieveStructTypeFromString(dataloadTableStringSchema)
-    val dataloadRecordDf: DataFrame = sparkSession.createDataFrame(Collections.singletonList(dataloadRecord), dataloadRecordDfSchema)
-    writeToJDBC(dataloadRecordDf, pcAuroraDBName, dataLoadLogTBLName, SaveMode.Append)
+  protected def insertLoggingRecords(loggingRecords: Seq[LoggingRecord]): Unit = {
+
+    import sparkSession.implicits._
+
+    logger.info("Trying to turn Seq of logging records to spark.sql.DataFrame")
+
+    val loggingRecordsDataset: DataFrame = sparkSession
+      .createDataset(loggingRecords)
+      .toDF()
+
+    logger.info("Successfully turned Seq of logging records to spark.sql.DataFrame")
+    loggingRecordsDataset.printSchema()
+    writeToJDBC(loggingRecordsDataset, pcAuroraDBName, dataLoadLogTBLName, SaveMode.Append)
   }
 
   protected def readFromJDBC(databaseName: String, tableName: String): DataFrame = {

@@ -5,6 +5,7 @@ import java.time.format.DateTimeFormatter
 
 import it.carloni.luca.aurora.option.{Branch, ScoptOption}
 import it.carloni.luca.aurora.spark.engine.{InitialLoadEngine, SourceLoadEngine}
+import it.carloni.luca.aurora.time.DateFormat
 import org.apache.log4j.Logger
 import scopt.OptionParser
 
@@ -43,12 +44,11 @@ object Main extends App {
       logger.info(value.toString)
 
       // DETECT BRANCH TO BE RUN
+      Branch.asBranchName(Branch.withName(value.applicationBranch)) match {
 
-      Branch.withName(value.applicationBranch) match {
+        case Branch.InitialLoad =>
 
-        case Branch.initialLoad =>
-
-          logger.info(s"Matched branch ${Branch.initialLoad}")
+          logger.info(s"Matched branch \'${Branch.InitialLoad.name}\'")
           case class InitialLoadConfig(propertiesFile: String = "") {
 
             override def toString: String = s"${ScoptOption.propertiesOption.text}: $propertiesFile"
@@ -58,7 +58,6 @@ object Main extends App {
 
             // DO NOT FAIL ON UNKNOWN ARGUMENTS AND DO NOT SHOW WARNING
             override def errorOnUnknownArgument = false
-
             override def reportWarning(msg: String): Unit = {}
 
             opt[String](ScoptOption.propertiesOption.shortOption, ScoptOption.propertiesOption.longOption)
@@ -77,9 +76,9 @@ object Main extends App {
               new InitialLoadEngine(value.propertiesFile).run()
           }
 
-        case Branch.sourceLoad =>
+        case Branch.SourceLoad =>
 
-          logger.info(s"Matched branch ${Branch.sourceLoad}")
+          logger.info(s"Matched branch \'${Branch.SourceLoad.name}\'")
 
           case class SourceLoadConfig(propertiesFile: String = "",
                                       bancllName: String = "",
@@ -114,10 +113,12 @@ object Main extends App {
               .required()
               .validate(inputDate => {
 
-                val businessDateFormat: String = "yyyy-MM-dd"
-                val tryParseBusinessDate: Try[LocalDate] = Try(LocalDate.parse(inputDate, DateTimeFormatter.ofPattern(businessDateFormat)))
+                val businessDateFormat: String = DateFormat.DtBusinessDate.format
+                val tryParseBusinessDate: Try[LocalDate] = Try(LocalDate.parse(inputDate,
+                  DateTimeFormatter.ofPattern(businessDateFormat)))
+
                 if (tryParseBusinessDate.isSuccess) success
-                else failure(s"Cannot parse business date. Provided $inputDate, should follow format $businessDateFormat")
+                else failure(s"Cannot parse business date. Provided \'$inputDate\', should follow format \'$businessDateFormat\'")
               })
               .action((x, c) => c.copy(businessDate = x))
           }
