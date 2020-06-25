@@ -90,7 +90,9 @@ abstract class AbstractEngine(private final val applicationPropertiesFile: Strin
 
       val dtBusinessDateString: String = dtBusinessDateOpt.get
       logger.info(s"Converting $dtBusinessDateString to java.sql.Date")
-      val dtBusinessDateLocalDate: LocalDate = LocalDate.parse(dtBusinessDateString, DateTimeFormatter.ofPattern(DateFormat.DtBusinessDate.format))
+      val dtBusinessDateLocalDate: LocalDate = LocalDate.parse(dtBusinessDateString,
+        DateTimeFormatter.ofPattern(DateFormat.DtBusinessDate.format))
+
       val dtBusinessDateSQLDateOpt: Option[Date] = Some(Date.valueOf(dtBusinessDateLocalDate))
       logger.info(s"Successfullt converted $dtBusinessDateString to java.sql.Date")
       dtBusinessDateSQLDateOpt
@@ -99,7 +101,6 @@ abstract class AbstractEngine(private final val applicationPropertiesFile: Strin
 
     val applicationStartTime: Timestamp = Timestamp.from(Instant.ofEpochMilli(sparkSession.sparkContext.startTime))
     val applicationEndTime: Timestamp = Timestamp.from(ZonedDateTime.now(ZoneId.of("Europe/Rome")).toInstant)
-
     val applicationFinishCode: Int = if (exceptionMsgOpt.isEmpty) 0 else -1
     val applicationFinishStatus: String = if (exceptionMsgOpt.isEmpty) "SUCCESSED" else "FAILED"
 
@@ -122,9 +123,7 @@ abstract class AbstractEngine(private final val applicationPropertiesFile: Strin
 
     logger.info("Trying to turn Seq of logging records to spark.sql.DataFrame")
 
-    val loggingRecordsDataset: DataFrame = sparkSession
-      .createDataset(loggingRecords)
-      .toDF()
+    val loggingRecordsDataset: DataFrame = loggingRecords.toDF()
 
     logger.info("Successfully turned Seq of logging records to spark.sql.DataFrame")
     writeToJDBC(loggingRecordsDataset, pcAuroraDBName, dataLoadLogTBLName, SaveMode.Append)
@@ -134,7 +133,7 @@ abstract class AbstractEngine(private final val applicationPropertiesFile: Strin
 
     val fullTableName: String = s"$databaseName.$tableName"
 
-    logger.info(s"Starting to load JDBC table $fullTableName")
+    logger.info(s"Starting to load JDBC table \'$fullTableName\'")
 
     val tryLoadJDBCDf: Try[DataFrame] = Try(jdbcReader
       .option("dbtable", fullTableName)
@@ -144,8 +143,8 @@ abstract class AbstractEngine(private final val applicationPropertiesFile: Strin
 
       case Failure(exception) =>
 
-        logger.error(s"Error while trying to load JDBC table $fullTableName. Rationale: ${exception.getMessage}")
-        exception.printStackTrace()
+        logger.error(s"Error while trying to load JDBC table \'$fullTableName\'")
+        logger.error("Exception stack trace: ", exception)
         throw exception
 
       case Success(value) =>
