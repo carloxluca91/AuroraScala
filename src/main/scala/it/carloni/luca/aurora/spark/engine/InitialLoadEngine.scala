@@ -23,19 +23,18 @@ class InitialLoadEngine(applicationPropertiesFile: String)
     val jdbcConnection: Connection = DriverManager.getConnection(jdbcUrlUseSSLConnectionString, jdbcUser, jdbcPassword)
     logger.info(s"Successfully connected to JDBC url $jdbcUrlUseSSLConnectionString with credentials ($jdbcUser, $jdbcPassword)")
 
-    createDatabaseIfNotExist(pcAuroraDBName, jdbcConnection)
+    createDatabaseIfNotExists(pcAuroraDBName, jdbcConnection)
     val mappingSpecificationLoadExceptionOpt: Option[String] = Try(loadMappingSpecificationTable()) match {
 
       case Failure(exception) =>
 
-        val exceptionMsg: String = exception.getMessage
-        logger.error(s"Error while trying to load table $pcAuroraDBName.$mappingSpecificationTBLName. Message: $exceptionMsg")
-        exception.printStackTrace()
-        Some(exceptionMsg)
+        logger.error(s"Error while trying to load table \'$pcAuroraDBName\'.\'$mappingSpecificationTBLName\'")
+        logger.error("Exception stack trace: " , exception)
+        Some(exception.getMessage)
 
       case Success(_) =>
 
-        logger.info(s"Successfully loaded table $pcAuroraDBName.$mappingSpecificationTBLName")
+        logger.info(s"Successfully loaded table \'$pcAuroraDBName\'.\'$mappingSpecificationTBLName\'")
         None
     }
 
@@ -43,21 +42,19 @@ class InitialLoadEngine(applicationPropertiesFile: String)
 
       case Failure(exception) =>
 
-        val exceptionMsg: String = exception.getMessage
-        logger.error(s"Error while trying to load table $pcAuroraDBName.$lookupTBLName. Message: ${exception.getMessage}")
-        exception.printStackTrace()
-        Some(exceptionMsg)
+        logger.error(s"Error while trying to load table \'$pcAuroraDBName\'.\'$lookupTBLName\'")
+        logger.error("Exception stack trace: " , exception)
+        Some(exception.getMessage)
 
       case Success(_) =>
 
-        logger.info(s"Successfully loaded table $pcAuroraDBName.$lookupTBLName")
+        logger.info(s"Successfully loaded table \'$pcAuroraDBName\'.\'$lookupTBLName\'")
         None
     }
 
     val loggingRecords: Seq[LoggingRecord] = Seq(
       createLoggingRecord(Branch.InitialLoad.name, None, None, mappingSpecificationTBLName, mappingSpecificationLoadExceptionOpt),
-      createLoggingRecord(Branch.InitialLoad.name, None, None, lookupTBLName, lookupLoadExceptionOpt)
-    )
+      createLoggingRecord(Branch.InitialLoad.name, None, None, lookupTBLName, lookupLoadExceptionOpt))
 
     insertLoggingRecords(loggingRecords)
 
@@ -66,7 +63,7 @@ class InitialLoadEngine(applicationPropertiesFile: String)
     logger.info("Successfully closed JDBC connection")
   }
 
-  private def createDatabaseIfNotExist(databaseToCreate: String, connection: Connection): Unit = {
+  private def createDatabaseIfNotExists(databaseToCreate: String, connection: Connection): Unit = {
 
     // RESULT SET CONTAINING DATABASE NAMES
     val resultSet: ResultSet = connection
@@ -102,7 +99,7 @@ class InitialLoadEngine(applicationPropertiesFile: String)
     val mappingSpecificationFilePath: String = jobProperties.getString("table.mapping_specification.file.path")
     val mappingSpecificationFileSep: String = jobProperties.getString("table.mapping_specification.file.sep")
     val mappingSpecificationFileHeader: Boolean = jobProperties.getBoolean("table.mapping_specification.file.header")
-    val mappingSpecificationFileSchema: String = jobProperties.getString("table.mapping_specification.schema")
+    val mappingSpecificationFileXMLSchemaPath: String = jobProperties.getString("table.mapping_specification.xml.schema.path")
 
     logger.info(s"Mapping specification file: $mappingSpecificationFilePath")
     logger.info(s"Separator to be used for file reading: $mappingSpecificationFileSep")
@@ -115,11 +112,10 @@ class InitialLoadEngine(applicationPropertiesFile: String)
       .option("path", mappingSpecificationFilePath)
       .option("sep", mappingSpecificationFileSep)
       .option("header", mappingSpecificationFileHeader)
-      .schema(retrieveStructTypeFromString(mappingSpecificationFileSchema))
+      .schema(retrieveStructTypeFromXMLFile(mappingSpecificationFileXMLSchemaPath))
       .load()
 
     logger.info(s"Successfully loaded mapping specification file as a spark.sql.DataFrame")
-    mappingSpecificationDf.printSchema()
     writeToJDBC(mappingSpecificationDf, pcAuroraDBName, mappingSpecificationTBLName, SaveMode.Overwrite)
   }
 
@@ -128,7 +124,7 @@ class InitialLoadEngine(applicationPropertiesFile: String)
     val lookupSpecificationFilePath: String = jobProperties.getString("table.lookup.file.path")
     val lookupSpecificationFileSep: String = jobProperties.getString("table.lookup.file.sep")
     val lookupSpecificationFileHeader: Boolean = jobProperties.getBoolean("table.lookup.file.header")
-    val lookupSpecificationFileSchema: String = jobProperties.getString("table.lookup.schema")
+    val lookupSpecificationFileXMLSchemaPath: String = jobProperties.getString("table.lookup.xml.schema.path")
 
     logger.info(s"Lookup specification file: $lookupSpecificationFilePath")
     logger.info(s"Separator to be used for file reading: $lookupSpecificationFileSep")
@@ -141,11 +137,10 @@ class InitialLoadEngine(applicationPropertiesFile: String)
       .option("path", lookupSpecificationFilePath)
       .option("sep", lookupSpecificationFileSep)
       .option("header", lookupSpecificationFileHeader)
-      .schema(retrieveStructTypeFromString(lookupSpecificationFileSchema))
+      .schema(retrieveStructTypeFromXMLFile(lookupSpecificationFileXMLSchemaPath))
       .load()
 
     logger.info(s"Successfully loaded lookup specification file as a spark.sql.DataFrame")
-    lookupSpecificationDf.printSchema()
     writeToJDBC(lookupSpecificationDf, pcAuroraDBName, lookupTBLName, SaveMode.Overwrite)
   }
 }

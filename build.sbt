@@ -1,4 +1,5 @@
 val sparkVersion = "2.2.3"
+val scalaTestVersion = "3.0.0"
 
 lazy val auroraScala = (project in file("."))
   .settings(
@@ -14,7 +15,9 @@ lazy val auroraScala = (project in file("."))
     libraryDependencies += ("org.apache.spark" %% "spark-core" % sparkVersion % "provided"),
     libraryDependencies += ("org.apache.spark" %% "spark-sql" % sparkVersion % "provided"),
     libraryDependencies += ("com.github.scopt" %% "scopt" % "3.3.0"),
-    libraryDependencies += ("mysql" % "mysql-connector-java" % "5.1.47"),
+    libraryDependencies += ("mysql" % "mysql-connector-java" % "5.1.47" % "provided"),
+    libraryDependencies += ("org.scalactic" %% "scalactic" % scalaTestVersion),
+    libraryDependencies += ("org.scalatest" %% "scalatest" % scalaTestVersion % "test"),
 
     (unmanagedResources in Compile) := (unmanagedResources in Compile)
       .value

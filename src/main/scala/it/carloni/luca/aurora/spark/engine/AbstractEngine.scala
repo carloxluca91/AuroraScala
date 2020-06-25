@@ -1,6 +1,6 @@
 package it.carloni.luca.aurora.spark.engine
 
-import java.io.File
+import java.io.{File, FileNotFoundException}
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
@@ -8,11 +8,11 @@ import it.carloni.luca.aurora.spark.data.LoggingRecord
 import it.carloni.luca.aurora.time.DateFormat
 import org.apache.commons.configuration.PropertiesConfiguration
 import org.apache.log4j.Logger
-import org.apache.spark.sql
 import org.apache.spark.sql.types.{DataType, DataTypes, StructField, StructType}
 import org.apache.spark.sql.{DataFrame, DataFrameReader, SaveMode, SparkSession}
 
 import scala.util.{Failure, Success, Try}
+import scala.xml.{Elem, XML}
 
 abstract class AbstractEngine(private final val applicationPropertiesFile: String) {
 
@@ -52,7 +52,7 @@ abstract class AbstractEngine(private final val applicationPropertiesFile: Strin
 
     logger.info("Trying to get or create SparkSession")
 
-    val sparkSession: sql.SparkSession = SparkSession
+    val sparkSession: SparkSession = SparkSession
       .builder()
       .getOrCreate()
 
@@ -68,8 +68,7 @@ abstract class AbstractEngine(private final val applicationPropertiesFile: Strin
 
       case Failure(exception) =>
 
-        logger.error("Exception occurred while loading properties file")
-        logger.error(exception)
+        logger.error("Exception occurred while loading properties file. Stack trace: " , exception)
         throw exception
 
       case Success(_) => logger.info("Successfully loaded properties file")
@@ -128,7 +127,6 @@ abstract class AbstractEngine(private final val applicationPropertiesFile: Strin
       .toDF()
 
     logger.info("Successfully turned Seq of logging records to spark.sql.DataFrame")
-    loggingRecordsDataset.printSchema()
     writeToJDBC(loggingRecordsDataset, pcAuroraDBName, dataLoadLogTBLName, SaveMode.Append)
   }
 
@@ -157,7 +155,7 @@ abstract class AbstractEngine(private final val applicationPropertiesFile: Strin
     }
   }
 
-  protected def retrieveStructTypeFromString(stringSchema: String): StructType = {
+  protected def retrieveStructTypeFromXMLFile(xmlFilePath: String): StructType = {
 
     def resolveDataType(columnType: String): DataType = {
 
@@ -170,22 +168,32 @@ abstract class AbstractEngine(private final val applicationPropertiesFile: Strin
       }
     }
 
-    new StructType(stringSchema
-      .split(";")
-      .map(columnSpecification => {
+    logger.info(s"XML file path: $xmlFilePath")
+    val xmlSchemaFile: File = new File(xmlFilePath)
+    if (xmlSchemaFile.exists()) {
 
-        // ELIMINATE PARENTHESES AND SPLIT BY ", " IN ORDER TO EXTRACT NAME, TYPE AND NULLABLE FLAG
-        val columnDetails: Array[String] = columnSpecification
-          .replaceAll("\\(", "")
-          .split(",\\s")
+      logger.info(s"XML file \'$xmlFilePath\' exists. So, trying to infer table schema from it")
+      val mappingSpecificationXML: Elem = XML.loadFile(xmlSchemaFile)
+      val columnSpecifications: Seq[(String, String, String)] = (mappingSpecificationXML \\ "tableSchema" \\ "columns" \\ "column")
+        .map(x => (x.attribute("name").get.text,
+          x.attribute("type").get.text,
+          x.attribute("nullable").get.text))
 
-        val columnName: String = columnDetails(0)
-        val columnType: DataType = resolveDataType(columnDetails(1))
-        val nullable: Boolean = if (columnDetails(2).equalsIgnoreCase("true")) true else false
+      StructType(columnSpecifications.map(t3 => {
 
-        logger.info(s"Defining column with name $columnName, type $columnType, nullable $nullable")
-        StructField(columnDetails(0), columnType, nullable)
+        val columnName: String = t3._1
+        val columnType: DataType = resolveDataType(t3._1.toLowerCase)
+        val nullable: Boolean = if (t3._3.toLowerCase == "true") true else false
+
+        logger.info(s"Defining column with name \'$columnName\', type \'$columnType\', nullable \'$nullable\'")
+        StructField(columnName, columnType, nullable)
       }))
+
+    } else {
+
+      logger.error(s"File \'$xmlFilePath\' does not exists (or cannot be found)")
+      throw new FileNotFoundException(xmlFilePath)
+    }
   }
 
   protected def writeToJDBC(outputDataFrame: DataFrame, databaseName: String, tableName: String, saveMode: SaveMode): Unit = {
@@ -193,6 +201,7 @@ abstract class AbstractEngine(private final val applicationPropertiesFile: Strin
     val fullTableName: String = s"$databaseName.$tableName"
 
     logger.info(s"Starting to save dataframe into JDBC table $fullTableName with savemode $saveMode")
+    logger.info(f"Dataframe schema: ${outputDataFrame.schema.treeString}")
 
     val tryWriteDfToJDBC: Try[Unit] = Try(outputDataFrame.write
       .format("jdbc")
