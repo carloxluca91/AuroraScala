@@ -68,18 +68,16 @@ abstract class AbstractEngine(private final val applicationPropertiesFile: Strin
 
       case Failure(exception) =>
 
-        logger.error("Exception occurred while loading properties file. Stack trace: " , exception)
+        logger.error("Exception occurred while loading properties file. Stack trace: ", exception)
         throw exception
 
       case Success(_) => logger.info("Successfully loaded properties file")
     }
   }
 
-  protected def createLoggingRecord(branchName: String,
-                                    bancllNameOpt: Option[String],
-                                    dtBusinessDateOpt: Option[String],
-                                    impactedTable: String,
-                                    exceptionMsgOpt: Option[String] = None): LoggingRecord = {
+  val createLogRecord: (String, Option[String], Option[String], String, Option[String]) => LoggingRecord =
+    (branchName: String, bancllNameOpt: Option[String], dtBusinessDateOpt: Option[String],
+     impactedTable: String, exceptionMsgOpt: Option[String]) => {
 
     import java.sql.{Date, Timestamp}
     import java.time.{Instant, ZoneId, ZonedDateTime}
@@ -117,7 +115,7 @@ abstract class AbstractEngine(private final val applicationPropertiesFile: Strin
       applicationFinishStatus)
   }
 
-  protected def insertLoggingRecords(loggingRecords: Seq[LoggingRecord]): Unit = {
+  protected def writeLogRecords(loggingRecords: Seq[LoggingRecord]): Unit = {
 
     import sparkSession.implicits._
 
@@ -131,25 +129,23 @@ abstract class AbstractEngine(private final val applicationPropertiesFile: Strin
 
   protected def readFromJDBC(databaseName: String, tableName: String): DataFrame = {
 
-    val fullTableName: String = s"$databaseName.$tableName"
-
-    logger.info(s"Starting to load JDBC table \'$fullTableName\'")
+    logger.info(s"Starting to load table \'$databaseName\'.\'$tableName\'")
 
     val tryLoadJDBCDf: Try[DataFrame] = Try(jdbcReader
-      .option("dbtable", fullTableName)
+      .option("dbtable", s"$databaseName.$tableName")
       .load())
 
     tryLoadJDBCDf match {
 
       case Failure(exception) =>
 
-        logger.error(s"Error while trying to load JDBC table \'$fullTableName\'")
+        logger.error(s"Error while trying to read table \'$databaseName\'.\'$tableName\'")
         logger.error("Exception stack trace: ", exception)
         throw exception
 
       case Success(value) =>
 
-        logger.info(s"Successfully loaded JDBC table $fullTableName")
+        logger.info(s"Successfully loaded table \'$databaseName\'.\'$tableName\'")
         value
     }
   }
@@ -174,15 +170,15 @@ abstract class AbstractEngine(private final val applicationPropertiesFile: Strin
       logger.info(s"XML file \'$xmlFilePath\' exists. So, trying to infer table schema from it")
       val mappingSpecificationXML: Elem = XML.loadFile(xmlSchemaFile)
       val columnSpecifications: Seq[(String, String, String)] = (mappingSpecificationXML \\ "tableSchema" \\ "columns" \\ "column")
-        .map(x => (x.attribute("name").get.text,
-          x.attribute("type").get.text,
-          x.attribute("nullable").get.text))
+        .map(columnTag => (columnTag.attribute("name").get.text,
+          columnTag.attribute("type").get.text,
+          columnTag.attribute("nullable").get.text))
 
-      StructType(columnSpecifications.map(t3 => {
+      StructType(columnSpecifications.map(tuple3 => {
 
-        val columnName: String = t3._1
-        val columnType: DataType = resolveDataType(t3._1.toLowerCase)
-        val nullable: Boolean = if (t3._3.toLowerCase == "true") true else false
+        val columnName: String = tuple3._1
+        val columnType: DataType = resolveDataType(tuple3._2.toLowerCase)
+        val nullable: Boolean = if (tuple3._3.toLowerCase == "true") true else false
 
         logger.info(s"Defining column with name \'$columnName\', type \'$columnType\', nullable \'$nullable\'")
         StructField(columnName, columnType, nullable)
@@ -190,22 +186,21 @@ abstract class AbstractEngine(private final val applicationPropertiesFile: Strin
 
     } else {
 
-      logger.error(s"File \'$xmlFilePath\' does not exists (or cannot be found)")
-      throw new FileNotFoundException(xmlFilePath)
+      val exceptionMsg: String = s"File \'$xmlFilePath\' does not exists (or cannot be found)"
+      logger.error(exceptionMsg)
+      throw new FileNotFoundException(s"File \'$xmlFilePath\' does not exists (or cannot be found)")
     }
   }
 
   protected def writeToJDBC(outputDataFrame: DataFrame, databaseName: String, tableName: String, saveMode: SaveMode): Unit = {
 
-    val fullTableName: String = s"$databaseName.$tableName"
-
-    logger.info(s"Starting to save dataframe into JDBC table $fullTableName with savemode $saveMode")
-    logger.info(f"Dataframe schema: ${outputDataFrame.schema.treeString}")
+    logger.info(s"Starting to save dataframe into table \'$databaseName\'.\'$tableName\' using savemode \'$saveMode\'")
+    logger.info(f"Dataframe schema: \n\n${outputDataFrame.schema.treeString}")
 
     val tryWriteDfToJDBC: Try[Unit] = Try(outputDataFrame.write
       .format("jdbc")
       .options(jdbcOptions)
-      .option("dbtable", fullTableName)
+      .option("dbtable", s"$databaseName.$tableName")
       .mode(saveMode)
       .save())
 
@@ -213,13 +208,13 @@ abstract class AbstractEngine(private final val applicationPropertiesFile: Strin
 
       case Failure(exception) =>
 
-        logger.error(s"Error while trying to write dataframe to JDBC table $fullTableName using savemode $saveMode. Rationale: ${exception.getMessage}")
-        exception.printStackTrace()
+        logger.error(s"Error while saving data to table \'$databaseName\'.\'$tableName\' using savemode \'$saveMode\'")
+        logger.error("Exception stack trace: ", exception)
         throw exception
 
       case Success(_) =>
 
-        logger.info(s"Successfully saved dataframe into JDBC table $fullTableName using savemode $saveMode")
+        logger.info(s"Successfully saved dataframe as table \'$databaseName\'.\'$tableName\' using savemode \'$saveMode\'")
     }
   }
 }

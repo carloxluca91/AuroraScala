@@ -15,6 +15,7 @@ object Main extends App {
 
   val logger: Logger = Logger.getRootLogger
 
+  logger.info("\n\n*******************************")
   logger.info("Starting application main program")
 
   case class BranchConfig(applicationBranch: String = "") {
