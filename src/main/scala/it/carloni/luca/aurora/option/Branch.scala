@@ -9,4 +9,5 @@ object Branch extends Enumeration {
 
   val InitialLoad: BranchName = BranchName("INITIAL_LOAD")
   val SourceLoad: BranchName = BranchName("SOURCE_LOAD")
+  val ReLoad: BranchName = BranchName("RE_LOAD")
 }

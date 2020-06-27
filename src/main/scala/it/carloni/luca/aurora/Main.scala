@@ -1,21 +1,14 @@
 package it.carloni.luca.aurora
 
-import java.time.LocalDate
-import java.time.format.DateTimeFormatter
-
-import it.carloni.luca.aurora.option.{Branch, ScoptOption}
-import it.carloni.luca.aurora.spark.engine.{InitialLoadEngine, SourceLoadEngine}
-import it.carloni.luca.aurora.time.DateFormat
+import it.carloni.luca.aurora.option.ScoptParser.{InitialLoadConfig, ReloadConfig, SourceLoadConfig}
+import it.carloni.luca.aurora.option.{Branch, ScoptOption, ScoptParser}
+import it.carloni.luca.aurora.spark.engine.{InitialLoadEngine, ReLoadEngine, SourceLoadEngine}
 import org.apache.log4j.Logger
-import scopt.OptionParser
-
-import scala.util.Try
 
 object Main extends App {
 
   val logger: Logger = Logger.getRootLogger
 
-  logger.info("\n\n*******************************")
   logger.info("Starting application main program")
 
   case class BranchConfig(applicationBranch: String = "") {
@@ -24,19 +17,7 @@ object Main extends App {
   }
 
   // FIRST, PARSE ARGUMENTS IN ORDER TO DETECT BRANCH TO BE RUN
-  val branchParser: OptionParser[BranchConfig] = new OptionParser[BranchConfig]("scopt 3.3.0") {
-
-    // DO NOT FAIL ON UNKNOWN ARGUMENTS AND DO NOT SHOW WARNING
-    override def errorOnUnknownArgument = false
-    override def reportWarning(msg: String): Unit = {}
-
-    opt[String](ScoptOption.applicationBranchOption.shortOption, ScoptOption.applicationBranchOption.longOption)
-      .text(ScoptOption.applicationBranchOption.text)
-      .required()
-      .action((x, c) => c.copy(applicationBranch = x))
-  }
-
-  branchParser.parse(args, BranchConfig()) match {
+  ScoptParser.branchParser.parse(args, BranchConfig()) match {
 
     case None => logger.error("Error during parsing of first set of arguments (application branch)")
     case Some(value) =>
@@ -50,24 +31,8 @@ object Main extends App {
         case Branch.InitialLoad =>
 
           logger.info(s"Matched branch \'${Branch.InitialLoad.name}\'")
-          case class InitialLoadConfig(propertiesFile: String = "") {
 
-            override def toString: String = s"${ScoptOption.propertiesOption.text}: $propertiesFile"
-          }
-
-          val initialLoadOptionParser: OptionParser[InitialLoadConfig] = new OptionParser[InitialLoadConfig]("scopt 3.3.0") {
-
-            // DO NOT FAIL ON UNKNOWN ARGUMENTS AND DO NOT SHOW WARNING
-            override def errorOnUnknownArgument = false
-            override def reportWarning(msg: String): Unit = {}
-
-            opt[String](ScoptOption.propertiesOption.shortOption, ScoptOption.propertiesOption.longOption)
-              .text(ScoptOption.propertiesOption.text)
-              .required()
-              .action((x, c) => c.copy(propertiesFile = x))
-          }
-
-          initialLoadOptionParser.parse(args, InitialLoadConfig()) match {
+          ScoptParser.initialLoadOptionParser.parse(args, InitialLoadConfig()) match {
 
             case None => logger.error("Error during parsing of second set of arguments (branch arguments)")
             case Some(value) =>
@@ -81,50 +46,7 @@ object Main extends App {
 
           logger.info(s"Matched branch \'${Branch.SourceLoad.name}\'")
 
-          case class SourceLoadConfig(propertiesFile: String = "",
-                                      bancllName: String = "",
-                                      businessDate: String = "") {
-
-            override def toString: String = {
-
-              s"${ScoptOption.propertiesOption.text}: $propertiesFile, " +
-                s"${ScoptOption.sourceOption.text}: $bancllName, " +
-                s"${ScoptOption.businessDateOption.text}: $businessDate"
-            }
-          }
-
-          val sourceLoadOptionParser: OptionParser[SourceLoadConfig] = new OptionParser[SourceLoadConfig]("scopt 3.3.0") {
-
-            // DO NOT FAIL ON UNKNOWN ARGUMENTS AND DO NOT SHOW WARNING
-            override def errorOnUnknownArgument = false
-            override def reportWarning(msg: String): Unit = {}
-
-            opt[String](ScoptOption.propertiesOption.shortOption, ScoptOption.propertiesOption.longOption)
-              .text(ScoptOption.propertiesOption.text)
-              .required()
-              .action((x, c) => c.copy(propertiesFile = x))
-
-            opt[String](ScoptOption.sourceOption.shortOption, ScoptOption.sourceOption.longOption)
-              .text(ScoptOption.sourceOption.text)
-              .required()
-              .action((x, c) => c.copy(bancllName = x))
-
-            opt[String](ScoptOption.businessDateOption.shortOption, ScoptOption.businessDateOption.longOption)
-              .text(ScoptOption.businessDateOption.text)
-              .required()
-              .validate(inputDate => {
-
-                val businessDateFormat: String = DateFormat.DtBusinessDate.format
-                val tryParseBusinessDate: Try[LocalDate] = Try(LocalDate.parse(inputDate,
-                  DateTimeFormatter.ofPattern(businessDateFormat)))
-
-                if (tryParseBusinessDate.isSuccess) success
-                else failure(s"Cannot parse business date. Provided \'$inputDate\', should follow format \'$businessDateFormat\'")
-              })
-              .action((x, c) => c.copy(businessDate = x))
-          }
-
-          sourceLoadOptionParser.parse(args, SourceLoadConfig()) match {
+          ScoptParser.sourceLoadOptionParser.parse(args, SourceLoadConfig()) match {
 
             case None => logger.error("Error during parsing of second set of arguments (branch arguments)")
             case Some(value) =>
@@ -132,6 +54,22 @@ object Main extends App {
               logger.info(value)
               logger.info("Successfully parsed second set of arguments (branch arguments)")
               new SourceLoadEngine(value.propertiesFile).run(value.bancllName)
+          }
+
+        case Branch.ReLoad =>
+
+          logger.info(s"Matched branch \'${Branch.SourceLoad.name}\'")
+
+          ScoptParser.reloadOptionParser.parse(args, ReloadConfig()) match {
+
+            case None => logger.error("Error during parsing of second set of arguments (branch arguments)")
+            case Some(value) =>
+
+              logger.info(value)
+              logger.info("Successfully parsed second set of arguments (branch arguments)")
+              new ReLoadEngine(value.propertiesFile).run(mappingSpecificationFlag = value.mappingSpecificationFlag,
+                lookupFlag = value.lookUpFlag,
+                completeOverwriteFlag = value.completeOverwriteFlag)
           }
       }
   }
