@@ -6,6 +6,7 @@ import it.carloni.luca.aurora.option.Branch
 import it.carloni.luca.aurora.spark.data.LogRecord
 import org.apache.log4j.Logger
 import org.apache.spark.sql.{DataFrame, SaveMode}
+import org.apache.spark.sql.functions.lit
 
 import scala.util.{Failure, Success, Try}
 
@@ -17,35 +18,30 @@ class InitialLoadEngine(applicationPropertiesFile: String)
 
   def run(): Unit = {
 
-    Class.forName("com.mysql.jdbc.Driver")
-
     // CREATE DATABASE, IF IT DOES NOT EXIST
+    Class.forName("com.mysql.jdbc.Driver")
     val jdbcUrlConnectionString: String = s"$jdbcUrl/?useSSL=$jdbcUseSSL"
-
     logger.info(s"Attempting to connect to JDBC url $jdbcUrlConnectionString with credentials ($jdbcUser, $jdbcPassword)")
 
     val jdbcConnection: Connection = DriverManager.getConnection(jdbcUrlConnectionString, jdbcUser, jdbcPassword)
 
     logger.info(s"Successfully connected to JDBC url $jdbcUrlConnectionString with credentials ($jdbcUser, $jdbcPassword)")
     createDatabaseIfNotExists(pcAuroraDBName, jdbcConnection)
-
     logger.info("Attempting to close JDBC connection")
 
     jdbcConnection.close()
-
     logger.info("Successfully closed JDBC connection")
 
     // TABLE LOADING
     val stringToDataFrameMap: Map[String, DataFrame] = Map(
 
-      mappingSpecificationTBLName -> getMappingSpecificationDf,
-      lookupTBLName -> getLookUpDf
+      mappingSpecificationTBLName -> this.getMappingSpecificationDfWithVersion,
+      lookupTBLName -> this.getLookUpDfWithVersion
     )
 
-    // FOR EACH TABLE TRY:
-    // [a] TO EXECUTE THE RELATED LOADING PROCESS
+    // FOR EACH TABLE:
+    // [a] TRY TO EXECUTE THE RELATED LOADING PROCESS
     // [b] DEFINE THE RELATED LOG RECORD
-
     val initialLoadLogRecords: Seq[LogRecord] = (for ((tableName, dataFrame) <- stringToDataFrameMap) yield {
 
       val functionExceptionMsgOpt: Option[String] = Try(writeToJDBC(dataFrame, pcAuroraDBName, tableName, SaveMode.Append)) match {
@@ -89,6 +85,18 @@ class InitialLoadEngine(applicationPropertiesFile: String)
       createDbStatement.executeUpdate(s"CREATE DATABASE IF NOT EXISTS $databaseToCreateLower")
       logger.info(s"Successfully created database \'$databaseToCreateLower\'")
     }
+  }
+
+  private def getMappingSpecificationDfWithVersion: DataFrame = {
+
+    super.getMappingSpecificationDf
+      .withColumn("versione", lit(1.0))
+  }
+
+  private def getLookUpDfWithVersion: DataFrame = {
+
+    super.getLookUpDf
+      .withColumn("versione", lit(1.0))
   }
 }
 

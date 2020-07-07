@@ -200,7 +200,7 @@ abstract class AbstractEngine(private final val applicationPropertiesFile: Strin
     val truncateOptionValue: String = if (truncate & (saveMode == SaveMode.Overwrite)) "true" else "false"
     val savingDetails: String = s"table: \'$databaseName\'.\'$tableName\', savemode: \'$saveMode\', truncate: \'$truncateOptionValue\'"
     logger.info(s"Starting to save dataframe into $savingDetails")
-    logger.info(f"Dataframe schema: \n\n${outputDataFrame.schema.treeString}")
+    logger.info(f"Dataframe schema: \n${outputDataFrame.schema.treeString}")
 
     val tryWriteDfToJDBC: Try[Unit] = Try(outputDataFrame.write
       .format("jdbc")

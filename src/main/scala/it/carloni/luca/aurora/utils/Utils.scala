@@ -17,7 +17,6 @@ object Utils {
     new Date(ZonedDateTime
       .now(ZoneId.of("Europe/Rome"))
       .toInstant.toEpochMilli)
-
   }
 
 }

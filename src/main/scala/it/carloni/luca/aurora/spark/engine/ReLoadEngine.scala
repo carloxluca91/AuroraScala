@@ -4,8 +4,8 @@ import it.carloni.luca.aurora.option.{Branch, ScoptOption}
 import it.carloni.luca.aurora.spark.data.LogRecord
 import it.carloni.luca.aurora.utils.Utils.{getJavaSQLDateFromNow, getJavaSQLTimestampFromNow}
 import org.apache.log4j.Logger
-import org.apache.spark.sql.{DataFrame, SaveMode}
 import org.apache.spark.sql.functions.lit
+import org.apache.spark.sql.{DataFrame, SaveMode}
 
 import scala.util.{Failure, Success, Try}
 
@@ -56,6 +56,14 @@ class ReLoadEngine(applicationPropertiesFile: String)
       .withColumn("ts_fine_validita", lit(getJavaSQLTimestampFromNow))
       .withColumn("dt_fine_validita", lit(getJavaSQLDateFromNow))
 
+    val oldSpecificationVersion: Double = oldMappingSpecificationDf.selectExpr("versione")
+      .distinct()
+      .collect()(0)
+      .getDouble(0)
+
+    val newSpecificationVersion: Double = oldSpecificationVersion + 0.1
+    logger.info(s"Old specification version: \'$oldSpecificationVersion\'. Overriding with version \'$newSpecificationVersion\'")
+
     val mappingHistoricalLogRecord: LogRecord =
       Try(writeToJDBC(oldMappingSpecificationDf, pcAuroraDBName, mappingSpecificationHistTBLName, SaveMode.Append)) match {
 
@@ -64,7 +72,7 @@ class ReLoadEngine(applicationPropertiesFile: String)
       }
 
     val mappingActualLogRecord: LogRecord =
-      Try(writeToJDBC(getMappingSpecificationDf, pcAuroraDBName, mappingSpecificationTBLName, SaveMode.Overwrite, completeOverwrite)) match {
+      Try(writeToJDBC(this.getMappingSpecificationDfWithVersion(newSpecificationVersion), pcAuroraDBName, mappingSpecificationTBLName, SaveMode.Overwrite, completeOverwrite)) match {
 
         case Failure(exception) => createReLoadLogRecord(mappingSpecificationTBLName, Some(exception.getMessage))
         case Success(_) => createReLoadLogRecord(mappingSpecificationTBLName, None)
@@ -80,6 +88,14 @@ class ReLoadEngine(applicationPropertiesFile: String)
       .withColumn("ts_fine_validita", lit(getJavaSQLTimestampFromNow))
       .withColumn("dt_fine_validita", lit(getJavaSQLDateFromNow))
 
+    val oldSpecificationVersion: Double = oldLookUpDf.selectExpr("versione")
+      .distinct()
+      .collect()(0)
+      .getDouble(0)
+
+    val newSpecificationVersion: Double = oldSpecificationVersion + 0.1
+    logger.info(s"Old specification version: \'$oldSpecificationVersion\'. Overriding with version \'$newSpecificationVersion\'")
+
     val lookUpHistoricalLogRecord: LogRecord =
       Try(writeToJDBC(oldLookUpDf, pcAuroraDBName, lookUpHistoricalTable, SaveMode.Append)) match {
 
@@ -88,12 +104,24 @@ class ReLoadEngine(applicationPropertiesFile: String)
       }
 
     val lookUpActualLogRecord: LogRecord =
-      Try(writeToJDBC(getLookUpDf, pcAuroraDBName, lookupTBLName, SaveMode.Overwrite, completeOverwrite)) match {
+      Try(writeToJDBC(this.getLookUpDfWithVersion(newSpecificationVersion), pcAuroraDBName, lookupTBLName, SaveMode.Overwrite, completeOverwrite)) match {
 
         case Failure(exception) => createReLoadLogRecord(lookupTBLName, Some(exception.getMessage))
         case Success(_) => createReLoadLogRecord(lookupTBLName, None)
       }
 
     Seq(lookUpHistoricalLogRecord, lookUpActualLogRecord)
+  }
+
+  private def getMappingSpecificationDfWithVersion(versionNumber: Double): DataFrame = {
+
+    super.getMappingSpecificationDf
+      .withColumn("versione", lit(versionNumber))
+  }
+
+  private def getLookUpDfWithVersion(versionNumber: Double): DataFrame = {
+
+    super.getLookUpDf
+      .withColumn("versione", lit(versionNumber))
   }
 }

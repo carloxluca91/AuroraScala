@@ -28,6 +28,7 @@ object Main extends App {
       // DETECT BRANCH TO BE RUN
       Branch.asBranchName(Branch.withName(value.applicationBranch)) match {
 
+        // [a] INITIAL_LOAD
         case Branch.InitialLoad =>
 
           logger.info(s"Matched branch \'${Branch.InitialLoad.name}\'")
@@ -42,6 +43,7 @@ object Main extends App {
               new InitialLoadEngine(value.propertiesFile).run()
           }
 
+        // [b] SOURCE_LOAD
         case Branch.SourceLoad =>
 
           logger.info(s"Matched branch \'${Branch.SourceLoad.name}\'")
@@ -56,6 +58,7 @@ object Main extends App {
               new SourceLoadEngine(value.propertiesFile).run(value.bancllName)
           }
 
+        // [c] RE_LOAD
         case Branch.ReLoad =>
 
           logger.info(s"Matched branch \'${Branch.SourceLoad.name}\'")

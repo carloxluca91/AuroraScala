@@ -13,8 +13,11 @@ object ScoptParser {
 
   case class InitialLoadConfig(propertiesFile: String = "") {
 
-    override def toString: String = s"${getClass.getSimpleName}: " +
-      s"\n${ScoptOption.propertiesOption.text}: $propertiesFile"
+    override def toString: String = {
+
+      s"${getClass.getSimpleName}: " +
+        s"${ScoptOption.propertiesOption.text}: $propertiesFile"
+    }
   }
 
   case class SourceLoadConfig(propertiesFile: String = "",
@@ -24,9 +27,9 @@ object ScoptParser {
     override def toString: String = {
 
       s"${getClass.getSimpleName}: " +
-        s"\n${ScoptOption.propertiesOption.text}: $propertiesFile, " +
-        s"\n${ScoptOption.sourceOption.text}: $bancllName, " +
-        s"\n${ScoptOption.businessDateOption.text}: $businessDate"
+        s"${ScoptOption.propertiesOption.text}: $propertiesFile, " +
+        s"${ScoptOption.sourceOption.text}: $bancllName, " +
+        s"${ScoptOption.businessDateOption.text}: $businessDate"
     }
   }
 
@@ -38,10 +41,10 @@ object ScoptParser {
     override def toString: String = {
 
       s"${getClass.getSimpleName}: " +
-        s"\n${ScoptOption.propertiesOption.text}: $propertiesFile" +
-        s"\n${ScoptOption.mappingSpecificationFlag.text}: $mappingSpecificationFlag" +
-        s"\n${ScoptOption.lookUpSpecificationFlag.text}: $lookUpFlag" +
-        s"\n${ScoptOption.completeOverwriteFlag.text}: $completeOverwriteFlag"
+        s"${ScoptOption.propertiesOption.text}: $propertiesFile" +
+        s"${ScoptOption.mappingSpecificationFlag.text}: $mappingSpecificationFlag" +
+        s"${ScoptOption.lookUpSpecificationFlag.text}: $lookUpFlag" +
+        s"${ScoptOption.completeOverwriteFlag.text}: $completeOverwriteFlag"
     }
   }
 
@@ -51,6 +54,7 @@ object ScoptParser {
 
     // DO NOT FAIL ON UNKNOWN ARGUMENTS AND DO NOT SHOW WARNING
     override def errorOnUnknownArgument = false
+
     override def reportWarning(msg: String): Unit = {}
 
     opt[String](ScoptOption.applicationBranchOption.short, ScoptOption.applicationBranchOption.long)
@@ -63,6 +67,7 @@ object ScoptParser {
 
     // DO NOT FAIL ON UNKNOWN ARGUMENTS AND DO NOT SHOW WARNING
     override def errorOnUnknownArgument = false
+
     override def reportWarning(msg: String): Unit = {}
 
     opt[String](ScoptOption.propertiesOption.short, ScoptOption.propertiesOption.long)
@@ -75,6 +80,7 @@ object ScoptParser {
 
     // DO NOT FAIL ON UNKNOWN ARGUMENTS AND DO NOT SHOW WARNING
     override def errorOnUnknownArgument = false
+
     override def reportWarning(msg: String): Unit = {}
 
     opt[String](ScoptOption.propertiesOption.short, ScoptOption.propertiesOption.long)
@@ -104,6 +110,11 @@ object ScoptParser {
 
   val reloadOptionParser: OptionParser[ReloadConfig] = new OptionParser[ReloadConfig](scoptProgramName) {
 
+    // DO NOT FAIL ON UNKNOWN ARGUMENTS AND DO NOT SHOW WARNING
+    override def errorOnUnknownArgument = false
+
+    override def reportWarning(msg: String): Unit = {}
+
     opt[String](ScoptOption.propertiesOption.short, ScoptOption.propertiesOption.long)
       .text(ScoptOption.propertiesOption.text)
       .required()
@@ -111,14 +122,14 @@ object ScoptParser {
 
     opt[Unit](ScoptOption.mappingSpecificationFlag.short, ScoptOption.mappingSpecificationFlag.long)
       .text(ScoptOption.mappingSpecificationFlag.text)
-      .action( (_, c) => c.copy(mappingSpecificationFlag = true))
+      .action((_, c) => c.copy(mappingSpecificationFlag = true))
 
     opt[Unit](ScoptOption.lookUpSpecificationFlag.short, ScoptOption.lookUpSpecificationFlag.long)
       .text(ScoptOption.lookUpSpecificationFlag.text)
-      .action( (_, c) => c.copy(lookUpFlag = true))
+      .action((_, c) => c.copy(lookUpFlag = true))
 
     opt[Unit](ScoptOption.completeOverwriteFlag.short, ScoptOption.completeOverwriteFlag.long)
       .text(ScoptOption.completeOverwriteFlag.text)
-      .action( (_, c) => c.copy(completeOverwriteFlag = true))
+      .action((_, c) => c.copy(completeOverwriteFlag = true))
   }
 }
