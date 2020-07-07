@@ -21,7 +21,7 @@ class ReLoadEngine(applicationPropertiesFile: String)
       .reduce(_ | _)) {
 
       logger.warn("According to user input, no table has to be overriden. Thus, not much to do")
-      logger.warn(s"To override mapping speficiation table, you must specify -${ScoptOption.mappingSpecificationFlag.short} " +
+      logger.warn(s"To override mapping specification table, you must specify -${ScoptOption.mappingSpecificationFlag.short} " +
         s"(or -- ${ScoptOption.mappingSpecificationFlag.long})")
       logger.warn(s"To override look up table, you must specify -${ScoptOption.lookUpSpecificationFlag.short} " +
         s"(or -- ${ScoptOption.lookUpSpecificationFlag.long})")
@@ -61,9 +61,7 @@ class ReLoadEngine(applicationPropertiesFile: String)
       .collect()(0)
       .getDouble(0)
 
-    val newSpecificationVersion: Double = oldSpecificationVersion + 0.1
-    logger.info(s"Old specification version: \'$oldSpecificationVersion\'. Overriding with version \'$newSpecificationVersion\'")
-
+    val newSpecificationVersion: Double = updateVersionNumber(oldSpecificationVersion)
     val mappingHistoricalLogRecord: LogRecord =
       Try(writeToJDBC(oldMappingSpecificationDf, pcAuroraDBName, mappingSpecificationHistTBLName, SaveMode.Append)) match {
 
@@ -93,9 +91,7 @@ class ReLoadEngine(applicationPropertiesFile: String)
       .collect()(0)
       .getDouble(0)
 
-    val newSpecificationVersion: Double = oldSpecificationVersion + 0.1
-    logger.info(s"Old specification version: \'$oldSpecificationVersion\'. Overriding with version \'$newSpecificationVersion\'")
-
+    val newSpecificationVersion: Double = updateVersionNumber(oldSpecificationVersion)
     val lookUpHistoricalLogRecord: LogRecord =
       Try(writeToJDBC(oldLookUpDf, pcAuroraDBName, lookUpHistoricalTable, SaveMode.Append)) match {
 
@@ -123,5 +119,18 @@ class ReLoadEngine(applicationPropertiesFile: String)
 
     super.getLookUpDf
       .withColumn("versione", lit(versionNumber))
+  }
+
+  private def updateVersionNumber(oldVersionNumber: Double): Double = {
+
+    val newSpecificationVersion: Double = f"${oldVersionNumber + 0.1}%.1f"
+      .replace(',', '.')
+      .toDouble
+
+    val oldVersionNumberStr: String = f"$oldVersionNumber%.1f"
+      .replace(',', '.')
+
+    logger.info(f"Old specification version: \'$oldVersionNumberStr\'. Overriding with version \'$newSpecificationVersion\'")
+    newSpecificationVersion
   }
 }

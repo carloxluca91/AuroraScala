@@ -2,7 +2,7 @@ package it.carloni.luca.aurora.option
 
 object ScoptOption extends Enumeration {
 
-  protected case class Val(short: Char, long: String, text: String) extends super.Val
+  case class Val(short: Char, long: String, text: String) extends super.Val
 
   import scala.language.implicitConversions
   implicit def valueToVal(x: Value): Val = x.asInstanceOf[Val]
@@ -15,4 +15,5 @@ object ScoptOption extends Enumeration {
   val lookUpSpecificationFlag: Val = Val('l', "look_up", "Flag for overwriting look up table")
   val completeOverwriteFlag: Val = Val('o', "overwrite", "Flag for specifing behavior when reloading tables. " +
     "True: drop and reload. False: truncate and reload")
+  val versionNumberOption: Val = Val('v', "version", "Specification version number to be referred to")
 }

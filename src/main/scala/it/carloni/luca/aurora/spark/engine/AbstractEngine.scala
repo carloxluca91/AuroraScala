@@ -152,7 +152,7 @@ abstract class AbstractEngine(private final val applicationPropertiesFile: Strin
     }
   }
 
-  protected def retrieveStructTypeFromXMLFile(xmlFilePath: String): StructType = {
+  protected def fromXMLToStructType(xmlFilePath: String): StructType = {
 
     def resolveDataType(columnType: String): DataType = {
 
@@ -243,7 +243,7 @@ abstract class AbstractEngine(private final val applicationPropertiesFile: Strin
       .option("path", tsvFilePath)
       .option("sep", tsvFileSep)
       .option("header", tsvFileHeader)
-      .schema(retrieveStructTypeFromXMLFile(tsvFileXMLSchemaFilePath))
+      .schema(fromXMLToStructType(tsvFileXMLSchemaFilePath))
       .load()
       .withColumn("ts_inizio_validita", lit(Timestamp.from(nowAtRomeInstant)))
       .withColumn("dt_inizio_validita", lit(new Date(nowAtRomeInstant.toEpochMilli)))
@@ -270,7 +270,7 @@ abstract class AbstractEngine(private final val applicationPropertiesFile: Strin
       .option("path", tsvFilePath)
       .option("sep", tsvFileSep)
       .option("header", tsvFileHeader)
-      .schema(retrieveStructTypeFromXMLFile(tsvFileXMLSchemaFilePath))
+      .schema(fromXMLToStructType(tsvFileXMLSchemaFilePath))
       .load()
       .withColumn("ts_inizio_validita", lit(getJavaSQLTimestampFromNow))
       .withColumn("dt_inizio_validita", lit(getJavaSQLDateFromNow))

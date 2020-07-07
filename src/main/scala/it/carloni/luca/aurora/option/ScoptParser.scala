@@ -3,7 +3,6 @@ package it.carloni.luca.aurora.option
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
-import it.carloni.luca.aurora.Main.BranchConfig
 import it.carloni.luca.aurora.time.DateFormat
 import scopt.OptionParser
 
@@ -11,25 +10,47 @@ import scala.util.Try
 
 object ScoptParser {
 
+  private def objectToString(tClass: Class[_], scoptOptionsMap: Map[ScoptOption.Val, Any]): String = {
+
+    val optionsWithValues: String = (scoptOptionsMap map { case (key, value) =>  s"\t-${key.short}, --${key.long} (${key.text}) = \'$value\'"})
+      .toSeq
+      .mkString("\n")
+
+    s"${tClass.getSimpleName}: \n"
+      .concat(optionsWithValues)
+      .concat("\n")
+  }
+
+  case class BranchConfig(applicationBranch: String = "") {
+
+    override def toString: String = {
+
+      val toStringMap: Map[ScoptOption.Val, Any] = Map(ScoptOption.applicationBranchOption -> applicationBranch)
+      objectToString(getClass, toStringMap)
+    }
+  }
+
   case class InitialLoadConfig(propertiesFile: String = "") {
 
     override def toString: String = {
 
-      s"${getClass.getSimpleName}: " +
-        s"${ScoptOption.propertiesOption.text}: $propertiesFile"
+      val toStringMap: Map[ScoptOption.Val, Any] = Map(ScoptOption.propertiesOption -> propertiesFile)
+      objectToString(getClass, toStringMap)
     }
   }
 
   case class SourceLoadConfig(propertiesFile: String = "",
                               bancllName: String = "",
-                              businessDate: String = "") {
+                              businessDateOpt: Option[String] = None,
+                              versionNumberOpt: Option[String] = None) {
 
     override def toString: String = {
 
-      s"${getClass.getSimpleName}: " +
-        s"${ScoptOption.propertiesOption.text}: $propertiesFile, " +
-        s"${ScoptOption.sourceOption.text}: $bancllName, " +
-        s"${ScoptOption.businessDateOption.text}: $businessDate"
+      val toStringMap: Map[ScoptOption.Val, Any] = Map(ScoptOption.propertiesOption -> propertiesFile,
+        ScoptOption.sourceOption -> bancllName,
+        ScoptOption.businessDateOption -> businessDateOpt.orNull,
+        ScoptOption.versionNumberOption -> versionNumberOpt.orNull)
+      objectToString(getClass, toStringMap)
     }
   }
 
@@ -40,11 +61,11 @@ object ScoptParser {
 
     override def toString: String = {
 
-      s"${getClass.getSimpleName}: " +
-        s"${ScoptOption.propertiesOption.text}: $propertiesFile" +
-        s"${ScoptOption.mappingSpecificationFlag.text}: $mappingSpecificationFlag" +
-        s"${ScoptOption.lookUpSpecificationFlag.text}: $lookUpFlag" +
-        s"${ScoptOption.completeOverwriteFlag.text}: $completeOverwriteFlag"
+      val toStringMap: Map[ScoptOption.Val, Any] = Map(ScoptOption.propertiesOption -> propertiesFile,
+        ScoptOption.mappingSpecificationFlag -> mappingSpecificationFlag,
+        ScoptOption.lookUpSpecificationFlag -> lookUpFlag,
+        ScoptOption.completeOverwriteFlag -> completeOverwriteFlag)
+      objectToString(getClass, toStringMap)
     }
   }
 
@@ -105,7 +126,11 @@ object ScoptParser {
         if (tryParseBusinessDate.isSuccess) success
         else failure(s"Cannot parse business date. Provided \'$inputDate\', should follow format \'$businessDateFormat\'")
       })
-      .action((x, c) => c.copy(businessDate = x))
+      .action((x, c) => c.copy(businessDateOpt = Some(x)))
+
+    opt[String](ScoptOption.versionNumberOption.short, ScoptOption.versionNumberOption.long)
+      .text(ScoptOption.versionNumberOption.text)
+      .action((x, c) => c.copy(versionNumberOpt = Some(x)))
   }
 
   val reloadOptionParser: OptionParser[ReloadConfig] = new OptionParser[ReloadConfig](scoptProgramName) {

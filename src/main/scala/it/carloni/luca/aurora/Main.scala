@@ -1,7 +1,7 @@
 package it.carloni.luca.aurora
 
-import it.carloni.luca.aurora.option.ScoptParser.{InitialLoadConfig, ReloadConfig, SourceLoadConfig}
-import it.carloni.luca.aurora.option.{Branch, ScoptOption, ScoptParser}
+import it.carloni.luca.aurora.option.ScoptParser.{BranchConfig, InitialLoadConfig, ReloadConfig, SourceLoadConfig}
+import it.carloni.luca.aurora.option.{Branch, ScoptParser}
 import it.carloni.luca.aurora.spark.engine.{InitialLoadEngine, ReLoadEngine, SourceLoadEngine}
 import org.apache.log4j.Logger
 
@@ -10,11 +10,6 @@ object Main extends App {
   val logger: Logger = Logger.getRootLogger
 
   logger.info("Starting application main program")
-
-  case class BranchConfig(applicationBranch: String = "") {
-
-    override def toString: String = s"${ScoptOption.applicationBranchOption.text} = $applicationBranch"
-  }
 
   // FIRST, PARSE ARGUMENTS IN ORDER TO DETECT BRANCH TO BE RUN
   ScoptParser.branchParser.parse(args, BranchConfig()) match {
@@ -41,6 +36,7 @@ object Main extends App {
               logger.info(value)
               logger.info("Successfully parsed second set of arguments (branch arguments)")
               new InitialLoadEngine(value.propertiesFile).run()
+              logger.info(s"Successfully executed operations on branch \'${Branch.InitialLoad.name}\'")
           }
 
         // [b] SOURCE_LOAD
@@ -56,12 +52,13 @@ object Main extends App {
               logger.info(value)
               logger.info("Successfully parsed second set of arguments (branch arguments)")
               new SourceLoadEngine(value.propertiesFile).run(value.bancllName)
+              logger.info(s"Successfully executed operations on branch \'${Branch.SourceLoad.name}\'")
           }
 
         // [c] RE_LOAD
         case Branch.ReLoad =>
 
-          logger.info(s"Matched branch \'${Branch.SourceLoad.name}\'")
+          logger.info(s"Matched branch \'${Branch.ReLoad.name}\'")
 
           ScoptParser.reloadOptionParser.parse(args, ReloadConfig()) match {
 
@@ -73,6 +70,7 @@ object Main extends App {
               new ReLoadEngine(value.propertiesFile).run(mappingSpecificationFlag = value.mappingSpecificationFlag,
                 lookupFlag = value.lookUpFlag,
                 completeOverwriteFlag = value.completeOverwriteFlag)
+              logger.info(s"Successfully executed operations on branch \'${Branch.ReLoad.name}\'")
           }
       }
   }
