@@ -1,4 +1,4 @@
-package it.carloni.luca.aurora.time
+package it.carloni.luca.aurora.utils
 
 object DateFormat extends Enumeration {
 

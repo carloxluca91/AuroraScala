@@ -18,5 +18,4 @@ object Utils {
       .now(ZoneId.of("Europe/Rome"))
       .toInstant.toEpochMilli)
   }
-
 }

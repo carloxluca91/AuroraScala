@@ -3,7 +3,7 @@ package it.carloni.luca.aurora.option
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
-import it.carloni.luca.aurora.time.DateFormat
+import it.carloni.luca.aurora.utils.DateFormat
 import scopt.OptionParser
 
 import scala.util.Try
@@ -42,7 +42,7 @@ object ScoptParser {
   case class SourceLoadConfig(propertiesFile: String = "",
                               bancllName: String = "",
                               businessDateOpt: Option[String] = None,
-                              versionNumberOpt: Option[String] = None) {
+                              versionNumberOpt: Option[Double] = None) {
 
     override def toString: String = {
 
@@ -128,7 +128,7 @@ object ScoptParser {
       })
       .action((x, c) => c.copy(businessDateOpt = Some(x)))
 
-    opt[String](ScoptOption.versionNumberOption.short, ScoptOption.versionNumberOption.long)
+    opt[Double](ScoptOption.versionNumberOption.short, ScoptOption.versionNumberOption.long)
       .text(ScoptOption.versionNumberOption.text)
       .action((x, c) => c.copy(versionNumberOpt = Some(x)))
   }

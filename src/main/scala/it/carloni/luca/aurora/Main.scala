@@ -51,7 +51,7 @@ object Main extends App {
 
               logger.info(value)
               logger.info("Successfully parsed second set of arguments (branch arguments)")
-              new SourceLoadEngine(value.propertiesFile).run(value.bancllName)
+              new SourceLoadEngine(value.propertiesFile).run(value.bancllName, value.businessDateOpt, value.versionNumberOpt)
               logger.info(s"Successfully executed operations on branch \'${Branch.SourceLoad.name}\'")
           }
 

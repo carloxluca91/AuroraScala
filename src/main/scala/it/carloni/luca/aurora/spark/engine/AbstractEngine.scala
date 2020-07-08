@@ -6,7 +6,7 @@ import java.time.{Instant, LocalDate, ZoneId, ZonedDateTime}
 import java.time.format.DateTimeFormatter
 
 import it.carloni.luca.aurora.spark.data.LogRecord
-import it.carloni.luca.aurora.time.DateFormat
+import it.carloni.luca.aurora.utils.DateFormat
 import it.carloni.luca.aurora.utils.Utils.{getJavaSQLDateFromNow, getJavaSQLTimestampFromNow}
 import org.apache.commons.configuration.PropertiesConfiguration
 import org.apache.log4j.Logger
@@ -154,17 +154,6 @@ abstract class AbstractEngine(private final val applicationPropertiesFile: Strin
 
   protected def fromXMLToStructType(xmlFilePath: String): StructType = {
 
-    def resolveDataType(columnType: String): DataType = {
-
-      columnType.toLowerCase match {
-
-        case "string" => DataTypes.StringType
-        case "int" => DataTypes.IntegerType
-        case "date" => DataTypes.DateType
-        case "timestamp" => DataTypes.TimestampType
-      }
-    }
-
     logger.info(s"XML file path: $xmlFilePath")
     val xmlSchemaFile: File = new File(xmlFilePath)
     if (xmlSchemaFile.exists()) {
@@ -188,9 +177,20 @@ abstract class AbstractEngine(private final val applicationPropertiesFile: Strin
 
     } else {
 
-      val exceptionMsg: String = s"File \'$xmlFilePath\' does not exists (or cannot be found)"
+      val exceptionMsg: String = s"File '$xmlFilePath' does not exists (or cannot be found)"
       logger.error(exceptionMsg)
-      throw new FileNotFoundException(s"File \'$xmlFilePath\' does not exists (or cannot be found)")
+      throw new FileNotFoundException(s"File '$xmlFilePath' does not exists (or cannot be found)")
+    }
+  }
+
+  protected def resolveDataType(columnType: String): DataType = {
+
+    columnType.toLowerCase match {
+
+      case "string" => DataTypes.StringType
+      case "int" => DataTypes.IntegerType
+      case "date" => DataTypes.DateType
+      case "timestamp" => DataTypes.TimestampType
     }
   }
 
