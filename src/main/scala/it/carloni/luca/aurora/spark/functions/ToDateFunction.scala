@@ -4,8 +4,8 @@ import org.apache.log4j.Logger
 import org.apache.spark.sql.Column
 import org.apache.spark.sql.functions.to_date
 
-class ToDateFunction(column: Column, functionToApply: String)
-  extends ETLFunction(column, functionToApply, Signature.toTimestamp.signatureRegex) {
+class ToDateFunction(inputColumn: Column, functionToApply: String)
+  extends ETLFunction(inputColumn, functionToApply, Signatures.toTimestamp.regex) {
 
   private final val logger: Logger = Logger.getLogger(getClass)
 

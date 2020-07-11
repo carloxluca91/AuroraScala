@@ -4,8 +4,8 @@ import org.apache.log4j.Logger
 import org.apache.spark.sql.Column
 import org.apache.spark.sql.functions.lpad
 
-class LpadFunction(column: Column, functionToApply: String)
-  extends ETLFunction(column, functionToApply, Signature.lpad.signatureRegex) {
+class LpadFunction(inputColumn: Column, functionToApply: String)
+  extends ETLFunction(inputColumn, functionToApply, Signatures.lpad.regex) {
 
   private final val logger: Logger = Logger.getLogger(getClass)
 

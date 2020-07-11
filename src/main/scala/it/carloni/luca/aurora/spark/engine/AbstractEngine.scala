@@ -2,16 +2,16 @@ package it.carloni.luca.aurora.spark.engine
 
 import java.io.{File, FileNotFoundException}
 import java.sql.{Date, Timestamp}
-import java.time.{Instant, LocalDate, ZoneId, ZonedDateTime}
 import java.time.format.DateTimeFormatter
+import java.time.{Instant, LocalDate, ZoneId, ZonedDateTime}
 
 import it.carloni.luca.aurora.spark.data.LogRecord
 import it.carloni.luca.aurora.utils.DateFormat
-import it.carloni.luca.aurora.utils.Utils.{getJavaSQLDateFromNow, getJavaSQLTimestampFromNow}
+import it.carloni.luca.aurora.utils.Utils.{getJavaSQLDateFromNow, getJavaSQLTimestampFromNow, resolveDataType}
 import org.apache.commons.configuration.PropertiesConfiguration
 import org.apache.log4j.Logger
 import org.apache.spark.sql.functions.lit
-import org.apache.spark.sql.types.{DataType, DataTypes, StructField, StructType}
+import org.apache.spark.sql.types.{DataType, StructField, StructType}
 import org.apache.spark.sql.{DataFrame, DataFrameReader, SaveMode, SparkSession}
 
 import scala.util.{Failure, Success, Try}
@@ -99,7 +99,7 @@ abstract class AbstractEngine(private final val applicationPropertiesFile: Strin
       .builder()
       .getOrCreate()
 
-    logger.info(s"Successfully got or created SparkSession for application \'${sparkSession.sparkContext.appName}\'")
+    logger.info(s"Successfully got or created SparkSession for application '${sparkSession.sparkContext.appName}'")
     logger.info(s"Spark application UI url: ${sparkSession.sparkContext.uiWebUrl.get}")
     sparkSession
   }
@@ -131,7 +131,7 @@ abstract class AbstractEngine(private final val applicationPropertiesFile: Strin
 
   protected def readFromJDBC(databaseName: String, tableName: String): DataFrame = {
 
-    logger.info(s"Starting to load table \'$databaseName\'.\'$tableName\'")
+    logger.info(s"Starting to load table '$databaseName'.'$tableName'")
 
     val tryLoadJDBCDf: Try[DataFrame] = Try(jdbcReader
       .option("dbtable", s"$databaseName.$tableName")
@@ -141,13 +141,13 @@ abstract class AbstractEngine(private final val applicationPropertiesFile: Strin
 
       case Failure(exception) =>
 
-        logger.error(s"Error while trying to read table \'$databaseName\'.\'$tableName\'")
+        logger.error(s"Error while trying to read table '$databaseName'.'$tableName'")
         logger.error("Exception stack trace: ", exception)
         throw exception
 
       case Success(value) =>
 
-        logger.info(s"Successfully loaded table \'$databaseName\'.\'$tableName\'")
+        logger.info(s"Successfully loaded table '$databaseName'.'$tableName'")
         value
     }
   }
@@ -158,7 +158,7 @@ abstract class AbstractEngine(private final val applicationPropertiesFile: Strin
     val xmlSchemaFile: File = new File(xmlFilePath)
     if (xmlSchemaFile.exists()) {
 
-      logger.info(s"XML file \'$xmlFilePath\' exists. So, trying to infer table schema from it")
+      logger.info(s"XML file '$xmlFilePath' exists. So, trying to infer table schema from it")
       val mappingSpecificationXML: Elem = XML.loadFile(xmlSchemaFile)
       val columnSpecifications: Seq[(String, String, String)] = (mappingSpecificationXML \\ "tableSchema" \\ "columns" \\ "column")
         .map(columnTag => (columnTag.attribute("name").get.text,
@@ -183,22 +183,11 @@ abstract class AbstractEngine(private final val applicationPropertiesFile: Strin
     }
   }
 
-  protected def resolveDataType(columnType: String): DataType = {
-
-    columnType.toLowerCase match {
-
-      case "string" => DataTypes.StringType
-      case "int" => DataTypes.IntegerType
-      case "date" => DataTypes.DateType
-      case "timestamp" => DataTypes.TimestampType
-    }
-  }
-
   protected def writeToJDBC(outputDataFrame: DataFrame, databaseName: String, tableName: String,
                             saveMode: SaveMode, truncate: Boolean = false): Unit = {
 
     val truncateOptionValue: String = if (truncate & (saveMode == SaveMode.Overwrite)) "true" else "false"
-    val savingDetails: String = s"table: \'$databaseName\'.\'$tableName\', savemode: \'$saveMode\', truncate: \'$truncateOptionValue\'"
+    val savingDetails: String = s"table: '$databaseName'.'$tableName', savemode: '$saveMode', truncate: '$truncateOptionValue'"
     logger.info(s"Starting to save dataframe into $savingDetails")
     logger.info(f"Dataframe schema: \n${outputDataFrame.schema.treeString}")
 
