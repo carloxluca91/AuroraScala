@@ -17,6 +17,7 @@ class RawDataTransformerEngine(private final val lookUpDataFrame: DataFrame) {
       .map((specificationRecord: SpecificationRecord) => {
 
         val rawColumnName: String = specificationRecord.colonna_rd
+        val rawColumnCol: Column = col(rawColumnName)
 
         logger.info(s"Analyzing specification for raw column '$rawColumnName'")
         val functionsToApply: Seq[String] = Seq(specificationRecord.function_1, specificationRecord.function_2,
@@ -32,61 +33,26 @@ class RawDataTransformerEngine(private final val lookUpDataFrame: DataFrame) {
           // CHECK IF INPUT AND OUTPUT DATATYPE MATCH
           val rawColumnType: String = specificationRecord.tipo_colonna_rd
           val trustedColumnType: String = specificationRecord.tipo_colonna_td
-          val rawColumnCol: Column = if (rawColumnType.equalsIgnoreCase(trustedColumnType)) {
+          val rawColumnColPossiblyCasted: Column = if (rawColumnType.equalsIgnoreCase(trustedColumnType)) {
 
             logger.info(s"No type conversion to apply to raw column '$rawColumnName'. Raw type: '$rawColumnType', trusted type: '$trustedColumnType'")
-            col(rawColumnName)
+            rawColumnCol
 
           } else {
 
             logger.info(s"Defining conversion for raw column '$rawColumnName' (from '$rawColumnType' to '$trustedColumnType')")
-            col(rawColumnName).cast(resolveDataType(trustedColumnType))
+            rawColumnCol.cast(resolveDataType(trustedColumnType))
           }
 
-          rawColumnCol.alias(specificationRecord.colonna_td)
+          rawColumnColPossiblyCasted.alias(specificationRecord.colonna_td)
 
         } else {
 
-          //TODO: applicazione funzioni
-          RawDataTransformerEngine(col(rawColumnName), "aa", lookUpDataFrame)
+          // TODO: logica per concatenazione funzioni ETL
+          rawColumnCol
         }
       })
 
     rawDataframe
-  }
-
-}
-
-object RawDataTransformerEngine {
-
-  private final val logger = Logger.getLogger(getClass)
-
-  def apply(column: Column, functionToApply: String, lookUpDataFrame: DataFrame): Column = {
-
-    val matchingSignatures: Signatures.ValueSet = Signatures.values
-      .filter(_.regex
-        .findFirstMatchIn(functionToApply)
-        .nonEmpty)
-
-    // IF A FUNCTION MATCHES
-    if (matchingSignatures.nonEmpty) {
-
-      val matchingSignature: Signatures.Value = matchingSignatures.head
-      matchingSignature match {
-
-        case Signatures.dateFormat => new DateFormatFunction(column, functionToApply).transform
-        case Signatures.lpad => new LpadFunction(column, functionToApply).transform
-        case Signatures.lookUp => new LookupFunction(column, functionToApply, lookUpDataFrame).transform
-        case Signatures.rpad => new RpadFunction(column, functionToApply).transform
-        case Signatures.toDate => new ToDateFunction(column, functionToApply).transform
-        case Signatures.toTimestamp => new ToTimestampFunction(column, functionToApply).transform
-      }
-
-    } else {
-
-      // TODO: lancio eccezione personalizzata
-      logger.error(s"Unable to match such function: $functionToApply")
-      throw new Exception
-    }
   }
 }

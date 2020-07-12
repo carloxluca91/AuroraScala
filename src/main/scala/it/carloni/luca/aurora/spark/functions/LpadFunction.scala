@@ -4,17 +4,17 @@ import org.apache.log4j.Logger
 import org.apache.spark.sql.Column
 import org.apache.spark.sql.functions.lpad
 
-class LpadFunction(inputColumn: Column, functionToApply: String)
-  extends ETLFunction(inputColumn, functionToApply, Signatures.lpad.regex) {
+case class LpadFunction(functionToApply: String)
+  extends ETLFunction(functionToApply, Signatures.lpad.regex) {
 
   private final val logger: Logger = Logger.getLogger(getClass)
 
-  override def transform: Column = {
+  override def transform(inputColumn: Column): Column = {
 
-    val paddingLength: Int = signatureMatch.group(3).toInt
-    val paddingString: String = signatureMatch.group(4)
+    val paddingLength: Int = signatureMatch.group(4).toInt
+    val paddingString: String = signatureMatch.group(5)
 
-    logger.info(s"function: $functionName, length to pad: $paddingLength, padding charsequence: $paddingString ")
-    lpad(nestedFunctionCol, paddingLength, paddingString)
+    logger.info(s"Function: '$functionName', length to pad: '$paddingLength', padding charsequence: '$paddingString'")
+    lpad(getColumnToTransform(inputColumn), paddingLength, paddingString)
   }
 }

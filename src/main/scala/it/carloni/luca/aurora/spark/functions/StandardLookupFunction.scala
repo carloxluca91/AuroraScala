@@ -4,12 +4,12 @@ import org.apache.log4j.Logger
 import org.apache.spark.sql.{Column, DataFrame, Row}
 import org.apache.spark.sql.functions.{col, lower, trim, when}
 
-class LookupFunction (inputColumn: Column, functionToApply: String, lookUpDataFrame: DataFrame)
-  extends ETLFunction(inputColumn, functionToApply, Signatures.toTimestamp.regex) {
+case class StandardLookupFunction(functionToApply: String)
+  extends ETLFunction(functionToApply, Signatures.standardLookUp.regex) {
 
   private final val logger: Logger = Logger.getLogger(getClass)
 
-  override def transform: Column = {
+  override def transform(inputColumn: Column, lookUpDataFrame: DataFrame): Column = {
 
     val bancllName: String = signatureMatch.group(4)
     val rawColumnName: String = signatureMatch.group(5)

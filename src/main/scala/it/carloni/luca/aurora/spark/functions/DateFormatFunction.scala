@@ -4,18 +4,16 @@ import org.apache.log4j.Logger
 import org.apache.spark.sql.Column
 import org.apache.spark.sql.functions.{from_unixtime, unix_timestamp}
 
-class DateFormatFunction(inputColumn: Column, functionToApply: String)
-  extends ETLFunction(inputColumn, functionToApply, Signatures.dateFormat.regex) {
+case class DateFormatFunction(functionToApply: String)
+  extends ETLFunction(functionToApply, Signatures.dateFormat.regex) {
 
   private final val logger: Logger = Logger.getLogger(getClass)
+  private final val inputFormat: String = signatureMatch.group(4)
+  private final val outputFormat: String = signatureMatch.group(5)
 
-  override def transform: Column = {
+  override def transform(inputColumn: Column): Column = {
 
-    val inputFormat: String = signatureMatch.group(3)
-    val outputFormat: String = signatureMatch.group(4)
-
-    logger.info(s"Function: $functionName, Input format: $inputFormat, Output format: $outputFormat")
-    from_unixtime(unix_timestamp(nestedFunctionCol, inputFormat), outputFormat)
-
+    logger.info(s"Function: '$functionName', Input format: '$inputFormat', Output format: '$outputFormat'")
+    from_unixtime(unix_timestamp(getColumnToTransform(inputColumn), inputFormat), outputFormat)
   }
 }
