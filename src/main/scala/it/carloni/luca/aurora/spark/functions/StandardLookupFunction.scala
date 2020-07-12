@@ -1,15 +1,15 @@
 package it.carloni.luca.aurora.spark.functions
 
 import org.apache.log4j.Logger
-import org.apache.spark.sql.{Column, DataFrame, Row}
 import org.apache.spark.sql.functions.{col, lower, trim, when}
+import org.apache.spark.sql.{Column, Row}
 
 case class StandardLookupFunction(functionToApply: String)
   extends ETLFunction(functionToApply, Signatures.standardLookUp.regex) {
 
   private final val logger: Logger = Logger.getLogger(getClass)
 
-  override def transform(inputColumn: Column, lookUpDataFrame: DataFrame): Column = {
+  override def transform(inputColumn: Column): Column = {
 
     val bancllName: String = signatureMatch.group(4)
     val rawColumnName: String = signatureMatch.group(5)

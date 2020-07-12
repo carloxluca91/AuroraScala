@@ -4,7 +4,6 @@ object ETLFunctionFactory {
 
   def apply[T <: ETLFunction](functionToApply: String): ETLFunction = {
 
-    // FILTER OUT LOOK_UP SIGNATURES
     val matchingSignatures: Signatures.ValueSet = Signatures.values
       .filter(_.regex
         .findFirstMatchIn(functionToApply)
@@ -19,6 +18,7 @@ object ETLFunctionFactory {
         case Signatures.dateFormat => DateFormatFunction(functionToApply)
         case Signatures.lpad => LpadFunction(functionToApply)
         case Signatures.rpad => RpadFunction(functionToApply)
+        case Signatures.standardLookUp => StandardLookupFunction(functionToApply)
         case Signatures.toDate => ToDateFunction(functionToApply)
         case Signatures.toTimestamp => ToTimestampFunction(functionToApply)
       }
