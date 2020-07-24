@@ -21,21 +21,20 @@ class SourceLoadEngine(private final val applicationPropertiesFile: String)
     import sparkSession.implicits._
 
     logger.info(s"Provided BANCLL name: '$bancllName'")
-    val mappingSpecificationFilterColumn: Column = versionNumberOpt match {
+    val mappingSpecificationFilterColumn: Column = if (versionNumberOpt.isEmpty) {
 
-      case None =>
+      logger.info("No specification version number has been provided. Using latest version number")
+      col("flusso") === bancllName
 
-        logger.info("No specification version number has been provided. Using latest version number")
-        col("flusso") === bancllName
+    } else {
 
-      case Some(value) =>
+      val versionNumber: Double = versionNumberOpt.get
+      val versionNumberFormatted: String = f"$versionNumber%.1f"
+        .replace(',', '.')
 
-        val versionNumberFormatted: String = f"$value%.1f"
-          .replace(',', '.')
-
-        logger.info(f"Specification version number to be used: '$versionNumberFormatted")
-        (col("flusso") === bancllName) &&
-          (col("version") === value)
+      logger.info(f"Specification version number to be used: '$versionNumberFormatted")
+      (col("flusso") === bancllName) &&
+        (col("version") === versionNumber)
     }
 
     // TRY TO GET TABLE CONTAINING INGESTION SPECIFICATION
@@ -91,8 +90,8 @@ class SourceLoadEngine(private final val applicationPropertiesFile: String)
           readFromJDBC(lakeCedacriDBName, rawActualTableName)
         }
 
-        new RawDataTransformerEngine(readFromJDBC(pcAuroraDBName, lookupTBLName))
-          .transformRawDataFrame(rawSourceDataFrame, specificationRecords)
+        // new RawDataTransformerEngine(readFromJDBC(pcAuroraDBName, lookupTBLName))
+        //  .transformRawDataFrame(rawSourceDataFrame, specificationRecords)
 
       } else {
 

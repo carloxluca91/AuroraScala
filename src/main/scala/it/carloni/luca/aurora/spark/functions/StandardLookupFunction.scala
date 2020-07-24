@@ -11,6 +11,8 @@ case class StandardLookupFunction(functionToApply: String)
 
   override def transform(inputColumn: Column): Column = {
 
+    inputColumn
+    /*
     val bancllName: String = signatureMatch.group(4)
     val rawColumnName: String = signatureMatch.group(5)
 
@@ -43,6 +45,8 @@ case class StandardLookupFunction(functionToApply: String)
         .foldLeft(lookUpHeadCaseCol)((c: Column, row: Row) => {
           c.when(inputColumn === row.get(0), row.get(1))})
     }
+
+     */
   }
 
   private def trimAndLower(column: Column): Column = lower(trim(column))

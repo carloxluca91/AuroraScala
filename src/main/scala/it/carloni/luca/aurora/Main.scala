@@ -1,5 +1,6 @@
 package it.carloni.luca.aurora
 
+import it.carloni.luca.aurora.option.Branch.BranchName
 import it.carloni.luca.aurora.option.ScoptParser.{BranchConfig, InitialLoadConfig, ReloadConfig, SourceLoadConfig}
 import it.carloni.luca.aurora.option.{Branch, ScoptParser}
 import it.carloni.luca.aurora.spark.engine.{InitialLoadEngine, ReLoadEngine, SourceLoadEngine}
@@ -18,7 +19,7 @@ object Main extends App {
     case Some(value) =>
 
       logger.info("Successfully parsed first set of arguments (application branch)")
-      logger.info(value.toString)
+      logger.info(value)
 
       // DETECT BRANCH TO BE RUN
       Branch.asBranchName(Branch.withName(value.applicationBranch)) match {

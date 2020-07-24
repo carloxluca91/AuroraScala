@@ -5,6 +5,7 @@ object Branch extends Enumeration {
   protected case class BranchName(name: String) extends super.Val(name)
 
   import scala.language.implicitConversions
+
   implicit def asBranchName(x: Value): BranchName = x.asInstanceOf[BranchName]
 
   val InitialLoad: BranchName = BranchName("INITIAL_LOAD")
