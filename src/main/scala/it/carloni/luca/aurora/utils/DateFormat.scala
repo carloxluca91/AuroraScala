@@ -1,12 +1,7 @@
 package it.carloni.luca.aurora.utils
 
-object DateFormat extends Enumeration {
+object DateFormat {
 
-  protected case class DateFormat(format: String) extends super.Val
-
-  import scala.language.implicitConversions
-  implicit def asDateFormat(x: Value): DateFormat = x.asInstanceOf[DateFormat]
-
-  val DtBusinessDate: DateFormat = DateFormat("yyyy-MM-dd")
+  final val dtBusinessDate: String = "yyyy-MM-dd"
 
 }

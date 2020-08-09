@@ -119,7 +119,7 @@ object ScoptParser {
       .required()
       .validate(inputDate => {
 
-        val businessDateFormat: String = DateFormat.DtBusinessDate.format
+        val businessDateFormat: String = DateFormat.dtBusinessDate.format
         val tryParseBusinessDate: Try[LocalDate] = Try(LocalDate.parse(inputDate,
           DateTimeFormatter.ofPattern(businessDateFormat)))
 

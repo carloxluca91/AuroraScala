@@ -13,7 +13,7 @@ class ReLoadEngine(applicationPropertiesFile: String)
   extends AbstractEngine(applicationPropertiesFile) {
 
   private final val logger = Logger.getLogger(getClass)
-  private final val createReLoadLogRecord = createLogRecord(Branch.ReLoad.name, None, None, _: String, _: Option[String])
+  private final val createReLoadLogRecord = createLogRecord(Branch.ReLoad.toString, None, None, _: String, _: Option[String])
 
   def run(mappingSpecificationFlag: Boolean, lookupFlag: Boolean, completeOverwriteFlag: Boolean): Unit = {
 
@@ -32,7 +32,7 @@ class ReLoadEngine(applicationPropertiesFile: String)
       val mappingSpecificationLoggingRecords: Seq[LogRecord] =
         if (mappingSpecificationFlag) {
 
-          logger.info(s"Starting to overwrite table \'$pcAuroraDBName\'.\'$mappingSpecificationTBLName\'")
+          logger.info(s"Starting to overwrite table '$pcAuroraDBName'.'$mappingSpecificationTBLName'")
           reloadMappingSpecification(completeOverwriteFlag)
 
         } else Seq.empty
@@ -40,7 +40,7 @@ class ReLoadEngine(applicationPropertiesFile: String)
       val lookUpLoggingRecords: Seq[LogRecord] =
         if (lookupFlag) {
 
-          logger.info(s"Starting to overwrite table \'$pcAuroraDBName\'.\'$lookupTBLName\'")
+          logger.info(s"Starting to overwrite table '$pcAuroraDBName'.'$lookupTBLName'")
           mappingSpecificationLoggingRecords ++ reloadLookUpSpecification(completeOverwriteFlag)
 
         } else mappingSpecificationLoggingRecords
@@ -130,7 +130,7 @@ class ReLoadEngine(applicationPropertiesFile: String)
     val oldVersionNumberStr: String = f"$oldVersionNumber%.1f"
       .replace(',', '.')
 
-    logger.info(f"Old specification version: \'$oldVersionNumberStr\'. Overriding with version \'$newSpecificationVersion\'")
+    logger.info(f"Old specification version: '$oldVersionNumberStr'. Overriding with version '$newSpecificationVersion'")
     newSpecificationVersion
   }
 }

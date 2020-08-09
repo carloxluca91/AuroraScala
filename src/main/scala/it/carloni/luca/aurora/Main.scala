@@ -1,6 +1,5 @@
 package it.carloni.luca.aurora
 
-import it.carloni.luca.aurora.option.Branch.BranchName
 import it.carloni.luca.aurora.option.ScoptParser.{BranchConfig, InitialLoadConfig, ReloadConfig, SourceLoadConfig}
 import it.carloni.luca.aurora.option.{Branch, ScoptParser}
 import it.carloni.luca.aurora.spark.engine.{InitialLoadEngine, ReLoadEngine, SourceLoadEngine}
@@ -22,12 +21,12 @@ object Main extends App {
       logger.info(value)
 
       // DETECT BRANCH TO BE RUN
-      Branch.asBranchName(Branch.withName(value.applicationBranch)) match {
+      Branch.withName(value.applicationBranch) match {
 
         // [a] INITIAL_LOAD
         case Branch.InitialLoad =>
 
-          logger.info(s"Matched branch \'${Branch.InitialLoad.name}\'")
+          logger.info(s"Matched branch '${Branch.InitialLoad.toString}'")
 
           ScoptParser.initialLoadOptionParser.parse(args, InitialLoadConfig()) match {
 
@@ -37,13 +36,13 @@ object Main extends App {
               logger.info(value)
               logger.info("Successfully parsed second set of arguments (branch arguments)")
               new InitialLoadEngine(value.propertiesFile).run()
-              logger.info(s"Successfully executed operations on branch \'${Branch.InitialLoad.name}\'")
+              logger.info(s"Successfully executed operations on branch '${Branch.InitialLoad.toString}'")
           }
 
         // [b] SOURCE_LOAD
         case Branch.SourceLoad =>
 
-          logger.info(s"Matched branch \'${Branch.SourceLoad.name}\'")
+          logger.info(s"Matched branch '${Branch.SourceLoad.toString}'")
 
           ScoptParser.sourceLoadOptionParser.parse(args, SourceLoadConfig()) match {
 
@@ -53,13 +52,13 @@ object Main extends App {
               logger.info(value)
               logger.info("Successfully parsed second set of arguments (branch arguments)")
               new SourceLoadEngine(value.propertiesFile).run(value.bancllName, value.businessDateOpt, value.versionNumberOpt)
-              logger.info(s"Successfully executed operations on branch \'${Branch.SourceLoad.name}\'")
+              logger.info(s"Successfully executed operations on branch '${Branch.SourceLoad.toString}'")
           }
 
         // [c] RE_LOAD
         case Branch.ReLoad =>
 
-          logger.info(s"Matched branch \'${Branch.ReLoad.name}\'")
+          logger.info(s"Matched branch '${Branch.ReLoad.toString}'")
 
           ScoptParser.reloadOptionParser.parse(args, ReloadConfig()) match {
 
@@ -68,10 +67,11 @@ object Main extends App {
 
               logger.info(value)
               logger.info("Successfully parsed second set of arguments (branch arguments)")
-              new ReLoadEngine(value.propertiesFile).run(mappingSpecificationFlag = value.mappingSpecificationFlag,
+              new ReLoadEngine(value.propertiesFile).run(
+                mappingSpecificationFlag = value.mappingSpecificationFlag,
                 lookupFlag = value.lookUpFlag,
                 completeOverwriteFlag = value.completeOverwriteFlag)
-              logger.info(s"Successfully executed operations on branch \'${Branch.ReLoad.name}\'")
+              logger.info(s"Successfully executed operations on branch '${Branch.ReLoad.toString}'")
           }
       }
   }

@@ -14,7 +14,7 @@ class InitialLoadEngine(applicationPropertiesFile: String)
   extends AbstractEngine(applicationPropertiesFile) {
 
   private final val logger = Logger.getLogger(getClass)
-  private final val createInitialLoadLogRecord = createLogRecord(Branch.InitialLoad.name, None, None, _: String, _: Option[String])
+  private final val createInitialLoadLogRecord = createLogRecord(Branch.InitialLoad.toString, None, None, _: String, _: Option[String])
 
   def run(): Unit = {
 
@@ -71,19 +71,19 @@ class InitialLoadEngine(applicationPropertiesFile: String)
       .toSeq
 
     logger.info(s"Existing databases: ${existingDatabases
-      .map(existingDatabase => s"\'$existingDatabase\'")
+      .map(x => s"'$x'")
       .mkString(", ")}")
 
     val databaseToCreateLower: String = databaseToCreate.toLowerCase
     if (existingDatabases.contains(databaseToCreateLower))
 
-      logger.info(s"Database \'$databaseToCreateLower\' already exists. So, not much to do ;)")
+      logger.info(s"Database '$databaseToCreateLower' already exists. So, not much to do ;)")
 
     else {
 
       val createDbStatement: Statement = connection.createStatement()
       createDbStatement.executeUpdate(s"CREATE DATABASE IF NOT EXISTS $databaseToCreateLower")
-      logger.info(s"Successfully created database \'$databaseToCreateLower\'")
+      logger.info(s"Successfully created database '$databaseToCreateLower'")
     }
   }
 

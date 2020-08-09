@@ -79,7 +79,7 @@ class SourceLoadEngine(private final val applicationPropertiesFile: String)
           // IF A dt_business_date HAS BEEN PROVIDED, READ FROM RAW_HISTORICAL_TABLE
           val dtBusinessDateAsStr: String = dtBusinessDateOpt.get
           logger.info(s"Provided business date: '$dtBusinessDateAsStr'. Thus, reading raw data from '$rawHistoricalTableName'")
-          val dtBusinessDateAsDate: java.sql.Date = fromStringToJavaSQLDate(dtBusinessDateAsStr, DateFormat.DtBusinessDate.format)
+          val dtBusinessDateAsDate: java.sql.Date = fromStringToJavaSQLDate(dtBusinessDateAsStr, DateFormat.dtBusinessDate)
           readFromJDBC(lakeCedacriDBName, rawHistoricalTableName)
             .filter(col("dt_business_date") === dtBusinessDateAsDate)
 
