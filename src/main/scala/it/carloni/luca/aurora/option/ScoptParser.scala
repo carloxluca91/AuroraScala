@@ -1,7 +1,6 @@
 package it.carloni.luca.aurora.option
 
 import java.time.LocalDate
-import java.time.format.DateTimeFormatter
 
 import it.carloni.luca.aurora.utils.DateFormat
 import scopt.OptionParser
@@ -10,9 +9,10 @@ import scala.util.Try
 
 object ScoptParser {
 
-  private def objectToString(tClass: Class[_], scoptOptionsMap: Map[ScoptOption.Val, Any]): String = {
+  private def objectToString(tClass: Class[_], scoptOptionsMap: Map[ScoptOption, Any]): String = {
 
-    val optionsWithValues: String = (scoptOptionsMap map { case (key, value) =>  s"\t-${key.short}, --${key.long} (${key.text}) = \'$value\'"})
+    val optionsWithValues: String = (scoptOptionsMap map { case (key, value) =>  s"\t-${key.getShortOption}, " +
+      s"--${key.getLongOption} (${key.getDescription}) = '$value'"})
       .toSeq
       .mkString("\n")
 
@@ -25,7 +25,7 @@ object ScoptParser {
 
     override def toString: String = {
 
-      val toStringMap: Map[ScoptOption.Val, Any] = Map(ScoptOption.applicationBranchOption -> applicationBranch)
+      val toStringMap: Map[ScoptOption, Any] = Map(ScoptOption.APPLICATION_BRANCH -> applicationBranch)
       objectToString(getClass, toStringMap)
     }
   }
@@ -34,7 +34,7 @@ object ScoptParser {
 
     override def toString: String = {
 
-      val toStringMap: Map[ScoptOption.Val, Any] = Map(ScoptOption.propertiesOption -> propertiesFile)
+      val toStringMap: Map[ScoptOption, Any] = Map(ScoptOption.PROPERTIES_OPTION -> propertiesFile)
       objectToString(getClass, toStringMap)
     }
   }
@@ -46,10 +46,10 @@ object ScoptParser {
 
     override def toString: String = {
 
-      val toStringMap: Map[ScoptOption.Val, Any] = Map(ScoptOption.propertiesOption -> propertiesFile,
-        ScoptOption.sourceOption -> bancllName,
-        ScoptOption.businessDateOption -> businessDateOpt.orNull,
-        ScoptOption.versionNumberOption -> versionNumberOpt.orNull)
+      val toStringMap: Map[ScoptOption, Any] = Map(ScoptOption.PROPERTIES_OPTION -> propertiesFile,
+        ScoptOption.SOURCE_OPTION -> bancllName,
+        ScoptOption.BUSINESS_DATE_OPTION -> businessDateOpt.orNull,
+        ScoptOption.VERSION_NUMBER_OPTION -> versionNumberOpt.orNull)
       objectToString(getClass, toStringMap)
     }
   }
@@ -61,10 +61,10 @@ object ScoptParser {
 
     override def toString: String = {
 
-      val toStringMap: Map[ScoptOption.Val, Any] = Map(ScoptOption.propertiesOption -> propertiesFile,
-        ScoptOption.mappingSpecificationFlag -> mappingSpecificationFlag,
-        ScoptOption.lookUpSpecificationFlag -> lookUpFlag,
-        ScoptOption.completeOverwriteFlag -> completeOverwriteFlag)
+      val toStringMap: Map[ScoptOption, Any] = Map(ScoptOption.PROPERTIES_OPTION -> propertiesFile,
+        ScoptOption.MAPPING_SPECIFICATION_FLAG -> mappingSpecificationFlag,
+        ScoptOption.LOOKUP_SPECIFICATION_FLAG -> lookUpFlag,
+        ScoptOption.COMPLETE_OVERWRITE_FLAG -> completeOverwriteFlag)
       objectToString(getClass, toStringMap)
     }
   }
@@ -78,8 +78,8 @@ object ScoptParser {
 
     override def reportWarning(msg: String): Unit = {}
 
-    opt[String](ScoptOption.applicationBranchOption.short, ScoptOption.applicationBranchOption.long)
-      .text(ScoptOption.applicationBranchOption.text)
+    opt[String](ScoptOption.APPLICATION_BRANCH.getShortOption, ScoptOption.APPLICATION_BRANCH.getLongOption)
+      .text(ScoptOption.APPLICATION_BRANCH.getDescription)
       .required()
       .action((x, c) => c.copy(applicationBranch = x))
   }
@@ -91,8 +91,8 @@ object ScoptParser {
 
     override def reportWarning(msg: String): Unit = {}
 
-    opt[String](ScoptOption.propertiesOption.short, ScoptOption.propertiesOption.long)
-      .text(ScoptOption.propertiesOption.text)
+    opt[String](ScoptOption.PROPERTIES_OPTION.getShortOption, ScoptOption.PROPERTIES_OPTION.getLongOption)
+      .text(ScoptOption.PROPERTIES_OPTION.getDescription)
       .required()
       .action((x, c) => c.copy(propertiesFile = x))
   }
@@ -104,32 +104,31 @@ object ScoptParser {
 
     override def reportWarning(msg: String): Unit = {}
 
-    opt[String](ScoptOption.propertiesOption.short, ScoptOption.propertiesOption.long)
-      .text(ScoptOption.propertiesOption.text)
+    opt[String](ScoptOption.PROPERTIES_OPTION.getShortOption, ScoptOption.PROPERTIES_OPTION.getLongOption)
+      .text(ScoptOption.PROPERTIES_OPTION.getDescription)
       .required()
       .action((x, c) => c.copy(propertiesFile = x))
 
-    opt[String](ScoptOption.sourceOption.short, ScoptOption.sourceOption.long)
-      .text(ScoptOption.sourceOption.text)
+    opt[String](ScoptOption.SOURCE_OPTION.getShortOption, ScoptOption.SOURCE_OPTION.getLongOption)
+      .text(ScoptOption.SOURCE_OPTION.getDescription)
       .required()
       .action((x, c) => c.copy(bancllName = x))
 
-    opt[String](ScoptOption.businessDateOption.short, ScoptOption.businessDateOption.long)
-      .text(ScoptOption.businessDateOption.text)
+    opt[String](ScoptOption.BUSINESS_DATE_OPTION.getShortOption, ScoptOption.BUSINESS_DATE_OPTION.getLongOption)
+      .text(ScoptOption.BUSINESS_DATE_OPTION.getDescription)
       .required()
       .validate(inputDate => {
 
-        val businessDateFormat: String = DateFormat.dtBusinessDate.format
         val tryParseBusinessDate: Try[LocalDate] = Try(LocalDate.parse(inputDate,
-          DateTimeFormatter.ofPattern(businessDateFormat)))
+          DateFormat.DT_BUSINESS_DATE.getFormatter))
 
         if (tryParseBusinessDate.isSuccess) success
-        else failure(s"Cannot parse business date. Provided \'$inputDate\', should follow format \'$businessDateFormat\'")
+        else failure(s"Cannot parse business date. Provided '$inputDate', should follow format '${DateFormat.DT_BUSINESS_DATE.getFormat}'")
       })
       .action((x, c) => c.copy(businessDateOpt = Some(x)))
 
-    opt[Double](ScoptOption.versionNumberOption.short, ScoptOption.versionNumberOption.long)
-      .text(ScoptOption.versionNumberOption.text)
+    opt[Double](ScoptOption.VERSION_NUMBER_OPTION.getShortOption, ScoptOption.VERSION_NUMBER_OPTION.getLongOption)
+      .text(ScoptOption.VERSION_NUMBER_OPTION.getDescription)
       .action((x, c) => c.copy(versionNumberOpt = Some(x)))
   }
 
@@ -140,21 +139,21 @@ object ScoptParser {
 
     override def reportWarning(msg: String): Unit = {}
 
-    opt[String](ScoptOption.propertiesOption.short, ScoptOption.propertiesOption.long)
-      .text(ScoptOption.propertiesOption.text)
+    opt[String](ScoptOption.PROPERTIES_OPTION.getShortOption, ScoptOption.PROPERTIES_OPTION.getLongOption)
+      .text(ScoptOption.PROPERTIES_OPTION.getDescription)
       .required()
       .action((x, c) => c.copy(propertiesFile = x))
 
-    opt[Unit](ScoptOption.mappingSpecificationFlag.short, ScoptOption.mappingSpecificationFlag.long)
-      .text(ScoptOption.mappingSpecificationFlag.text)
+    opt[Unit](ScoptOption.MAPPING_SPECIFICATION_FLAG.getShortOption, ScoptOption.MAPPING_SPECIFICATION_FLAG.getLongOption)
+      .text(ScoptOption.MAPPING_SPECIFICATION_FLAG.getDescription)
       .action((_, c) => c.copy(mappingSpecificationFlag = true))
 
-    opt[Unit](ScoptOption.lookUpSpecificationFlag.short, ScoptOption.lookUpSpecificationFlag.long)
-      .text(ScoptOption.lookUpSpecificationFlag.text)
+    opt[Unit](ScoptOption.LOOKUP_SPECIFICATION_FLAG.getShortOption, ScoptOption.LOOKUP_SPECIFICATION_FLAG.getLongOption)
+      .text(ScoptOption.LOOKUP_SPECIFICATION_FLAG.getDescription)
       .action((_, c) => c.copy(lookUpFlag = true))
 
-    opt[Unit](ScoptOption.completeOverwriteFlag.short, ScoptOption.completeOverwriteFlag.long)
-      .text(ScoptOption.completeOverwriteFlag.text)
+    opt[Unit](ScoptOption.COMPLETE_OVERWRITE_FLAG.getShortOption, ScoptOption.COMPLETE_OVERWRITE_FLAG.getLongOption)
+      .text(ScoptOption.COMPLETE_OVERWRITE_FLAG.getDescription)
       .action((_, c) => c.copy(completeOverwriteFlag = true))
   }
 }

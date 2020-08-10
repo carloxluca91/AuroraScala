@@ -21,58 +21,63 @@ object Main extends App {
       logger.info(value)
 
       // DETECT BRANCH TO BE RUN
-      Branch.withName(value.applicationBranch) match {
+      val branchesSet: Set[Branch] = Branch.values()
+        .filter(_.getName.equalsIgnoreCase(value.applicationBranch))
+        .toSet
 
-        // [a] INITIAL_LOAD
-        case Branch.InitialLoad =>
+      if (branchesSet.nonEmpty) {
 
-          logger.info(s"Matched branch '${Branch.InitialLoad.toString}'")
+        branchesSet.head match {
 
-          ScoptParser.initialLoadOptionParser.parse(args, InitialLoadConfig()) match {
+          // [a] INITIAL_LOAD
+          case Branch.INITIAL_LOAD =>
 
-            case None => logger.error("Error during parsing of second set of arguments (branch arguments)")
-            case Some(value) =>
+            val branchName: String = Branch.INITIAL_LOAD.getName
+            logger.info(s"Matched branch '$branchName'")
+            ScoptParser.initialLoadOptionParser.parse(args, InitialLoadConfig()) match {
 
-              logger.info(value)
-              logger.info("Successfully parsed second set of arguments (branch arguments)")
-              new InitialLoadEngine(value.propertiesFile).run()
-              logger.info(s"Successfully executed operations on branch '${Branch.InitialLoad.toString}'")
-          }
+              case None => logger.error("Error during parsing of second set of arguments (branch arguments)")
+              case Some(value) =>
 
-        // [b] SOURCE_LOAD
-        case Branch.SourceLoad =>
+                logger.info(value)
+                logger.info("Successfully parsed second set of arguments (branch arguments)")
+                new InitialLoadEngine(value.propertiesFile).run()
+                logger.info(s"Successfully executed operations on branch '$branchName'")
+            }
 
-          logger.info(s"Matched branch '${Branch.SourceLoad.toString}'")
+          // [b] SOURCE_LOAD
+          case Branch.SOURCE_LOAD =>
 
-          ScoptParser.sourceLoadOptionParser.parse(args, SourceLoadConfig()) match {
+            val branchName: String = Branch.SOURCE_LOAD.getName
+            logger.info(s"Matched branch '$branchName'")
+            ScoptParser.sourceLoadOptionParser.parse(args, SourceLoadConfig()) match {
 
-            case None => logger.error("Error during parsing of second set of arguments (branch arguments)")
-            case Some(value) =>
+              case None => logger.error("Error during parsing of second set of arguments (branch arguments)")
+              case Some(value) =>
 
-              logger.info(value)
-              logger.info("Successfully parsed second set of arguments (branch arguments)")
-              new SourceLoadEngine(value.propertiesFile).run(value.bancllName, value.businessDateOpt, value.versionNumberOpt)
-              logger.info(s"Successfully executed operations on branch '${Branch.SourceLoad.toString}'")
-          }
+                logger.info(value)
+                logger.info("Successfully parsed second set of arguments (branch arguments)")
+                new SourceLoadEngine(value.propertiesFile).run(value)
+                logger.info(s"Successfully executed operations on branch '$branchName'")
+            }
 
-        // [c] RE_LOAD
-        case Branch.ReLoad =>
+          // [c] RE_LOAD
+          case Branch.RE_LOAD =>
 
-          logger.info(s"Matched branch '${Branch.ReLoad.toString}'")
+            val branchName: String = Branch.RE_LOAD.getName
+            logger.info(s"Matched branch '$branchName'")
 
-          ScoptParser.reloadOptionParser.parse(args, ReloadConfig()) match {
+            ScoptParser.reloadOptionParser.parse(args, ReloadConfig()) match {
 
-            case None => logger.error("Error during parsing of second set of arguments (branch arguments)")
-            case Some(value) =>
+              case None => logger.error("Error during parsing of second set of arguments (branch arguments)")
+              case Some(value) =>
 
-              logger.info(value)
-              logger.info("Successfully parsed second set of arguments (branch arguments)")
-              new ReLoadEngine(value.propertiesFile).run(
-                mappingSpecificationFlag = value.mappingSpecificationFlag,
-                lookupFlag = value.lookUpFlag,
-                completeOverwriteFlag = value.completeOverwriteFlag)
-              logger.info(s"Successfully executed operations on branch '${Branch.ReLoad.toString}'")
-          }
+                logger.info(value)
+                logger.info("Successfully parsed second set of arguments (branch arguments)")
+                new ReLoadEngine(value.propertiesFile).run(value)
+                logger.info(s"Successfully executed operations on branch '$branchName'")
+            }
+        }
       }
   }
 }

@@ -14,9 +14,9 @@ class InitialLoadEngine(applicationPropertiesFile: String)
   extends AbstractEngine(applicationPropertiesFile) {
 
   private final val logger = Logger.getLogger(getClass)
-  private final val createInitialLoadLogRecord = createLogRecord(Branch.InitialLoad.toString, None, None, _: String, _: Option[String])
+  private final val createInitialLoadLogRecord = createLogRecord(Branch.INITIAL_LOAD.getName, None, None, _: String, _: Option[String])
 
-  def run(): Unit = {
+  def run(optionT: Option[Nothing] = None): Unit = {
 
     // CREATE DATABASE, IF IT DOES NOT EXIST
     Class.forName("com.mysql.jdbc.Driver")

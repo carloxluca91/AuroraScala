@@ -9,15 +9,16 @@ lazy val auroraScala = (project in file("."))
     scalaVersion := "2.11.8",
     scalacOptions ++= Seq(
 
-      "-encoding", "UTF-8"
-    ),
+      "-encoding", "UTF-8"),
 
-    libraryDependencies += ("org.apache.spark" %% "spark-core" % sparkVersion % "provided"),
-    libraryDependencies += ("org.apache.spark" %% "spark-sql" % sparkVersion % "provided"),
-    libraryDependencies += ("com.github.scopt" %% "scopt" % "3.3.0"),
-    libraryDependencies += ("mysql" % "mysql-connector-java" % "5.1.47" % "provided"),
+    libraryDependencies ++= Seq(
 
-    (unmanagedResources in Compile) := (unmanagedResources in Compile)
+      "org.apache.spark" %% "spark-core" % sparkVersion % "provided",
+      "org.apache.spark" %% "spark-sql" % sparkVersion % "provided",
+      "com.github.scopt" %% "scopt" % "3.3.0",
+      "mysql" % "mysql-connector-java" % "5.1.47" % "provided"),
+
+      (unmanagedResources in Compile) := (unmanagedResources in Compile)
       .value
       .filterNot(_.getName.endsWith(".properties")),
 

@@ -1,8 +1,13 @@
 package it.carloni.luca.aurora.spark.functions
 
+import org.apache.log4j.Logger
+import org.apache.spark.sql.Column
+
 object ETLFunctionFactory {
 
-  def apply[T <: ETLFunction](functionToApply: String): ETLFunction = {
+  private final val logger: Logger = Logger.getLogger(getClass)
+
+  def apply(functionToApply: String, inputColumn: Column): Column = {
 
     val matchingSignatures: Signatures.ValueSet = Signatures.values
       .filter(_.regex
@@ -13,15 +18,26 @@ object ETLFunctionFactory {
     if (matchingSignatures.nonEmpty) {
 
       // RETRIEVE IT
-      matchingSignatures.head match {
+      val matchedFunction: ETLFunction = matchingSignatures.head match {
 
-        case Signatures.dateFormat => DateFormatFunction(functionToApply)
-        case Signatures.lpad => LpadFunction(functionToApply)
-        case Signatures.rpad => RpadFunction(functionToApply)
-        case Signatures.standardLookUp => StandardLookupFunction(functionToApply)
-        case Signatures.toDate => ToDateFunction(functionToApply)
-        case Signatures.toTimestamp => ToTimestampFunction(functionToApply)
+        case Signatures.`dateFormat` => DateFormatFunction(functionToApply)
+        case Signatures.`leftOrRightPad` => LeftOrRightPadFunction(functionToApply)
+        case Signatures.`toDateOrTimestamp` => ToDateOrTimestampFunction(functionToApply)
       }
+
+      val columnToTransform: Column = if (matchedFunction.hasNestedFunction) {
+
+        logger.info(s"Detected nested function: '${matchedFunction.nestedFunctionGroup3}'. Trying to resolve it")
+        ETLFunctionFactory.apply(matchedFunction.nestedFunctionGroup3, inputColumn)
+
+      } else {
+
+        logger.info("No further nested function identified")
+        inputColumn
+      }
+
+      matchedFunction.transform(columnToTransform)
+
     } else {
 
       // TODO: eccezione

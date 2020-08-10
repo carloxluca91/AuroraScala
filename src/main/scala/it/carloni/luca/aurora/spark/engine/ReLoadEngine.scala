@@ -1,5 +1,6 @@
 package it.carloni.luca.aurora.spark.engine
 
+import it.carloni.luca.aurora.option.ScoptParser.ReloadConfig
 import it.carloni.luca.aurora.option.{Branch, ScoptOption}
 import it.carloni.luca.aurora.spark.data.LogRecord
 import it.carloni.luca.aurora.utils.Utils.{getJavaSQLDateFromNow, getJavaSQLTimestampFromNow}
@@ -13,18 +14,22 @@ class ReLoadEngine(applicationPropertiesFile: String)
   extends AbstractEngine(applicationPropertiesFile) {
 
   private final val logger = Logger.getLogger(getClass)
-  private final val createReLoadLogRecord = createLogRecord(Branch.ReLoad.toString, None, None, _: String, _: Option[String])
+  private final val createReLoadLogRecord = createLogRecord(Branch.RE_LOAD.getName, None, None, _: String, _: Option[String])
 
-  def run(mappingSpecificationFlag: Boolean, lookupFlag: Boolean, completeOverwriteFlag: Boolean): Unit = {
+  def run(reloadConfig: ReloadConfig): Unit = {
+
+    val mappingSpecificationFlag: Boolean = reloadConfig.mappingSpecificationFlag
+    val lookupFlag: Boolean = reloadConfig.lookUpFlag
+    val completeOverwriteFlag: Boolean = reloadConfig.completeOverwriteFlag
 
     if (!Seq(mappingSpecificationFlag, lookupFlag)
       .reduce(_ | _)) {
 
       logger.warn("According to user input, no table has to be overriden. Thus, not much to do")
-      logger.warn(s"To override mapping specification table, you must specify -${ScoptOption.mappingSpecificationFlag.short} " +
-        s"(or -- ${ScoptOption.mappingSpecificationFlag.long})")
-      logger.warn(s"To override look up table, you must specify -${ScoptOption.lookUpSpecificationFlag.short} " +
-        s"(or -- ${ScoptOption.lookUpSpecificationFlag.long})")
+      logger.warn(s"To override mapping specification table, you must specify -${ScoptOption.MAPPING_SPECIFICATION_FLAG.getShortOption} " +
+        s"(or -- ${ScoptOption.MAPPING_SPECIFICATION_FLAG.getLongOption})")
+      logger.warn(s"To override look up table, you must specify -${ScoptOption.LOOKUP_SPECIFICATION_FLAG.getShortOption} " +
+        s"(or -- ${ScoptOption.LOOKUP_SPECIFICATION_FLAG.getLongOption})")
     }
 
     else {

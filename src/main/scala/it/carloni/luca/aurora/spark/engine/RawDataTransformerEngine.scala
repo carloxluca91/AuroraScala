@@ -1,13 +1,12 @@
 package it.carloni.luca.aurora.spark.engine
 
 import it.carloni.luca.aurora.spark.data.SpecificationRecord
-import it.carloni.luca.aurora.spark.functions._
 import it.carloni.luca.aurora.utils.Utils.resolveDataType
 import org.apache.log4j.Logger
 import org.apache.spark.sql.functions.col
 import org.apache.spark.sql.{Column, DataFrame}
 
-class RawDataTransformerEngine(private final val lookUpDataFrame: DataFrame) {
+class RawDataTransformerEngine {
 
   private final val logger = Logger.getLogger(getClass)
 
@@ -25,7 +24,7 @@ class RawDataTransformerEngine(private final val lookUpDataFrame: DataFrame) {
           .filter(_.nonEmpty)
           .map(_.get)
 
-        // IF THE COLUMN DOES NOT IMPLY ANY TRANSFORMATION BUT MUST TO BE KEPT
+        // IF THE COLUMN DOES NOT IMPLY ANY TRANSFORMATION BUT NEEDS TO BE KEPT
         if (functionsToApply.isEmpty && specificationRecord.flag_discard.isEmpty) {
 
           logger.info(s"No transformation to apply to raw column '$rawColumnName'")
@@ -33,7 +32,7 @@ class RawDataTransformerEngine(private final val lookUpDataFrame: DataFrame) {
           // CHECK IF INPUT AND OUTPUT DATATYPE MATCH
           val rawColumnType: String = specificationRecord.tipo_colonna_rd
           val trustedColumnType: String = specificationRecord.tipo_colonna_td
-          val rawColumnColPossiblyCasted: Column = if (rawColumnType.equalsIgnoreCase(trustedColumnType)) {
+          val rawColumnColMaybeCasted: Column = if (rawColumnType.equalsIgnoreCase(trustedColumnType)) {
 
             logger.info(s"No type conversion to apply to raw column '$rawColumnName'. Raw type: '$rawColumnType', trusted type: '$trustedColumnType'")
             rawColumnCol
@@ -44,7 +43,7 @@ class RawDataTransformerEngine(private final val lookUpDataFrame: DataFrame) {
             rawColumnCol.cast(resolveDataType(trustedColumnType))
           }
 
-          rawColumnColPossiblyCasted.alias(specificationRecord.colonna_td)
+          rawColumnColMaybeCasted.alias(specificationRecord.colonna_td)
 
         } else {
 

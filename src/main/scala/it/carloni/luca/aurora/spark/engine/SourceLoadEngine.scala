@@ -4,6 +4,7 @@ import java.sql.Date
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
+import it.carloni.luca.aurora.option.ScoptParser.SourceLoadConfig
 import it.carloni.luca.aurora.spark.data.SpecificationRecord
 import it.carloni.luca.aurora.spark.exception.{MultipleRdSourceException, MultipleTrdDestinationException, NoSpecificationException}
 import it.carloni.luca.aurora.utils.DateFormat
@@ -16,9 +17,13 @@ class SourceLoadEngine(private final val applicationPropertiesFile: String)
 
   private final val logger = Logger.getLogger(getClass)
 
-  def run(bancllName: String, dtBusinessDateOpt: Option[String], versionNumberOpt: Option[Double]): Unit = {
+  def run(sourceLoadConfig: SourceLoadConfig): Unit = {
 
     import sparkSession.implicits._
+
+    val bancllName: String = sourceLoadConfig.bancllName
+    val versionNumberOpt: Option[Double] = sourceLoadConfig.versionNumberOpt
+    val dtBusinessDateOpt: Option[String] = sourceLoadConfig.businessDateOpt
 
     logger.info(s"Provided BANCLL name: '$bancllName'")
     val mappingSpecificationFilterColumn: Column = if (versionNumberOpt.isEmpty) {
@@ -79,7 +84,7 @@ class SourceLoadEngine(private final val applicationPropertiesFile: String)
           // IF A dt_business_date HAS BEEN PROVIDED, READ FROM RAW_HISTORICAL_TABLE
           val dtBusinessDateAsStr: String = dtBusinessDateOpt.get
           logger.info(s"Provided business date: '$dtBusinessDateAsStr'. Thus, reading raw data from '$rawHistoricalTableName'")
-          val dtBusinessDateAsDate: java.sql.Date = fromStringToJavaSQLDate(dtBusinessDateAsStr, DateFormat.dtBusinessDate)
+          val dtBusinessDateAsDate: java.sql.Date = fromStringToJavaSQLDate(dtBusinessDateAsStr, DateFormat.DT_BUSINESS_DATE.getFormatter)
           readFromJDBC(lakeCedacriDBName, rawHistoricalTableName)
             .filter(col("dt_business_date") === dtBusinessDateAsDate)
 
@@ -119,9 +124,5 @@ class SourceLoadEngine(private final val applicationPropertiesFile: String)
     }
   }
 
-  private def fromStringToJavaSQLDate(date: String, dateFormat: String): java.sql.Date = {
-
-    Date.valueOf(LocalDate.parse(date,
-      DateTimeFormatter.ofPattern(dateFormat)))
-  }
+  private def fromStringToJavaSQLDate(date: String, dateFormatter: DateTimeFormatter): java.sql.Date = Date.valueOf(LocalDate.parse(date, dateFormatter))
 }

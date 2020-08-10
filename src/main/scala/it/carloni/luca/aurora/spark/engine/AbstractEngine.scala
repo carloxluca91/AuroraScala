@@ -2,7 +2,6 @@ package it.carloni.luca.aurora.spark.engine
 
 import java.io.{File, FileNotFoundException}
 import java.time.LocalDate
-import java.time.format.DateTimeFormatter
 
 import it.carloni.luca.aurora.spark.data.LogRecord
 import it.carloni.luca.aurora.utils.DateFormat
@@ -63,8 +62,7 @@ abstract class AbstractEngine(private final val applicationPropertiesFile: Strin
 
         val dtBusinessDateString: String = dtBusinessDateOpt.get
         logger.info(s"Converting $dtBusinessDateString to java.sql.Date")
-        val dtBusinessDateLocalDate: LocalDate = LocalDate.parse(dtBusinessDateString,
-          DateTimeFormatter.ofPattern(DateFormat.dtBusinessDate))
+        val dtBusinessDateLocalDate: LocalDate = LocalDate.parse(dtBusinessDateString, DateFormat.DT_BUSINESS_DATE.getFormatter)
 
         val dtBusinessDateSQLDateOpt: Option[Date] = Some(Date.valueOf(dtBusinessDateLocalDate))
         logger.info(s"Successfullt converted $dtBusinessDateString to java.sql.Date")
