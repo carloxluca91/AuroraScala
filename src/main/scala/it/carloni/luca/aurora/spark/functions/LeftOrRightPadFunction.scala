@@ -4,12 +4,13 @@ import org.apache.spark.sql.Column
 import org.apache.spark.sql.functions.{lpad, rpad}
 
 case class LeftOrRightPadFunction(functionToApply: String)
-  extends ETLFunction(functionToApply, Signatures.leftOrRightPad.regex) {
+  extends ETLFunction(functionToApply, Signature.leftOrRightPad.regex) {
 
   private final val paddingLength: Int = signatureMatch.group(4).toInt
   private final val paddingString: String = signatureMatch.group(5)
+  logger.info(toString)
 
-  override def toString: String = s"Function: '$functionName', length to pad: '$paddingLength', padding charsequence: '$paddingString'"
+  override def toString: String = s"'$functionName($nestedFunctionGroup3, padding_length = $paddingLength, padding charsequence = '$paddingString')'"
 
   override def transform(inputColumn: Column): Column =
 

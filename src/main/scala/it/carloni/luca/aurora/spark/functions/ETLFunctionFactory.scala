@@ -1,5 +1,6 @@
 package it.carloni.luca.aurora.spark.functions
 
+import it.carloni.luca.aurora.spark.exception.UnmatchedFunctionException
 import org.apache.log4j.Logger
 import org.apache.spark.sql.Column
 
@@ -9,7 +10,7 @@ object ETLFunctionFactory {
 
   def apply(functionToApply: String, inputColumn: Column): Column = {
 
-    val matchingSignatures: Signatures.ValueSet = Signatures.values
+    val matchingSignatures: Signature.ValueSet = Signature.values
       .filter(_.regex
         .findFirstMatchIn(functionToApply)
         .nonEmpty)
@@ -20,9 +21,9 @@ object ETLFunctionFactory {
       // RETRIEVE IT
       val matchedFunction: ETLFunction = matchingSignatures.head match {
 
-        case Signatures.`dateFormat` => DateFormatFunction(functionToApply)
-        case Signatures.`leftOrRightPad` => LeftOrRightPadFunction(functionToApply)
-        case Signatures.`toDateOrTimestamp` => ToDateOrTimestampFunction(functionToApply)
+        case Signature.`dateFormat` => DateFormatFunction(functionToApply)
+        case Signature.`leftOrRightPad` => LeftOrRightPadFunction(functionToApply)
+        case Signature.`toDateOrTimestamp` => ToDateOrTimestampFunction(functionToApply)
       }
 
       val columnToTransform: Column = if (matchedFunction.hasNestedFunction) {
@@ -40,8 +41,7 @@ object ETLFunctionFactory {
 
     } else {
 
-      // TODO: eccezione
-      throw new Exception
+      throw new UnmatchedFunctionException(functionToApply)
     }
   }
 }

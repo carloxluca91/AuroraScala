@@ -2,7 +2,7 @@ package it.carloni.luca.aurora.spark.functions
 
 import scala.util.matching.Regex
 
-object Signatures extends Enumeration {
+object Signature extends Enumeration {
 
   protected case class Val(regex: Regex) extends super.Val
 
