@@ -7,9 +7,12 @@ import java.time.format.DateTimeFormatter
 import it.carloni.luca.aurora.option.ScoptParser.SourceLoadConfig
 import it.carloni.luca.aurora.spark.data.SpecificationRecord
 import it.carloni.luca.aurora.spark.exception.{MultipleRdSourceException, MultipleTrdDestinationException, NoSpecificationException}
-import it.carloni.luca.aurora.utils.DateFormat
+import it.carloni.luca.aurora.spark.functions.ETLFunctionFactory
+import it.carloni.luca.aurora.utils.{ColumnName, DateFormat}
+import it.carloni.luca.aurora.utils.Utils.resolveDataType
 import org.apache.log4j.Logger
-import org.apache.spark.sql.functions.col
+import org.apache.spark.sql.expressions.Window
+import org.apache.spark.sql.functions.{col, count}
 import org.apache.spark.sql.{Column, DataFrame}
 
 class SourceLoadEngine(private final val applicationPropertiesFile: String)
@@ -39,16 +42,15 @@ class SourceLoadEngine(private final val applicationPropertiesFile: String)
 
       logger.info(f"Specification version number to be used: '$versionNumberFormatted")
       (col("flusso") === bancllName) &&
-        (col("version") === versionNumber)
+        (col("versione") === versionNumber)
     }
 
     // TRY TO GET TABLE CONTAINING INGESTION SPECIFICATION
     val mappingSpecification: DataFrame = readFromJDBC(pcAuroraDBName, mappingSpecificationTBLName)
     val specificationRecords: List[SpecificationRecord] = mappingSpecification
       .filter(mappingSpecificationFilterColumn)
-      .selectExpr("sorgente_rd", "tabella_td", "colonna_rd", "tipo_colonna_rd", "flag_discard", "function_1",
-        "function_2", "function_3", "function_4", "function_5", "colonna_td", "tipo_colonna_td", "posizione_finale",
-        "primary_key")
+      .selectExpr("sorgente_rd", "tabella_td", "colonna_rd", "tipo_colonna_rd", "flag_discard", "posizione_iniziale",
+        "funzione_etl", "flag_lookup", "colonna_td", "tipo_colonna_td", "posizione_finale", "flag_primary_key")
       .as[SpecificationRecord]
       .collect()
       .toList
@@ -68,15 +70,13 @@ class SourceLoadEngine(private final val applicationPropertiesFile: String)
       // CHECK THAT ONLY 1 RAW TABLE AND ONLY 1 TRUSTED TABLE HAVE BEEN SPECIFIED FOR THIS BANCLL
       if (rawSRCTableNames.length.equals(1) && trustedTableNames.length.equals(1)) {
 
-        val rawActualTableName: String = rawSRCTableNames.head
+        val rawActualTableName: String = rawSRCTableNames.head.toLowerCase
         val rawHistoricalTableName: String = rawActualTableName.concat("_h")
-        val trustedActualTableName: String = trustedTableNames.head
+        val trustedActualTableName: String = trustedTableNames.head.toLowerCase
         val trustedHistoricalTableName: String = trustedActualTableName.concat("_h")
 
-        logger.info(s"Raw actual table for BANCLL '$bancllName': '$rawActualTableName'")
-        logger.info(s"Raw historical table for BANCLL '$bancllName': '$rawHistoricalTableName'")
-        logger.info(s"Trusted actual table for BANCLL '$bancllName': '$trustedActualTableName'")
-        logger.info(s"Trusted historical table for BANCLL '$bancllName': '$trustedHistoricalTableName'")
+        logger.info(s"BANCLL '$bancllName' -> Raw actual table: '$rawActualTableName', Raw historical table: '$rawHistoricalTableName'")
+        logger.info(s"BANCLL '$bancllName' -> Trusted actual table: '$trustedActualTableName', Trusted historical table: '$trustedHistoricalTableName'")
 
         // RETRIEVE DATA TO BE PROCESSED
         val rawSourceDataFrame: DataFrame = if (dtBusinessDateOpt.nonEmpty) {
@@ -95,8 +95,7 @@ class SourceLoadEngine(private final val applicationPropertiesFile: String)
           readFromJDBC(lakeCedacriDBName, rawActualTableName)
         }
 
-        // new RawDataTransformerEngine(readFromJDBC(pcAuroraDBName, lookupTBLName))
-        //  .transformRawDataFrame(rawSourceDataFrame, specificationRecords)
+        val x: (DataFrame, DataFrame, DataFrame, DataFrame) = getDerivedDataframes(rawSourceDataFrame, specificationRecords)
 
       } else {
 
@@ -124,5 +123,95 @@ class SourceLoadEngine(private final val applicationPropertiesFile: String)
     }
   }
 
-  private def fromStringToJavaSQLDate(date: String, dateFormatter: DateTimeFormatter): java.sql.Date = Date.valueOf(LocalDate.parse(date, dateFormatter))
+  private def fromStringToJavaSQLDate(date: String, dateFormatter: DateTimeFormatter): java.sql.Date =
+
+    Date.valueOf(LocalDate.parse(date, dateFormatter))
+
+  private def getDerivedDataframes(rawDataFrame: DataFrame, specificationRecords: List[SpecificationRecord]):
+  (DataFrame, DataFrame, DataFrame, DataFrame) = {
+
+    val trustedColumns: Seq[(String, Column)] = specificationRecords
+      .map((specificationRecord: SpecificationRecord) => {
+
+        val rawColumnName: String = specificationRecord.colonna_rd
+        val rawColumn: Column = col(rawColumnName)
+
+        logger.info(s"Analyzing specification for raw column '$rawColumnName'")
+
+        val trustedColumn: Column = if (specificationRecord.funzione_etl.isEmpty && specificationRecord.flag_discard.isEmpty) {
+
+          // IF THE COLUMN DOES NOT IMPLY ANY TRANSFORMATION BUT NEEDS TO BE KEPT
+          logger.info(s"No transformation to apply to raw column '$rawColumnName'")
+
+          // CHECK IF INPUT DATATYPE MATCHES OUTPUT DATATYPE
+          val rawColumnType: String = specificationRecord.tipo_colonna_rd
+          val trustedColumnType: String = specificationRecord.tipo_colonna_td
+
+          if (rawColumnType.equalsIgnoreCase(trustedColumnType)) {
+
+            // IF THEY DO, NO CASTING IS NEEDED
+            logger.info(s"No type conversion to apply to raw column '$rawColumnName'. Raw type: '$rawColumnType', trusted type: '$trustedColumnType'")
+            rawColumn
+
+          } else {
+
+            // OTHERWISE, APPLY CASTING
+            logger.info(s"Defining conversion for raw column '$rawColumnName' (from '$rawColumnType' to '$trustedColumnType')")
+            rawColumn.cast(resolveDataType(trustedColumnType))
+          }
+        } else {
+
+          // OTHERWISE, THE COLUMN IMPLIES SOME TRANSFORMATION
+          ETLFunctionFactory(specificationRecord.funzione_etl.get, rawColumn)
+        }
+
+        (specificationRecord.colonna_td, trustedColumn)
+      })
+
+    val rawDataFramePlusTrustedColumns: DataFrame = trustedColumns
+      .foldLeft(rawDataFrame)((df, tuple2) => df.withColumn(tuple2._1, tuple2._2))
+
+    val errorDataFrameFilterCol: Column = specificationRecords
+      .map(specificationRecord => {
+
+        val rwCol: Column = col(specificationRecord.colonna_rd)
+        val trdCol: Column = col(specificationRecord.colonna_td)
+        rwCol.isNotNull && trdCol.isNull
+      })
+      .reduce(_ || _)
+
+    val rowIdColumnName: String = ColumnName.ROW_ID.getName
+    val dtBusinessDateColumnName: String = ColumnName.DT_BUSINESS_DATE.getName
+
+    val rawErrorDataframe: DataFrame = rawDataFramePlusTrustedColumns
+      .filter(errorDataFrameFilterCol)
+      .select(rawDataFrame.columns.head, rawDataFrame.columns.tail: _*)
+      .sort(rowIdColumnName)
+
+    val trustedColumnsToSelect: Seq[Column] = (col(rowIdColumnName)
+      +: specificationRecords.sortBy(_.posizione_finale).map(x => col(x.colonna_td))
+      :+ col(dtBusinessDateColumnName))
+
+    val trustedCleanDataframe: DataFrame = rawDataFramePlusTrustedColumns
+      .filter(!errorDataFrameFilterCol)
+      .select(trustedColumnsToSelect: _*)
+      .sort(rowIdColumnName)
+
+    val trustedErrorDataframe: DataFrame = rawDataFramePlusTrustedColumns
+      .filter(errorDataFrameFilterCol)
+      .select(trustedColumnsToSelect: _*)
+      .sort(rowIdColumnName)
+
+    val primaryKeyColumns: Seq[Column] = specificationRecords
+      .filter(_.flag_primary_key.nonEmpty)
+      .map(x => col(x.colonna_td))
+
+    val duplicatesDataframe: DataFrame = trustedCleanDataframe
+      .withColumn("row_count", count("*") over Window.partitionBy(primaryKeyColumns: _*))
+      .filter(col("row_count") > 1)
+      .select(trustedColumnsToSelect: _*)
+      .sort(primaryKeyColumns: _*)
+
+    (rawErrorDataframe, trustedCleanDataframe, trustedErrorDataframe, duplicatesDataframe)
+  }
 }

@@ -78,6 +78,7 @@ object Main extends App {
                 logger.info(s"Successfully executed operations on branch '$branchName'")
             }
         }
-      }
+
+      } else logger.error(s"Unable to match provided branch: '${value.applicationBranch}'")
   }
 }
