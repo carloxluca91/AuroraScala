@@ -16,7 +16,7 @@ class InitialLoadEngine(applicationPropertiesFile: String)
   private final val logger = Logger.getLogger(getClass)
   private final val createInitialLoadLogRecord = createLogRecord(Branch.INITIAL_LOAD.getName, None, None, _: String, _: Option[String])
 
-  def run(optionT: Option[Nothing] = None): Unit = {
+  def run(): Unit = {
 
     // CREATE DATABASE, IF IT DOES NOT EXIST
     Class.forName("com.mysql.jdbc.Driver")
@@ -35,8 +35,11 @@ class InitialLoadEngine(applicationPropertiesFile: String)
     // TABLE LOADING
     val stringToDataFrameMap: Map[String, DataFrame] = Map(
 
-      mappingSpecificationTBLName -> this.getMappingSpecificationDfWithVersion,
-      lookupTBLName -> this.getLookUpDfWithVersion
+      mappingSpecificationTBLName -> super.getMappingSpecificationDf
+        .withColumn("versione", lit(1.0)),
+
+      lookupTBLName -> super.getLookUpDf
+        .withColumn("versione", lit(1.0))
     )
 
     // FOR EACH TABLE:
@@ -85,18 +88,6 @@ class InitialLoadEngine(applicationPropertiesFile: String)
       createDbStatement.executeUpdate(s"CREATE DATABASE IF NOT EXISTS $databaseToCreateLower")
       logger.info(s"Successfully created database '$databaseToCreateLower'")
     }
-  }
-
-  private def getMappingSpecificationDfWithVersion: DataFrame = {
-
-    super.getMappingSpecificationDf
-      .withColumn("versione", lit(1.0))
-  }
-
-  private def getLookUpDfWithVersion: DataFrame = {
-
-    super.getLookUpDf
-      .withColumn("versione", lit(1.0))
   }
 }
 

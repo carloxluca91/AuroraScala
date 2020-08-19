@@ -1,18 +1,16 @@
 package it.carloni.luca.aurora.spark.engine
 
-import java.sql.Date
 import java.time.LocalDate
-import java.time.format.DateTimeFormatter
 
 import it.carloni.luca.aurora.option.ScoptParser.SourceLoadConfig
 import it.carloni.luca.aurora.spark.data.SpecificationRecord
 import it.carloni.luca.aurora.spark.exception.{MultipleRdSourceException, MultipleTrdDestinationException, NoSpecificationException}
 import it.carloni.luca.aurora.spark.functions.ETLFunctionFactory
+import it.carloni.luca.aurora.utils.Utils.{getJavaSQLDateFromNow, getJavaSQLTimestampFromNow, resolveDataType}
 import it.carloni.luca.aurora.utils.{ColumnName, DateFormat}
-import it.carloni.luca.aurora.utils.Utils.resolveDataType
 import org.apache.log4j.Logger
 import org.apache.spark.sql.expressions.Window
-import org.apache.spark.sql.functions.{col, count}
+import org.apache.spark.sql.functions.{col, count, lit}
 import org.apache.spark.sql.{Column, DataFrame}
 
 class SourceLoadEngine(private final val applicationPropertiesFile: String)
@@ -26,7 +24,7 @@ class SourceLoadEngine(private final val applicationPropertiesFile: String)
 
     val bancllName: String = sourceLoadConfig.bancllName
     val versionNumberOpt: Option[Double] = sourceLoadConfig.versionNumberOpt
-    val dtBusinessDateOpt: Option[String] = sourceLoadConfig.businessDateOpt
+    val dtBusinessDateOpt: Option[String] = sourceLoadConfig.dtRiferimentoOpt
 
     logger.info(s"Provided BANCLL name: '$bancllName'")
     val mappingSpecificationFilterColumn: Column = if (versionNumberOpt.isEmpty) {
@@ -82,11 +80,12 @@ class SourceLoadEngine(private final val applicationPropertiesFile: String)
         val rawSourceDataFrame: DataFrame = if (dtBusinessDateOpt.nonEmpty) {
 
           // IF A dt_business_date HAS BEEN PROVIDED, READ FROM RAW_HISTORICAL_TABLE
-          val dtBusinessDateAsStr: String = dtBusinessDateOpt.get
-          logger.info(s"Provided business date: '$dtBusinessDateAsStr'. Thus, reading raw data from '$rawHistoricalTableName'")
-          val dtBusinessDateAsDate: java.sql.Date = fromStringToJavaSQLDate(dtBusinessDateAsStr, DateFormat.DT_BUSINESS_DATE.getFormatter)
+          val dtRiferimentoStr: String = dtBusinessDateOpt.get
+          logger.info(s"Provided business date: '$dtRiferimentoStr'. Thus, reading raw data from '$rawHistoricalTableName'")
+
+          val dtRiferimentoSQLDate: java.sql.Date =  java.sql.Date.valueOf(LocalDate.parse(dtRiferimentoStr, DateFormat.DT_RIFERIMENTO.getFormatter))
           readFromJDBC(lakeCedacriDBName, rawHistoricalTableName)
-            .filter(col("dt_business_date") === dtBusinessDateAsDate)
+            .filter(col(ColumnName.DT_RIFERIMENTO.getName) === dtRiferimentoSQLDate)
 
         } else {
 
@@ -95,42 +94,31 @@ class SourceLoadEngine(private final val applicationPropertiesFile: String)
           readFromJDBC(lakeCedacriDBName, rawActualTableName)
         }
 
-        val x: (DataFrame, DataFrame, DataFrame, DataFrame) = getDerivedDataframes(rawSourceDataFrame, specificationRecords)
+        writeOutput(rawSourceDataFrame, specificationRecords)
 
       } else {
 
         // DETECT THE EXCEPTION TO BE THROWN: MULTIPLE SOURCES OR MULTIPLE DESTINATIONS ?
         logger.error(s"Multiple sources or destination found within specification of BANCLL $bancllName")
-        val exceptionToThrow: Exception = if (!rawSRCTableNames.length.equals(1)) {
+        if (!rawSRCTableNames.length.equals(1)) {
 
-          logger.error(s"Multiple sources found within specification of BANCLL $bancllName")
-          new MultipleRdSourceException(bancllName, rawSRCTableNames)
-
+          throw new MultipleRdSourceException(bancllName, rawSRCTableNames)
         } else {
 
-          logger.error(s"Multiple destination found within specification of BANCLL $bancllName")
-          new MultipleTrdDestinationException(bancllName, trustedTableNames)
+          throw new MultipleTrdDestinationException(bancllName, trustedTableNames)
         }
-
-        throw exceptionToThrow
       }
-
     } else {
 
       // NO SPECIFICATION FOUND
-      logger.error(s"Unable to retrieve any specification for bancll '$bancllName'. Related exception will be thrown")
       throw new NoSpecificationException(bancllName)
     }
   }
 
-  private def fromStringToJavaSQLDate(date: String, dateFormatter: DateTimeFormatter): java.sql.Date =
+  private def writeOutput(rawDataFrame: DataFrame, specificationRecords: List[SpecificationRecord]): Unit = {
 
-    Date.valueOf(LocalDate.parse(date, dateFormatter))
-
-  private def getDerivedDataframes(rawDataFrame: DataFrame, specificationRecords: List[SpecificationRecord]):
-  (DataFrame, DataFrame, DataFrame, DataFrame) = {
-
-    val trustedColumns: Seq[(String, Column)] = specificationRecords
+    val trustedColumns: Seq[(Column, String)] = specificationRecords
+      .sortBy(_.posizione_finale)
       .map((specificationRecord: SpecificationRecord) => {
 
         val rawColumnName: String = specificationRecord.colonna_rd
@@ -146,7 +134,6 @@ class SourceLoadEngine(private final val applicationPropertiesFile: String)
           // CHECK IF INPUT DATATYPE MATCHES OUTPUT DATATYPE
           val rawColumnType: String = specificationRecord.tipo_colonna_rd
           val trustedColumnType: String = specificationRecord.tipo_colonna_td
-
           if (rawColumnType.equalsIgnoreCase(trustedColumnType)) {
 
             // IF THEY DO, NO CASTING IS NEEDED
@@ -165,13 +152,21 @@ class SourceLoadEngine(private final val applicationPropertiesFile: String)
           ETLFunctionFactory(specificationRecord.funzione_etl.get, rawColumn)
         }
 
-        (specificationRecord.colonna_td, trustedColumn)
+        (trustedColumn, specificationRecord.colonna_td)
       })
 
-    val rawDataFramePlusTrustedColumns: DataFrame = trustedColumns
-      .foldLeft(rawDataFrame)((df, tuple2) => df.withColumn(tuple2._1, tuple2._2))
+    val rowIdColumnName: String = ColumnName.ROW_ID.getName
+    val dtRiferimentoColumnName: String = ColumnName.DT_RIFERIMENTO.getName
+    val rowCountColumnName: String = ColumnName.ROW_COUNT.getName
+    val tsInserimentoColumnName: String = ColumnName.TS_INSERIMENTO.getName
+    val dtInserimentoColumnName: String = ColumnName.DT_INSERIMENTO.getName
 
-    val errorDataFrameFilterCol: Column = specificationRecords
+    val rawDfPlusTrustedColumns: DataFrame = trustedColumns
+      .foldLeft(rawDataFrame)((df, tuple2) => df.withColumn(tuple2._2, tuple2._1))
+      .withColumn(tsInserimentoColumnName, lit(getJavaSQLTimestampFromNow))
+      .withColumn(dtInserimentoColumnName, lit(getJavaSQLDateFromNow))
+
+    val errorDfFilterCol: Column = specificationRecords
       .map(specificationRecord => {
 
         val rwCol: Column = col(specificationRecord.colonna_rd)
@@ -180,38 +175,35 @@ class SourceLoadEngine(private final val applicationPropertiesFile: String)
       })
       .reduce(_ || _)
 
-    val rowIdColumnName: String = ColumnName.ROW_ID.getName
-    val dtBusinessDateColumnName: String = ColumnName.DT_BUSINESS_DATE.getName
-
-    val rawErrorDataframe: DataFrame = rawDataFramePlusTrustedColumns
-      .filter(errorDataFrameFilterCol)
+    val rawErrorDf: DataFrame = rawDfPlusTrustedColumns
+      .filter(errorDfFilterCol)
       .select(rawDataFrame.columns.head, rawDataFrame.columns.tail: _*)
       .sort(rowIdColumnName)
 
-    val trustedColumnsToSelect: Seq[Column] = (col(rowIdColumnName)
-      +: specificationRecords.sortBy(_.posizione_finale).map(x => col(x.colonna_td))
-      :+ col(dtBusinessDateColumnName))
+    val trustedDfSelectCols: Seq[Column] = (col(rowIdColumnName)
+      +: trustedColumns.map(x => col(x._2))) ++ Seq(col(tsInserimentoColumnName), col(dtInserimentoColumnName), col(dtRiferimentoColumnName))
 
-    val trustedCleanDataframe: DataFrame = rawDataFramePlusTrustedColumns
-      .filter(!errorDataFrameFilterCol)
-      .select(trustedColumnsToSelect: _*)
+    val trustedCleanDf: DataFrame = rawDfPlusTrustedColumns
+      .filter(!errorDfFilterCol)
+      .select(trustedDfSelectCols: _*)
       .sort(rowIdColumnName)
 
-    val trustedErrorDataframe: DataFrame = rawDataFramePlusTrustedColumns
-      .filter(errorDataFrameFilterCol)
-      .select(trustedColumnsToSelect: _*)
+    val trustedErrorDf: DataFrame = rawDfPlusTrustedColumns
+      .filter(errorDfFilterCol)
+      .select(trustedDfSelectCols: _*)
       .sort(rowIdColumnName)
 
     val primaryKeyColumns: Seq[Column] = specificationRecords
       .filter(_.flag_primary_key.nonEmpty)
       .map(x => col(x.colonna_td))
 
-    val duplicatesDataframe: DataFrame = trustedCleanDataframe
-      .withColumn("row_count", count("*") over Window.partitionBy(primaryKeyColumns: _*))
-      .filter(col("row_count") > 1)
-      .select(trustedColumnsToSelect: _*)
-      .sort(primaryKeyColumns: _*)
+    val duplicatesDfSelectCols: Seq[Column] = (trustedDfSelectCols.take(trustedDfSelectCols.indexOf(col(dtRiferimentoColumnName)))
+      :+ col(rowCountColumnName)) :+ col(dtRiferimentoColumnName)
 
-    (rawErrorDataframe, trustedCleanDataframe, trustedErrorDataframe, duplicatesDataframe)
+    val duplicatesDf: DataFrame = trustedCleanDf
+      .withColumn(rowCountColumnName, count("*") over Window.partitionBy(primaryKeyColumns: _*))
+      .filter(col(rowCountColumnName) > 1)
+      .select(duplicatesDfSelectCols: _*)
+      .sort(primaryKeyColumns: _*)
   }
 }

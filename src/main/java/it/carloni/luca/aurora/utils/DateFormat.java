@@ -4,7 +4,7 @@ import java.time.format.DateTimeFormatter;
 
 public enum DateFormat {
 
-    DT_BUSINESS_DATE("yyyy-MM-dd", DateTimeFormatter.ISO_LOCAL_DATE);
+    DT_RIFERIMENTO("yyyy-MM-dd", DateTimeFormatter.ISO_LOCAL_DATE);
 
     private final String format;
     private final DateTimeFormatter formatter;

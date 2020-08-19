@@ -29,7 +29,7 @@ object ETLFunctionFactory {
       val columnToTransform: Column = if (matchedFunction.hasNestedFunction) {
 
         logger.info(s"Detected nested function: '${matchedFunction.nestedFunctionGroup3}'. Trying to resolve it")
-        ETLFunctionFactory.apply(matchedFunction.nestedFunctionGroup3, inputColumn)
+        ETLFunctionFactory(matchedFunction.nestedFunctionGroup3, inputColumn)
 
       } else {
 

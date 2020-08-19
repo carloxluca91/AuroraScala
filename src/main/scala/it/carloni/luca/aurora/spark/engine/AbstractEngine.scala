@@ -62,7 +62,7 @@ abstract class AbstractEngine(private final val applicationPropertiesFile: Strin
 
         val dtBusinessDateString: String = dtBusinessDateOpt.get
         logger.info(s"Converting $dtBusinessDateString to java.sql.Date")
-        val dtBusinessDateLocalDate: LocalDate = LocalDate.parse(dtBusinessDateString, DateFormat.DT_BUSINESS_DATE.getFormatter)
+        val dtBusinessDateLocalDate: LocalDate = LocalDate.parse(dtBusinessDateString, DateFormat.DT_RIFERIMENTO.getFormatter)
 
         val dtBusinessDateSQLDateOpt: Option[Date] = Some(Date.valueOf(dtBusinessDateLocalDate))
         logger.info(s"Successfullt converted $dtBusinessDateString to java.sql.Date")

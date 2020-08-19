@@ -41,15 +41,15 @@ object ScoptParser {
 
   case class SourceLoadConfig(propertiesFile: String = "",
                               bancllName: String = "",
-                              businessDateOpt: Option[String] = None,
+                              dtRiferimentoOpt: Option[String] = None,
                               versionNumberOpt: Option[Double] = None) {
 
     override def toString: String = {
 
       val toStringMap: Map[ScoptOption, Any] = Map(ScoptOption.PROPERTIES_OPTION -> propertiesFile,
-        ScoptOption.SOURCE_OPTION -> bancllName,
-        ScoptOption.BUSINESS_DATE_OPTION -> businessDateOpt.orNull,
-        ScoptOption.VERSION_NUMBER_OPTION -> versionNumberOpt.orNull)
+        ScoptOption.SOURCE -> bancllName,
+        ScoptOption.DT_RIFERIMENTO -> dtRiferimentoOpt.orNull,
+        ScoptOption.VERSION_NUMBER -> versionNumberOpt.orNull)
       objectToString(getClass, toStringMap)
     }
   }
@@ -109,26 +109,26 @@ object ScoptParser {
       .required()
       .action((x, c) => c.copy(propertiesFile = x))
 
-    opt[String](ScoptOption.SOURCE_OPTION.getShortOption, ScoptOption.SOURCE_OPTION.getLongOption)
-      .text(ScoptOption.SOURCE_OPTION.getDescription)
+    opt[String](ScoptOption.SOURCE.getShortOption, ScoptOption.SOURCE.getLongOption)
+      .text(ScoptOption.SOURCE.getDescription)
       .required()
       .action((x, c) => c.copy(bancllName = x))
 
-    opt[String](ScoptOption.BUSINESS_DATE_OPTION.getShortOption, ScoptOption.BUSINESS_DATE_OPTION.getLongOption)
-      .text(ScoptOption.BUSINESS_DATE_OPTION.getDescription)
+    opt[String](ScoptOption.DT_RIFERIMENTO.getShortOption, ScoptOption.DT_RIFERIMENTO.getLongOption)
+      .text(ScoptOption.DT_RIFERIMENTO.getDescription)
       .required()
       .validate(inputDate => {
 
-        val tryParseBusinessDate: Try[LocalDate] = Try(LocalDate.parse(inputDate,
-          DateFormat.DT_BUSINESS_DATE.getFormatter))
+        val tryParseDtRiferimento: Try[LocalDate] = Try(LocalDate.parse(inputDate,
+          DateFormat.DT_RIFERIMENTO.getFormatter))
 
-        if (tryParseBusinessDate.isSuccess) success
-        else failure(s"Cannot parse business date. Provided '$inputDate', should follow format '${DateFormat.DT_BUSINESS_DATE.getFormat}'")
+        if (tryParseDtRiferimento.isSuccess) success
+        else failure(s"Cannot parse business date. Provided '$inputDate', should follow format '${DateFormat.DT_RIFERIMENTO.getFormat}'")
       })
-      .action((x, c) => c.copy(businessDateOpt = Some(x)))
+      .action((x, c) => c.copy(dtRiferimentoOpt = Some(x)))
 
-    opt[Double](ScoptOption.VERSION_NUMBER_OPTION.getShortOption, ScoptOption.VERSION_NUMBER_OPTION.getLongOption)
-      .text(ScoptOption.VERSION_NUMBER_OPTION.getDescription)
+    opt[Double](ScoptOption.VERSION_NUMBER.getShortOption, ScoptOption.VERSION_NUMBER.getLongOption)
+      .text(ScoptOption.VERSION_NUMBER.getDescription)
       .action((x, c) => c.copy(versionNumberOpt = Some(x)))
   }
 
