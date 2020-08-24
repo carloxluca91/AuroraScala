@@ -5,8 +5,8 @@ import java.sql._
 import it.carloni.luca.aurora.option.Branch
 import it.carloni.luca.aurora.spark.data.LogRecord
 import org.apache.log4j.Logger
-import org.apache.spark.sql.{DataFrame, SaveMode}
 import org.apache.spark.sql.functions.lit
+import org.apache.spark.sql.{DataFrame, SaveMode}
 
 import scala.util.{Failure, Success, Try}
 
@@ -16,16 +16,25 @@ class InitialLoadEngine(applicationPropertiesFile: String)
   private final val logger = Logger.getLogger(getClass)
   private final val createInitialLoadLogRecord = createLogRecord(Branch.INITIAL_LOAD.getName, None, None, _: String, _: Option[String])
 
+  // JDBC SETTINGS
+  private final val jdbcURL: String = jobProperties.getString("jdbc.url")
+  private final val jdbcUser: String = jobProperties.getString("jdbc.user")
+  private final val jdbcPassword: String = jobProperties.getString("jdbc.password")
+  private final val jdbcUseSSL: String = jobProperties.getString("jdbc.useSSL")
+
   def run(): Unit = {
 
     // CREATE DATABASE, IF IT DOES NOT EXIST
     Class.forName("com.mysql.jdbc.Driver")
-    val jdbcUrlConnectionString: String = s"$jdbcUrl/?useSSL=$jdbcUseSSL"
-    logger.info(s"Attempting to connect to JDBC url $jdbcUrlConnectionString with credentials ($jdbcUser, $jdbcPassword)")
 
-    val jdbcConnection: Connection = DriverManager.getConnection(jdbcUrlConnectionString, jdbcUser, jdbcPassword)
+    val jdbcUrlConnectionStr: String = s"$jdbcURL/?useSSL=$jdbcUseSSL"
+    logger.info(s"Attempting to connect to JDBC url $jdbcUrlConnectionStr with credentials ($jdbcUser, $jdbcPassword)")
 
-    logger.info(s"Successfully connected to JDBC url $jdbcUrlConnectionString with credentials ($jdbcUser, $jdbcPassword)")
+    val jdbcConnection: Connection = DriverManager.getConnection(jdbcUrlConnectionStr,
+      jobProperties.getString("jdbc.user"),
+      jobProperties.getString("jdbc.password"))
+
+    logger.info(s"Successfully connected to JDBC url $jdbcUrlConnectionStr with credentials ($jdbcUser, $jdbcPassword)")
     createDatabaseIfNotExists(pcAuroraDBName, jdbcConnection)
     logger.info("Attempting to close JDBC connection")
 

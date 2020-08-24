@@ -10,8 +10,8 @@ import it.carloni.luca.aurora.utils.Utils.{getJavaSQLDateFromNow, getJavaSQLTime
 import it.carloni.luca.aurora.utils.{ColumnName, DateFormat}
 import org.apache.log4j.Logger
 import org.apache.spark.sql.expressions.Window
-import org.apache.spark.sql.functions.{col, count, lit}
-import org.apache.spark.sql.{Column, DataFrame}
+import org.apache.spark.sql.functions._
+import org.apache.spark.sql.{Column, DataFrame, Row, SaveMode}
 
 class SourceLoadEngine(private final val applicationPropertiesFile: String)
   extends AbstractEngine(applicationPropertiesFile) {
@@ -47,11 +47,13 @@ class SourceLoadEngine(private final val applicationPropertiesFile: String)
     val mappingSpecification: DataFrame = readFromJDBC(pcAuroraDBName, mappingSpecificationTBLName)
     val specificationRecords: List[SpecificationRecord] = mappingSpecification
       .filter(mappingSpecificationFilterColumn)
-      .selectExpr("sorgente_rd", "tabella_td", "colonna_rd", "tipo_colonna_rd", "flag_discard", "posizione_iniziale",
+      .selectExpr("flusso", "sorgente_rd", "tabella_td", "colonna_rd", "tipo_colonna_rd", "flag_discard", "posizione_iniziale",
         "funzione_etl", "flag_lookup", "colonna_td", "tipo_colonna_td", "posizione_finale", "flag_primary_key")
       .as[SpecificationRecord]
       .collect()
       .toList
+
+    logger.info(f"Successfully parsed dataframe as a set of elements of type ${SpecificationRecord.getClass.getSimpleName}")
 
     // CHECK IF CURRENT BANCLL IS DEFINED
     if (specificationRecords.nonEmpty) {
@@ -79,7 +81,7 @@ class SourceLoadEngine(private final val applicationPropertiesFile: String)
         // RETRIEVE DATA TO BE PROCESSED
         val rawSourceDataFrame: DataFrame = if (dtBusinessDateOpt.nonEmpty) {
 
-          // IF A dt_business_date HAS BEEN PROVIDED, READ FROM RAW_HISTORICAL_TABLE
+          // IF A dt_riferimento HAS BEEN PROVIDED, READ FROM RAW_HISTORICAL_TABLE
           val dtRiferimentoStr: String = dtBusinessDateOpt.get
           logger.info(s"Provided business date: '$dtRiferimentoStr'. Thus, reading raw data from '$rawHistoricalTableName'")
 
@@ -117,7 +119,85 @@ class SourceLoadEngine(private final val applicationPropertiesFile: String)
 
   private def writeOutput(rawDataFrame: DataFrame, specificationRecords: List[SpecificationRecord]): Unit = {
 
-    val trustedColumns: Seq[(Column, String)] = specificationRecords
+    val trustedColumns: Seq[(Column, String)] = deriveTrustedColumns(specificationRecords)
+
+    // ENRICH RAW DATAFRAME WITH COLUMNS DERIVED FROM SPECIFICATIONS
+    val rawDfPlusTrustedColumns: DataFrame = trustedColumns
+      .foldLeft(rawDataFrame)((df, tuple2) => df.withColumn(tuple2._2, tuple2._1))
+
+      // TECHNICAL COLUMNS
+      .withColumn(ColumnName.TS_INSERIMENTO.getName, lit(getJavaSQLTimestampFromNow))
+      .withColumn(ColumnName.DT_INSERIMENTO.getName, lit(getJavaSQLDateFromNow))
+
+    val errorDfFilterCol: Column = specificationRecords
+      .map(specificationRecord => {col(specificationRecord.colonna_rd).isNotNull && col(specificationRecord.colonna_td).isNull})
+      .reduce(_ || _)
+
+    // RAW LAYER, ERROR DATAFRAME
+    val rawErrorDf: DataFrame = rawDfPlusTrustedColumns
+      .filter(errorDfFilterCol)
+      .selectExpr(rawDataFrame.columns: _*)
+      .sort(ColumnName.ROW_ID.getName)
+
+    val rawErrorActualTableName: String = specificationRecords.map(_.sorgente_rd.toLowerCase)
+      .distinct
+      .head
+      .concat("_error")
+
+    writeBothActualAndHistoricalData(rawErrorDf, lakeCedacriDBName, rawErrorActualTableName, "RAW", "ERROR")
+
+    val trustedDfSelectCols: Seq[Column] = (col(ColumnName.ROW_ID.getName)
+      +: trustedColumns.map(x => col(x._2))) ++ Seq(col(ColumnName.TS_INSERIMENTO.getName),
+      col(ColumnName.DT_INSERIMENTO.getName),
+      col(ColumnName.DT_RIFERIMENTO.getName))
+
+    // TRUSTED LAYER, CLEAN DATAFRAME
+    val trustedCleanDf: DataFrame = rawDfPlusTrustedColumns
+      .filter(!errorDfFilterCol)
+      .select(trustedDfSelectCols: _*)
+      .sort(ColumnName.ROW_ID.getName)
+
+    val trustedCleanTableName: String = specificationRecords.map(_.tabella_td.toLowerCase)
+      .distinct
+      .head
+
+    writeBothActualAndHistoricalData(trustedCleanDf, pcAuroraDBName, trustedCleanTableName, "TRUSTED", "CLEAN")
+
+    // TRUSTED LAYER, ERROR DATAFRAME
+    val trustedErrorDf: DataFrame = rawDfPlusTrustedColumns
+      .filter(errorDfFilterCol)
+      .select(trustedDfSelectCols: _*)
+      .sort(ColumnName.ROW_ID.getName)
+
+    val trustedErrorTableName: String = trustedCleanTableName.concat("_error")
+    writeBothActualAndHistoricalData(trustedErrorDf, pcAuroraDBName, trustedErrorTableName, "TRUSTED", "ERROR")
+
+    val primaryKeyColumns: Seq[Column] = specificationRecords
+      .filter(_.flag_primary_key.nonEmpty)
+      .map(x => col(x.colonna_td))
+
+    val duplicatesDfSelectCols: Seq[Column] = (trustedDfSelectCols.take(trustedDfSelectCols.indexOf(col(ColumnName.DT_RIFERIMENTO.getName)))
+      :+ col(ColumnName.ROW_COUNT.getName)) :+ col(ColumnName.DT_RIFERIMENTO.getName)
+
+    // TRUSTED LAYER, DPLICATES FROM CLEAN DATAFRAME
+    val duplicatesDf: DataFrame = trustedCleanDf
+      .withColumn(ColumnName.ROW_COUNT.getName, count("*") over Window.partitionBy(primaryKeyColumns: _*))
+      .filter(col(ColumnName.ROW_COUNT.getName) > 1)
+      .select(duplicatesDfSelectCols: _*)
+      .sort(primaryKeyColumns: _*)
+
+    val trustedCleanDuplicatesTableName: String = trustedCleanTableName.concat("_duplicated")
+    writeBothActualAndHistoricalData(duplicatesDf, pcAuroraDBName, trustedCleanDuplicatesTableName, "TRUSTED", "DUPLICATED")
+  }
+
+  private def deriveTrustedColumns(specificationRecords: Seq[SpecificationRecord]): Seq[(Column, String)] = {
+
+    val sourceName: String = specificationRecords.map(_.flusso).distinct.head
+    lazy val lookUpDataFrame: DataFrame = sparkSession.table(f"$pcAuroraDBName.$lookupTBLName")
+      .filter(col("flusso") === sourceName)
+      .persist()
+
+    specificationRecords
       .sortBy(_.posizione_finale)
       .map((specificationRecord: SpecificationRecord) => {
 
@@ -126,7 +206,7 @@ class SourceLoadEngine(private final val applicationPropertiesFile: String)
 
         logger.info(s"Analyzing specification for raw column '$rawColumnName'")
 
-        val trustedColumn: Column = if (specificationRecord.funzione_etl.isEmpty && specificationRecord.flag_discard.isEmpty) {
+        val trustedColumnBeforeLK: Column = if (specificationRecord.funzione_etl.isEmpty && specificationRecord.flag_discard.isEmpty) {
 
           // IF THE COLUMN DOES NOT IMPLY ANY TRANSFORMATION BUT NEEDS TO BE KEPT
           logger.info(s"No transformation to apply to raw column '$rawColumnName'")
@@ -137,7 +217,8 @@ class SourceLoadEngine(private final val applicationPropertiesFile: String)
           if (rawColumnType.equalsIgnoreCase(trustedColumnType)) {
 
             // IF THEY DO, NO CASTING IS NEEDED
-            logger.info(s"No type conversion to apply to raw column '$rawColumnName'. Raw type: '$rawColumnType', trusted type: '$trustedColumnType'")
+            logger.info(s"No type conversion to apply to raw column '$rawColumnName' " +
+              s"(Raw data type: '$rawColumnType', trusted data type: '$trustedColumnType')")
             rawColumn
 
           } else {
@@ -152,58 +233,40 @@ class SourceLoadEngine(private final val applicationPropertiesFile: String)
           ETLFunctionFactory(specificationRecord.funzione_etl.get, rawColumn)
         }
 
-        (trustedColumn, specificationRecord.colonna_td)
+        // CHECK LOOKUP FLAG
+        val flagLookUp: Boolean = if (specificationRecord.flag_lookup.isEmpty) false else {
+
+          val flagLookUpStr: String = specificationRecord.flag_lookup.get
+          logger.info(f"Lookup flag: $flagLookUpStr")
+          if (flagLookUpStr.equalsIgnoreCase("y")) true else false
+        }
+
+        // IF true, DEFINE A CASE-WHEN COLUMN ABLE TO CATCH PROVIDED CASES
+        val trustedColumnAfterLK: Column = if (flagLookUp) {
+
+          val lookUpCaseRows: Seq[Row] = lookUpDataFrame
+            .filter(lower(col("column_name")) === specificationRecord.colonna_td.toLowerCase)
+            .select("original_value", "replacement_value")
+            .collect()
+
+          lookUpCaseRows.tail
+            .foldLeft(when(trustedColumnBeforeLK === lookUpCaseRows.head.get(0), lookUpCaseRows.head.get(1)))(
+              (col1, row) => col1.when(trustedColumnBeforeLK === row.get(0), row.get(1)))
+            .otherwise(null)
+
+        } else trustedColumnBeforeLK
+
+        (trustedColumnAfterLK, specificationRecord.colonna_td)
       })
+  }
 
-    val rowIdColumnName: String = ColumnName.ROW_ID.getName
-    val dtRiferimentoColumnName: String = ColumnName.DT_RIFERIMENTO.getName
-    val rowCountColumnName: String = ColumnName.ROW_COUNT.getName
-    val tsInserimentoColumnName: String = ColumnName.TS_INSERIMENTO.getName
-    val dtInserimentoColumnName: String = ColumnName.DT_INSERIMENTO.getName
+  private def writeBothActualAndHistoricalData(dataFrame: DataFrame, database: String, actualTableName: String,
+                                               layer: String, description: String): Unit = {
 
-    val rawDfPlusTrustedColumns: DataFrame = trustedColumns
-      .foldLeft(rawDataFrame)((df, tuple2) => df.withColumn(tuple2._2, tuple2._1))
-      .withColumn(tsInserimentoColumnName, lit(getJavaSQLTimestampFromNow))
-      .withColumn(dtInserimentoColumnName, lit(getJavaSQLDateFromNow))
+    val historicalTableName: String = actualTableName.concat("_h")
+    logger.info(s"Saving data related to layer '$layer' ($description). Actual table name: $actualTableName, historical: $historicalTableName")
+    writeToJDBC(dataFrame, database, actualTableName, SaveMode.Overwrite)
+    writeToJDBC(dataFrame, database, historicalTableName, SaveMode.Append)
 
-    val errorDfFilterCol: Column = specificationRecords
-      .map(specificationRecord => {
-
-        val rwCol: Column = col(specificationRecord.colonna_rd)
-        val trdCol: Column = col(specificationRecord.colonna_td)
-        rwCol.isNotNull && trdCol.isNull
-      })
-      .reduce(_ || _)
-
-    val rawErrorDf: DataFrame = rawDfPlusTrustedColumns
-      .filter(errorDfFilterCol)
-      .select(rawDataFrame.columns.head, rawDataFrame.columns.tail: _*)
-      .sort(rowIdColumnName)
-
-    val trustedDfSelectCols: Seq[Column] = (col(rowIdColumnName)
-      +: trustedColumns.map(x => col(x._2))) ++ Seq(col(tsInserimentoColumnName), col(dtInserimentoColumnName), col(dtRiferimentoColumnName))
-
-    val trustedCleanDf: DataFrame = rawDfPlusTrustedColumns
-      .filter(!errorDfFilterCol)
-      .select(trustedDfSelectCols: _*)
-      .sort(rowIdColumnName)
-
-    val trustedErrorDf: DataFrame = rawDfPlusTrustedColumns
-      .filter(errorDfFilterCol)
-      .select(trustedDfSelectCols: _*)
-      .sort(rowIdColumnName)
-
-    val primaryKeyColumns: Seq[Column] = specificationRecords
-      .filter(_.flag_primary_key.nonEmpty)
-      .map(x => col(x.colonna_td))
-
-    val duplicatesDfSelectCols: Seq[Column] = (trustedDfSelectCols.take(trustedDfSelectCols.indexOf(col(dtRiferimentoColumnName)))
-      :+ col(rowCountColumnName)) :+ col(dtRiferimentoColumnName)
-
-    val duplicatesDf: DataFrame = trustedCleanDf
-      .withColumn(rowCountColumnName, count("*") over Window.partitionBy(primaryKeyColumns: _*))
-      .filter(col(rowCountColumnName) > 1)
-      .select(duplicatesDfSelectCols: _*)
-      .sort(primaryKeyColumns: _*)
   }
 }

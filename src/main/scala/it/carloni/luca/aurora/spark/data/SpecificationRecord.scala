@@ -1,6 +1,7 @@
 package it.carloni.luca.aurora.spark.data
 
-case class SpecificationRecord(sorgente_rd: String,
+case class SpecificationRecord(flusso: String,
+                               sorgente_rd: String,
                                tabella_td: String,
                                colonna_rd: String,
                                tipo_colonna_rd: String,

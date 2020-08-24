@@ -23,17 +23,13 @@ abstract class AbstractEngine(private final val applicationPropertiesFile: Strin
   loadJobProperties(applicationPropertiesFile)
 
   // JDBC OPTIONS AND DATAFRAME READER
-  protected final val jdbcUrl: String = jobProperties.getString("jdbc.url")
-  protected final val jdbcUser: String = jobProperties.getString("jdbc.user")
-  protected final val jdbcPassword: String = jobProperties.getString("jdbc.password")
-  protected final val jdbcUseSSL: String = jobProperties.getString("jdbc.useSSL")
   private final val jdbcOptions: Map[String, String] = Map(
 
-    "url" -> jdbcUrl,
+    "url" -> jobProperties.getString("jdbc.url"),
     "driver" -> jobProperties.getString("jdbc.driver.className"),
-    "user" -> jdbcUser,
-    "password" -> jdbcPassword,
-    "useSSL" -> jdbcUseSSL
+    "user" -> jobProperties.getString("jdbc.user"),
+    "password" -> jobProperties.getString("jdbc.password"),
+    "useSSL" -> jobProperties.getString("jdbc.useSSL")
   )
 
   private final val jdbcReader: DataFrameReader = sparkSession.read
@@ -49,7 +45,7 @@ abstract class AbstractEngine(private final val applicationPropertiesFile: Strin
   protected final val dataLoadLogTBLName: String = jobProperties.getString("table.sourceload_log.name")
   protected final val lookupTBLName: String = jobProperties.getString("table.lookup.name")
 
-  val createLogRecord: (String, Option[String], Option[String], String, Option[String]) => LogRecord =
+  protected val createLogRecord: (String, Option[String], Option[String], String, Option[String]) => LogRecord =
     (branchName: String, bancllNameOpt: Option[String], dtBusinessDateOpt: Option[String],
      impactedTable: String, exceptionMsgOpt: Option[String]) => {
 
@@ -96,8 +92,10 @@ abstract class AbstractEngine(private final val applicationPropertiesFile: Strin
       .builder()
       .getOrCreate()
 
-    logger.info(s"Successfully created SparkSession for application '${sparkSession.sparkContext.appName}'")
-    logger.info(s"Spark application UI url: ${sparkSession.sparkContext.uiWebUrl.get}")
+    logger.info(s"Successfully created SparkSession for application '${sparkSession.sparkContext.appName}'. " +
+      s"Application Id: '${sparkSession.sparkContext.applicationId}', " +
+      s"UI url: ${sparkSession.sparkContext.uiWebUrl.get}")
+
     sparkSession
   }
 
@@ -138,7 +136,7 @@ abstract class AbstractEngine(private final val applicationPropertiesFile: Strin
 
       case Failure(exception) =>
 
-        logger.error(s"Error while trying to read table '$databaseName'.'$tableName'.Stack trace: ", exception)
+        logger.error(s"Error while trying to read table '$databaseName'.'$tableName'. Stack trace: ", exception)
         throw exception
 
       case Success(value) =>
