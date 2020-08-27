@@ -193,7 +193,7 @@ class SourceLoadEngine(private final val applicationPropertiesFile: String)
   private def deriveTrustedColumns(specificationRecords: Seq[SpecificationRecord]): Seq[(Column, String)] = {
 
     val sourceName: String = specificationRecords.map(_.flusso).distinct.head
-    lazy val lookUpDataFrame: DataFrame = sparkSession.table(f"$pcAuroraDBName.$lookupTBLName")
+    lazy val lookUpDataFrame: DataFrame = readFromJDBC(pcAuroraDBName, lookupTBLName)
       .filter(col("flusso") === sourceName)
       .persist()
 
@@ -245,8 +245,8 @@ class SourceLoadEngine(private final val applicationPropertiesFile: String)
         val trustedColumnAfterLK: Column = if (flagLookUp) {
 
           val lookUpCaseRows: Seq[Row] = lookUpDataFrame
-            .filter(lower(col("column_name")) === specificationRecord.colonna_td.toLowerCase)
-            .select("original_value", "replacement_value")
+            .filter(lower(col("nome_colonna")) === specificationRecord.colonna_td.toLowerCase)
+            .select("valore_originale", "valore_sostituzione")
             .collect()
 
           lookUpCaseRows.tail
@@ -264,7 +264,7 @@ class SourceLoadEngine(private final val applicationPropertiesFile: String)
                                                layer: String, description: String): Unit = {
 
     val historicalTableName: String = actualTableName.concat("_h")
-    logger.info(s"Saving data related to layer '$layer' ($description). Actual table name: $actualTableName, historical: $historicalTableName")
+    logger.info(s"Saving data related to layer '$layer' ($description). Actual table name: '$actualTableName', historical: '$historicalTableName'")
     writeToJDBC(dataFrame, database, actualTableName, SaveMode.Overwrite)
     writeToJDBC(dataFrame, database, historicalTableName, SaveMode.Append)
 

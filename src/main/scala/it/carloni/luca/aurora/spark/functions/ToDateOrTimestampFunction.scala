@@ -7,6 +7,7 @@ case class ToDateOrTimestampFunction(functionToApply: String)
   extends ETLFunction(functionToApply, Signature.toDateOrTimestamp.regex) {
 
   private final val inputFormat: String = signatureMatch.group(4)
+  logger.info(toString)
 
   override def toString: String = s"'$functionName($nestedFunctionGroup3, format = '$inputFormat')'"
 

@@ -10,7 +10,7 @@ object Signature extends Enumeration {
   implicit def valueToVal(x: Value): Val = x.asInstanceOf[Val]
 
   val dateFormat: Val = Val("^(date_format)\\(((.+),\\s?)'(.+)',\\s?'(.+)'\\)$".r)
-  val leftOrRightPad: Val = Val("^([r|l]pad)\\(((.+),\\s)?(\\d+),\\s?'(.+)'\\)$".r)
-  val toDateOrTimestamp: Val = Val("^(to_date|to_timestamp)\\(((.+),\\s)?'(.+)'\\)$".r)
+  val leftOrRightPad: Val = Val("^([r|l]pad)\\(((.+),\\s?)(\\d+),\\s?'(.+)'\\)$".r)
+  val toDateOrTimestamp: Val = Val("^(to_date|to_timestamp)\\(((.+),\\s?)'(.+)'\\)$".r)
 
 }
