@@ -32,17 +32,18 @@ class ReLoadEngine(applicationPropertiesFile: String)
     } else {
 
       // Function1[String, DataFrame]
-      val getOldActualDfPlusFineValidita: String => DataFrame = actualTable => {
+      val getOldActualDf: String => DataFrame = actualTable => {
 
         readFromJDBC(pcAuroraDBName, actualTable)
           .withColumn("ts_fine_validita", lit(getJavaSQLTimestampFromNow))
           .withColumn("dt_fine_validita", lit(getJavaSQLDateFromNow))
       }
 
-      // Function2[DataFrame, Double, DataFrame]
-      val updateDfVersionNumber: (DataFrame, Double) => DataFrame = (df, versionNumber) => {
+      // Function2[String, Double, DataFrame]
+      val readTSVAndUpdateVersionNumber: (String, Double) => DataFrame = (tableId, versionNumber) => {
 
-        df.withColumn(ColumnName.VERSIONE.getName, lit(versionNumber))
+        readTSVForTable(tableId)
+          .withColumn(ColumnName.VERSIONE.getName, lit(versionNumber))
       }
 
       // EXECUTE SELECTED FLAGS
@@ -68,7 +69,7 @@ class ReLoadEngine(applicationPropertiesFile: String)
             SaveMode.Append,
             completeOverwriteFlag,
             createReLoadLogRecord,
-            getOldActualDfPlusFineValidita,
+            getOldActualDf,
             actualTable)
 
           // OVERWRITE ACTUAL TABLE
@@ -80,13 +81,13 @@ class ReLoadEngine(applicationPropertiesFile: String)
             .getAs[Double](0)
 
           val nextDfVersionNumber: Double = getNextVersionNumber(oldVersionNumber)
-          tryWriteToJDBCWithFunction1[Double](pcAuroraDBName,
+          tryWriteToJDBCWithFunction1[String](pcAuroraDBName,
             actualTable,
             SaveMode.Overwrite,
             completeOverwriteFlag,
             createReLoadLogRecord,
-            updateDfVersionNumber(readTSVForTable(tableId), _),
-            dfGenerationFunctionArg = nextDfVersionNumber)
+            readTSVAndUpdateVersionNumber(_, nextDfVersionNumber),
+            dfGenerationFunctionArg = tableId)
         })
     }
   }

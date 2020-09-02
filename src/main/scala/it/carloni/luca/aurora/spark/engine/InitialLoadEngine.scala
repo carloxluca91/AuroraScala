@@ -41,7 +41,7 @@ class InitialLoadEngine(applicationPropertiesFile: String)
     logger.info("Successfully closed JDBC connection")
 
     // Function1[String, DataFrame]
-    val addVersionNumber: String => DataFrame = tableId =>
+    val readTSVPlusVersionNumber: String => DataFrame = tableId =>
 
       readTSVForTable(tableId)
         .withColumn(ColumnName.VERSIONE.getName, lit(1.0).cast(DataTypes.DoubleType))
@@ -59,7 +59,7 @@ class InitialLoadEngine(applicationPropertiesFile: String)
           SaveMode.Append,
           truncateFlag = false,
           createInitialLoadLogRecord,
-          addVersionNumber,
+          readTSVPlusVersionNumber,
           dfGenerationFunctionArg = tableId)
       })
   }
