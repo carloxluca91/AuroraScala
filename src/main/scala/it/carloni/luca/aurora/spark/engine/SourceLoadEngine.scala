@@ -265,8 +265,8 @@ class SourceLoadEngine(val applicationPropertiesFile: String)
 
     val historicalTableName: String = actualTableName.concat("_h")
     logger.info(s"Saving data related to layer '$layer' ($description). Actual table name: '$actualTableName', historical: '$historicalTableName'")
-    tryWriteToJDBCAndLog(dataFrame, database, actualTableName, SaveMode.Overwrite)
-    tryWriteToJDBCAndLog(dataFrame, database, historicalTableName, SaveMode.Append)
+    //tryWriteToJDBCWithFunction1(dataFrame, database, actualTableName, SaveMode.Overwrite)
+    //tryWriteToJDBCWithFunction1(dataFrame, database, historicalTableName, SaveMode.Append)
 
   }
 }

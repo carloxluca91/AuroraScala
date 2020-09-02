@@ -2,7 +2,7 @@ package it.carloni.luca.aurora.spark.engine
 
 import it.carloni.luca.aurora.option.ScoptParser.ReloadConfig
 import it.carloni.luca.aurora.option.{Branch, ScoptOption}
-import it.carloni.luca.aurora.utils.ColumnName
+import it.carloni.luca.aurora.utils.{ColumnName, TableId}
 import it.carloni.luca.aurora.utils.Utils.{getJavaSQLDateFromNow, getJavaSQLTimestampFromNow}
 import org.apache.log4j.Logger
 import org.apache.spark.sql.functions.lit
@@ -31,75 +31,67 @@ class ReLoadEngine(applicationPropertiesFile: String)
 
     } else {
 
+      // Function1[String, DataFrame]
+      val getOldActualDfPlusFineValidita: String => DataFrame = actualTable => {
+
+        readFromJDBC(pcAuroraDBName, actualTable)
+          .withColumn("ts_fine_validita", lit(getJavaSQLTimestampFromNow))
+          .withColumn("dt_fine_validita", lit(getJavaSQLDateFromNow))
+      }
+
+      // Function2[DataFrame, Double, DataFrame]
+      val updateDfVersionNumber: (DataFrame, Double) => DataFrame = (df, versionNumber) => {
+
+        df.withColumn(ColumnName.VERSIONE.getName, lit(versionNumber))
+      }
+
       // EXECUTE SELECTED FLAGS
+      Map(mappingSpecificationFlag -> (mappingSpecificationTBLName,
+        jobProperties.getString("table.mapping_specification_historical.name"),
+        TableId.MAPPING_SPECIFICATION.getId),
 
-      // Map(Boolean -> (spark.sql.DataFrame, String, String))
-      Map(mappingSpecificationFlag -> (getMappingSpecificationDf,
-        mappingSpecificationTBLName,
-        jobProperties.getString("table.mapping_specification_historical.name")),
-
-        lookupFlag -> (getLookUpDf,
-          lookupTBLName,
-          jobProperties.getString("table.lookup_historical.name")))
+      lookupFlag -> (lookupTBLName,
+        jobProperties.getString("table.lookup_historical.name"),
+        TableId.LOOK_UP.getId))
 
         .filter(_._1)
         .values
         .foreach(x => {
 
-          val df: DataFrame = x._1
-          val actualTableName: String = x._2
-          val historicalTableName: String = x._3
+          val actualTable: String = x._1
+          val historicalTable: String = x._2
+          val tableId: String = x._3
 
-          logger.info(s"Starting to overwrite table '$pcAuroraDBName'.'$actualTableName'")
-          reloadTable(df,
-            pcAuroraDBName,
-            actualTableName,
-            historicalTableName,
-            completeOverwriteFlag)})
+          // WRITE OLD DATA ON HISTORICAL TABLE
+          tryWriteToJDBCWithFunction1[String](pcAuroraDBName,
+            historicalTable,
+            SaveMode.Append,
+            completeOverwriteFlag,
+            createReLoadLogRecord,
+            getOldActualDfPlusFineValidita,
+            actualTable)
+
+          // OVERWRITE ACTUAL TABLE
+          // RETRIEVE OLD ACTUAL VERSION NUMBER
+          val oldVersionNumber: Double = readFromJDBC(pcAuroraDBName, actualTable)
+            .selectExpr(ColumnName.VERSIONE.getName)
+            .distinct()
+            .collect()(0)
+            .getAs[Double](0)
+
+          val nextDfVersionNumber: Double = getNextVersionNumber(oldVersionNumber)
+          tryWriteToJDBCWithFunction1[Double](pcAuroraDBName,
+            actualTable,
+            SaveMode.Overwrite,
+            completeOverwriteFlag,
+            createReLoadLogRecord,
+            updateDfVersionNumber(readTSVForTable(tableId), _),
+            dfGenerationFunctionArg = nextDfVersionNumber)
+        })
     }
   }
 
-  private def reloadTable(newDf: DataFrame,
-                          databaseName: String,
-                          actualTableName: String,
-                          historicalTableName: String,
-                          completeOverwrite: Boolean): Unit = {
-
-    val oldDf: DataFrame = readFromJDBC(databaseName, actualTableName)
-      .withColumn("ts_fine_validita", lit(getJavaSQLTimestampFromNow))
-      .withColumn("dt_fine_validita", lit(getJavaSQLDateFromNow))
-
-    val oldDfVersionNumber: Double = oldDf
-      .selectExpr(ColumnName.VERSIONE.getName)
-      .distinct()
-      .collect()(0)
-      .getAs[Double](0)
-
-    val newDfVersionNumber: Double = updateVersionNumber(oldDfVersionNumber)
-
-    // INSERT OLD DATA INTO HISTORICAL TABLE (SAVEMODE = APPEND)
-    tryWriteToJDBCAndLog(oldDf,
-      databaseName,
-      historicalTableName,
-      SaveMode.Append,
-      completeOverwrite,
-      createReLoadLogRecord)
-
-    // OVERWRITE ACTUAL TABLE (SAVEMODE = OVERWRITE)
-    tryWriteToJDBCAndLog(updateDfVersionNumber(newDf, newDfVersionNumber),
-      databaseName,
-      actualTableName,
-      SaveMode.Overwrite,
-      completeOverwrite,
-      createReLoadLogRecord)
-  }
-
-  private def updateDfVersionNumber(df: DataFrame, versionNumber: Double): DataFrame = {
-
-    df.withColumn(ColumnName.VERSIONE.getName, lit(versionNumber))
-  }
-
-  private def updateVersionNumber(oldVersionNumber: Double): Double = {
+  private def getNextVersionNumber(oldVersionNumber: Double): Double = {
 
     val newSpecificationVersion: Double = f"${oldVersionNumber + 0.1}%.1f"
       .replace(',', '.')

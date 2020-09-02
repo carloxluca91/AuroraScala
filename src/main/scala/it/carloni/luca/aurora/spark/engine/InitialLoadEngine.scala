@@ -3,10 +3,11 @@ package it.carloni.luca.aurora.spark.engine
 import java.sql._
 
 import it.carloni.luca.aurora.option.Branch
-import it.carloni.luca.aurora.utils.ColumnName
+import it.carloni.luca.aurora.utils.{ColumnName, TableId}
 import org.apache.log4j.Logger
-import org.apache.spark.sql.SaveMode
+import org.apache.spark.sql.{DataFrame, SaveMode}
 import org.apache.spark.sql.functions.lit
+import org.apache.spark.sql.types.DataTypes
 
 class InitialLoadEngine(applicationPropertiesFile: String)
   extends AbstractEngine(applicationPropertiesFile) {
@@ -39,21 +40,28 @@ class InitialLoadEngine(applicationPropertiesFile: String)
     jdbcConnection.close()
     logger.info("Successfully closed JDBC connection")
 
-    tryWriteToJDBCAndLog(getMappingSpecificationDf
-      .withColumn(ColumnName.VERSIONE.getName, lit(1.0)),
-      pcAuroraDBName,
-      mappingSpecificationTBLName,
-      SaveMode.Append,
-      truncate = false,
-      createInitialLoadLogRecord)
+    // Function1[String, DataFrame]
+    val addVersionNumber: String => DataFrame = tableId =>
 
-    tryWriteToJDBCAndLog(getLookUpDf
-      .withColumn(ColumnName.VERSIONE.getName, lit(1.0)),
-      pcAuroraDBName,
-      lookupTBLName,
-      SaveMode.Append,
-      truncate = false,
-      createInitialLoadLogRecord)
+      readTSVForTable(tableId)
+        .withColumn(ColumnName.VERSIONE.getName, lit(1.0).cast(DataTypes.DoubleType))
+
+    // Map(String -> (String, String, Boolean, String))
+    Map(mappingSpecificationTBLName -> TableId.MAPPING_SPECIFICATION.getId,
+      lookupTBLName -> TableId.LOOK_UP.getId)
+      .foreach(x => {
+
+        val tableName: String = x._1
+        val tableId: String = x._2
+
+        tryWriteToJDBCWithFunction1[String](pcAuroraDBName,
+          tableName,
+          SaveMode.Append,
+          truncateFlag = false,
+          createInitialLoadLogRecord,
+          addVersionNumber,
+          dfGenerationFunctionArg = tableId)
+      })
   }
 
   private def createDatabaseIfNotExists(databaseToCreate: String, connection: Connection): Unit = {

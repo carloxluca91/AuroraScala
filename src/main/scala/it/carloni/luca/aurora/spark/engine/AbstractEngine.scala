@@ -55,11 +55,11 @@ abstract class AbstractEngine(private final val applicationPropertiesFile: Strin
       val dtBusinessDateSQLDateOpt: Option[Date] = if (dtBusinessDateOpt.nonEmpty) {
 
         val dtBusinessDateString: String = dtBusinessDateOpt.get
-        logger.info(s"Converting $dtBusinessDateString to java.sql.Date")
+        logger.info(s"Converting '$dtBusinessDateString' to java.sql.Date")
         val dtBusinessDateLocalDate: LocalDate = LocalDate.parse(dtBusinessDateString, DateFormat.DT_RIFERIMENTO.getFormatter)
 
         val dtBusinessDateSQLDateOpt: Option[Date] = Some(Date.valueOf(dtBusinessDateLocalDate))
-        logger.info(s"Successfullt converted $dtBusinessDateString to java.sql.Date")
+        logger.info(s"Successfully converted $dtBusinessDateString to java.sql.Date")
         dtBusinessDateSQLDateOpt
 
       } else None
@@ -82,15 +82,39 @@ abstract class AbstractEngine(private final val applicationPropertiesFile: Strin
         applicationFinishStatus)
     }
 
+  protected def readTSVForTable(table: String): DataFrame = {
+
+    val tsvFilePath: String = jobProperties.getString(s"table.$table.file.path")
+    val tsvSep: String = jobProperties.getString(s"table.$table.file.sep")
+    val tsvHeaderFlag: Boolean = jobProperties.getBoolean(s"table.$table.file.header")
+    val xMLSchemaFilePath: String = jobProperties.getString(s"table.$table.xml.schema.path")
+
+    val details: String = s"path '$tsvFilePath' (separator: '$tsvSep', file header presence: '$tsvHeaderFlag')"
+    logger.info(s"Attempting to load .tsv file at $details")
+
+    val tsvFileDf: DataFrame = sparkSession.read
+      .format("csv")
+      .option("path", tsvFilePath)
+      .option("sep", tsvSep)
+      .option("header", tsvHeaderFlag)
+      .schema(fromXMLToStructType(xMLSchemaFilePath))
+      .load()
+      .withColumn("ts_inizio_validita", lit(getJavaSQLTimestampFromNow))
+      .withColumn("dt_inizio_validita", lit(getJavaSQLDateFromNow))
+
+    logger.info(s"Successfully loaded .tsv file at $details")
+    tsvFileDf
+  }
+
   protected def readFromJDBC(databaseName: String, tableName: String): DataFrame = {
 
     logger.info(s"Starting to load table '$databaseName'.'$tableName'")
-
     Try {
 
       jdbcReader
         .option("dbtable", s"$databaseName.$tableName")
         .load()
+
     } match {
 
       case Failure(exception) =>
@@ -105,41 +129,26 @@ abstract class AbstractEngine(private final val applicationPropertiesFile: Strin
     }
   }
 
-  protected def getMappingSpecificationDf: DataFrame = {
-
-    getDfFromTSVFileAndXMLSchema(jobProperties.getString("table.mapping_specification.file.path"),
-      jobProperties.getString("table.mapping_specification.file.sep"),
-      jobProperties.getBoolean("table.mapping_specification.file.header"),
-      jobProperties.getString("table.mapping_specification.xml.schema.path"))
-  }
-
-  protected def getLookUpDf: DataFrame = {
-
-    getDfFromTSVFileAndXMLSchema(jobProperties.getString("table.lookup.file.path"),
-      jobProperties.getString("table.lookup.file.sep"),
-      jobProperties.getBoolean("table.lookup.file.header"),
-      jobProperties.getString("table.lookup.xml.schema.path"))
-  }
-
-  protected def tryWriteToJDBCAndLog(op: (=> DataFrame),
-                                     databaseName: String,
-                                     tableName: String,
-                                     saveMode: SaveMode,
-                                     truncate: Boolean,
-                                     logRecordFactory: (String, Option[String]) => LogRecord): Unit = {
+  protected def tryWriteToJDBCWithFunction1[T](db: String,
+                                               table: String,
+                                               saveMode: SaveMode,
+                                               truncateFlag: Boolean,
+                                               logRecordFunction: (String, Option[String]) => LogRecord,
+                                               dfGenerationFunction: T => DataFrame,
+                                               dfGenerationFunctionArg: T): Unit = {
 
     Try {
 
-      writeToJDBC(op, databaseName, tableName, saveMode, truncate)
+      writeToJDBC(dfGenerationFunction(dfGenerationFunctionArg), db, table, saveMode, truncateFlag)
 
     } match {
       case Failure(exception) =>
 
-        val details: String = s"'$databaseName'.'$tableName' with savemode '$saveMode'"
+        val details: String = s"'$db'.'$table' with savemode '$saveMode'"
         logger.error(s"Caught exception while trying to save data into $details. Stack trace: ", exception)
-        writeLogRecords(Seq(logRecordFactory(tableName, Some(exception.getMessage))))
+        writeLogRecords(logRecordFunction(table, Some(exception.getMessage)))
 
-      case Success(_) => writeLogRecords(Seq(logRecordFactory(tableName, None)))
+      case Success(_) => writeLogRecords(logRecordFunction(table, None))
     }
   }
 
@@ -175,25 +184,7 @@ abstract class AbstractEngine(private final val applicationPropertiesFile: Strin
     }
   }
 
-  private def getDfFromTSVFileAndXMLSchema(tsvFilePath: String, tsvSep: String, tsvHeader: Boolean, xMLSchemaFilePath: String): DataFrame = {
-
-    logger.info(s"Attempting to load .tsv file at path '$tsvFilePath' (separator: '$tsvSep', file header presence: '$tsvHeader') as a spark.sql.DataFrame")
-
-    val tsvFileDf: DataFrame = sparkSession.read
-      .format("csv")
-      .option("path", tsvFilePath)
-      .option("sep", tsvSep)
-      .option("header", tsvHeader)
-      .schema(fromXMLToStructType(xMLSchemaFilePath))
-      .load()
-      .withColumn("ts_inizio_validita", lit(getJavaSQLTimestampFromNow))
-      .withColumn("dt_inizio_validita", lit(getJavaSQLDateFromNow))
-
-    logger.info(s"Successfully loaded .tsv file as a spark.sql.DataFrame")
-    tsvFileDf
-  }
-
-  private def writeLogRecords(loggingRecords: Seq[LogRecord]): Unit = {
+  private def writeLogRecords(loggingRecords: LogRecord*): Unit = {
 
     import sparkSession.implicits._
 
@@ -240,7 +231,11 @@ abstract class AbstractEngine(private final val applicationPropertiesFile: Strin
 
   private def loadJobProperties(propertiesFile: String): Unit = {
 
-    Try(jobProperties.load(new File(propertiesFile))) match {
+    Try {
+
+      jobProperties.load(new File(propertiesFile))
+
+    } match {
 
       case Failure(exception) =>
 

@@ -3,6 +3,7 @@ package it.carloni.luca.aurora.utils
 import java.sql.{Date, Timestamp}
 import java.time.{ZoneId, ZonedDateTime}
 
+import org.apache.commons.configuration.PropertiesConfiguration
 import org.apache.spark.sql.types.{DataType, DataTypes}
 
 object Utils {
