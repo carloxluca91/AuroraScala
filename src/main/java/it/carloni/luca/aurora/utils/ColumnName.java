@@ -2,6 +2,8 @@ package it.carloni.luca.aurora.utils;
 
 public enum ColumnName {
 
+    FLUSSO("flusso"),
+    VERSIONE("versione"),
     DT_INSERIMENTO("dt_inserimento"),
     DT_RIFERIMENTO("dt_riferimento"),
     ROW_COUNT("row_count"),

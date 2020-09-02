@@ -2,13 +2,11 @@ package it.carloni.luca.aurora.spark.engine
 
 import it.carloni.luca.aurora.option.ScoptParser.ReloadConfig
 import it.carloni.luca.aurora.option.{Branch, ScoptOption}
-import it.carloni.luca.aurora.spark.data.LogRecord
+import it.carloni.luca.aurora.utils.ColumnName
 import it.carloni.luca.aurora.utils.Utils.{getJavaSQLDateFromNow, getJavaSQLTimestampFromNow}
 import org.apache.log4j.Logger
 import org.apache.spark.sql.functions.lit
 import org.apache.spark.sql.{DataFrame, SaveMode}
-
-import scala.util.{Failure, Success, Try}
 
 class ReLoadEngine(applicationPropertiesFile: String)
   extends AbstractEngine(applicationPropertiesFile) {
@@ -22,108 +20,83 @@ class ReLoadEngine(applicationPropertiesFile: String)
     val lookupFlag: Boolean = reloadConfig.lookUpFlag
     val completeOverwriteFlag: Boolean = reloadConfig.completeOverwriteFlag
 
-    if (!Seq(mappingSpecificationFlag, lookupFlag)
-      .reduce(_ | _)) {
+    // IF NONE OF THE TWO FLAGS HAVE BEEN SELECTED
+    if (!(mappingSpecificationFlag || lookupFlag)) {
 
       logger.warn("According to user input, no table has to be overriden. Thus, not much to do")
       logger.warn(s"To override mapping specification table, you must specify -${ScoptOption.MAPPING_SPECIFICATION_FLAG.getShortOption} " +
         s"(or -- ${ScoptOption.MAPPING_SPECIFICATION_FLAG.getLongOption})")
       logger.warn(s"To override look up table, you must specify -${ScoptOption.LOOKUP_SPECIFICATION_FLAG.getShortOption} " +
         s"(or -- ${ScoptOption.LOOKUP_SPECIFICATION_FLAG.getLongOption})")
-    }
 
-    else {
+    } else {
 
-      val mappingSpecificationLoggingRecords: Seq[LogRecord] =
-        if (mappingSpecificationFlag) {
+      // EXECUTE SELECTED FLAGS
 
-          logger.info(s"Starting to overwrite table '$pcAuroraDBName'.'$mappingSpecificationTBLName'")
-          reloadMappingSpecification(completeOverwriteFlag)
+      // Map(Boolean -> (spark.sql.DataFrame, String, String))
+      Map(mappingSpecificationFlag -> (getMappingSpecificationDf,
+        mappingSpecificationTBLName,
+        jobProperties.getString("table.mapping_specification_historical.name")),
 
-        } else Seq.empty
+        lookupFlag -> (getLookUpDf,
+          lookupTBLName,
+          jobProperties.getString("table.lookup_historical.name")))
 
-      val lookUpLoggingRecords: Seq[LogRecord] =
-        if (lookupFlag) {
+        .filter(_._1)
+        .values
+        .foreach(x => {
 
-          logger.info(s"Starting to overwrite table '$pcAuroraDBName'.'$lookupTBLName'")
-          mappingSpecificationLoggingRecords ++ reloadLookUpSpecification(completeOverwriteFlag)
+          val df: DataFrame = x._1
+          val actualTableName: String = x._2
+          val historicalTableName: String = x._3
 
-        } else mappingSpecificationLoggingRecords
-
-      writeLogRecords(lookUpLoggingRecords)
+          logger.info(s"Starting to overwrite table '$pcAuroraDBName'.'$actualTableName'")
+          reloadTable(df,
+            pcAuroraDBName,
+            actualTableName,
+            historicalTableName,
+            completeOverwriteFlag)})
     }
   }
 
-  private def reloadMappingSpecification(completeOverwrite: Boolean): Seq[LogRecord] = {
+  private def reloadTable(newDf: DataFrame,
+                          databaseName: String,
+                          actualTableName: String,
+                          historicalTableName: String,
+                          completeOverwrite: Boolean): Unit = {
 
-    val mappingSpecificationHistTBLName: String = jobProperties.getString("table.mapping_specification_historical.name")
-    val oldMappingSpecificationDf: DataFrame = readFromJDBC(pcAuroraDBName, mappingSpecificationTBLName)
+    val oldDf: DataFrame = readFromJDBC(databaseName, actualTableName)
       .withColumn("ts_fine_validita", lit(getJavaSQLTimestampFromNow))
       .withColumn("dt_fine_validita", lit(getJavaSQLDateFromNow))
 
-    val oldSpecificationVersion: Double = oldMappingSpecificationDf.selectExpr("versione")
+    val oldDfVersionNumber: Double = oldDf
+      .selectExpr(ColumnName.VERSIONE.getName)
       .distinct()
       .collect()(0)
-      .getDouble(0)
+      .getAs[Double](0)
 
-    val newSpecificationVersion: Double = updateVersionNumber(oldSpecificationVersion)
-    val mappingHistoricalLogRecord: LogRecord =
-      Try(writeToJDBC(oldMappingSpecificationDf, pcAuroraDBName, mappingSpecificationHistTBLName, SaveMode.Append)) match {
+    val newDfVersionNumber: Double = updateVersionNumber(oldDfVersionNumber)
 
-        case Failure(exception) => createReLoadLogRecord(mappingSpecificationHistTBLName, Some(exception.getMessage))
-        case Success(_) => createReLoadLogRecord(mappingSpecificationHistTBLName, None)
-      }
+    // INSERT OLD DATA INTO HISTORICAL TABLE (SAVEMODE = APPEND)
+    tryWriteToJDBCAndLog(oldDf,
+      databaseName,
+      historicalTableName,
+      SaveMode.Append,
+      completeOverwrite,
+      createReLoadLogRecord)
 
-    val mappingActualLogRecord: LogRecord =
-      Try(writeToJDBC(this.getMappingSpecificationDfWithVersion(newSpecificationVersion), pcAuroraDBName, mappingSpecificationTBLName, SaveMode.Overwrite, completeOverwrite)) match {
-
-        case Failure(exception) => createReLoadLogRecord(mappingSpecificationTBLName, Some(exception.getMessage))
-        case Success(_) => createReLoadLogRecord(mappingSpecificationTBLName, None)
-      }
-
-    Seq(mappingHistoricalLogRecord, mappingActualLogRecord)
+    // OVERWRITE ACTUAL TABLE (SAVEMODE = OVERWRITE)
+    tryWriteToJDBCAndLog(updateDfVersionNumber(newDf, newDfVersionNumber),
+      databaseName,
+      actualTableName,
+      SaveMode.Overwrite,
+      completeOverwrite,
+      createReLoadLogRecord)
   }
 
-  private def reloadLookUpSpecification(completeOverwrite: Boolean): Seq[LogRecord] = {
+  private def updateDfVersionNumber(df: DataFrame, versionNumber: Double): DataFrame = {
 
-    val lookUpHistoricalTable: String = jobProperties.getString("table.lookup_historical.name")
-    val oldLookUpDf: DataFrame = readFromJDBC(pcAuroraDBName, lookupTBLName)
-      .withColumn("ts_fine_validita", lit(getJavaSQLTimestampFromNow))
-      .withColumn("dt_fine_validita", lit(getJavaSQLDateFromNow))
-
-    val oldSpecificationVersion: Double = oldLookUpDf.selectExpr("versione")
-      .distinct()
-      .collect()(0)
-      .getDouble(0)
-
-    val newSpecificationVersion: Double = updateVersionNumber(oldSpecificationVersion)
-    val lookUpHistoricalLogRecord: LogRecord =
-      Try(writeToJDBC(oldLookUpDf, pcAuroraDBName, lookUpHistoricalTable, SaveMode.Append)) match {
-
-        case Failure(exception) => createReLoadLogRecord(lookUpHistoricalTable, Some(exception.getMessage))
-        case Success(_) => createReLoadLogRecord(lookUpHistoricalTable, None)
-      }
-
-    val lookUpActualLogRecord: LogRecord =
-      Try(writeToJDBC(this.getLookUpDfWithVersion(newSpecificationVersion), pcAuroraDBName, lookupTBLName, SaveMode.Overwrite, completeOverwrite)) match {
-
-        case Failure(exception) => createReLoadLogRecord(lookupTBLName, Some(exception.getMessage))
-        case Success(_) => createReLoadLogRecord(lookupTBLName, None)
-      }
-
-    Seq(lookUpHistoricalLogRecord, lookUpActualLogRecord)
-  }
-
-  private def getMappingSpecificationDfWithVersion(versionNumber: Double): DataFrame = {
-
-    super.getMappingSpecificationDf
-      .withColumn("versione", lit(versionNumber))
-  }
-
-  private def getLookUpDfWithVersion(versionNumber: Double): DataFrame = {
-
-    super.getLookUpDf
-      .withColumn("versione", lit(versionNumber))
+    df.withColumn(ColumnName.VERSIONE.getName, lit(versionNumber))
   }
 
   private def updateVersionNumber(oldVersionNumber: Double): Double = {

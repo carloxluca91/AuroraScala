@@ -1,13 +1,15 @@
 package it.carloni.luca.aurora.spark.engine
 
 import java.io.{File, FileNotFoundException}
-import java.time.LocalDate
+import java.sql.{Date, Timestamp}
+import java.time.{Instant, LocalDate, ZoneId, ZonedDateTime}
 
 import it.carloni.luca.aurora.spark.data.LogRecord
 import it.carloni.luca.aurora.utils.DateFormat
 import it.carloni.luca.aurora.utils.Utils.{getJavaSQLDateFromNow, getJavaSQLTimestampFromNow, resolveDataType}
 import org.apache.commons.configuration.PropertiesConfiguration
 import org.apache.log4j.Logger
+import org.apache.spark.SparkContext
 import org.apache.spark.sql.functions.lit
 import org.apache.spark.sql.types.{DataType, StructField, StructType}
 import org.apache.spark.sql.{DataFrame, DataFrameReader, SaveMode, SparkSession}
@@ -46,11 +48,7 @@ abstract class AbstractEngine(private final val applicationPropertiesFile: Strin
   protected final val lookupTBLName: String = jobProperties.getString("table.lookup.name")
 
   protected val createLogRecord: (String, Option[String], Option[String], String, Option[String]) => LogRecord =
-    (branchName: String, bancllNameOpt: Option[String], dtBusinessDateOpt: Option[String],
-     impactedTable: String, exceptionMsgOpt: Option[String]) => {
-
-      import java.sql.{Date, Timestamp}
-      import java.time.{Instant, ZoneId, ZonedDateTime}
+    (branchName, bancllNameOpt, dtBusinessDateOpt, impactedTable, exceptionMsgOpt) => {
 
       val applicationId: String = sparkSession.sparkContext.applicationId
       val applicationName: String = sparkSession.sparkContext.appName
@@ -84,55 +82,16 @@ abstract class AbstractEngine(private final val applicationPropertiesFile: Strin
         applicationFinishStatus)
     }
 
-  private def getOrCreateSparkSession: SparkSession = {
-
-    logger.info("Trying to get or create SparkSession")
-
-    val sparkSession: SparkSession = SparkSession
-      .builder()
-      .getOrCreate()
-
-    logger.info(s"Successfully created SparkSession for application '${sparkSession.sparkContext.appName}'. " +
-      s"Application Id: '${sparkSession.sparkContext.applicationId}', " +
-      s"UI url: ${sparkSession.sparkContext.uiWebUrl.get}")
-
-    sparkSession
-  }
-
-  private def loadJobProperties(propertiesFile: String): Unit = {
-
-    Try(jobProperties.load(new File(propertiesFile))) match {
-
-    case Failure(exception) =>
-
-      logger.error("Exception occurred while loading properties file. Stack trace: ", exception)
-      throw exception
-
-    case Success(_) => logger.info("Successfully loaded properties file")
-    }
-  }
-
-  protected def writeLogRecords(loggingRecords: Seq[LogRecord]): Unit = {
-
-    import sparkSession.implicits._
-
-    logger.info("Trying to turn Seq of logging records to spark.sql.DataFrame")
-
-    val loggingRecordsDataset: DataFrame = loggingRecords.toDF()
-
-    logger.info("Successfully turned Seq of logging records to spark.sql.DataFrame")
-    writeToJDBC(loggingRecordsDataset, pcAuroraDBName, dataLoadLogTBLName, SaveMode.Append)
-  }
-
   protected def readFromJDBC(databaseName: String, tableName: String): DataFrame = {
 
     logger.info(s"Starting to load table '$databaseName'.'$tableName'")
 
-    val tryLoadJDBCDf: Try[DataFrame] = Try(jdbcReader
-      .option("dbtable", s"$databaseName.$tableName")
-      .load())
+    Try {
 
-    tryLoadJDBCDf match {
+      jdbcReader
+        .option("dbtable", s"$databaseName.$tableName")
+        .load()
+    } match {
 
       case Failure(exception) =>
 
@@ -146,9 +105,48 @@ abstract class AbstractEngine(private final val applicationPropertiesFile: Strin
     }
   }
 
-  protected def fromXMLToStructType(xmlFilePath: String): StructType = {
+  protected def getMappingSpecificationDf: DataFrame = {
 
-    logger.info(s"XML file path: $xmlFilePath")
+    getDfFromTSVFileAndXMLSchema(jobProperties.getString("table.mapping_specification.file.path"),
+      jobProperties.getString("table.mapping_specification.file.sep"),
+      jobProperties.getBoolean("table.mapping_specification.file.header"),
+      jobProperties.getString("table.mapping_specification.xml.schema.path"))
+  }
+
+  protected def getLookUpDf: DataFrame = {
+
+    getDfFromTSVFileAndXMLSchema(jobProperties.getString("table.lookup.file.path"),
+      jobProperties.getString("table.lookup.file.sep"),
+      jobProperties.getBoolean("table.lookup.file.header"),
+      jobProperties.getString("table.lookup.xml.schema.path"))
+  }
+
+  protected def tryWriteToJDBCAndLog(op: (=> DataFrame),
+                                     databaseName: String,
+                                     tableName: String,
+                                     saveMode: SaveMode,
+                                     truncate: Boolean,
+                                     logRecordFactory: (String, Option[String]) => LogRecord): Unit = {
+
+    Try {
+
+      writeToJDBC(op, databaseName, tableName, saveMode, truncate)
+
+    } match {
+      case Failure(exception) =>
+
+        val details: String = s"'$databaseName'.'$tableName' with savemode '$saveMode'"
+        logger.error(s"Caught exception while trying to save data into $details. Stack trace: ", exception)
+        writeLogRecords(Seq(logRecordFactory(tableName, Some(exception.getMessage))))
+
+      case Success(_) => writeLogRecords(Seq(logRecordFactory(tableName, None)))
+    }
+  }
+
+  /* PRIVATE AREA */
+
+  private def fromXMLToStructType(xmlFilePath: String): StructType = {
+
     val xmlSchemaFile: File = new File(xmlFilePath)
     if (xmlSchemaFile.exists()) {
 
@@ -173,90 +171,83 @@ abstract class AbstractEngine(private final val applicationPropertiesFile: Strin
 
       val exceptionMsg: String = s"File '$xmlFilePath' does not exists (or cannot be found)"
       logger.error(exceptionMsg)
-      throw new FileNotFoundException(s"File '$xmlFilePath' does not exists (or cannot be found)")
+      throw new FileNotFoundException(exceptionMsg)
     }
   }
 
-  protected def writeToJDBC(outputDataFrame: DataFrame, databaseName: String, tableName: String,
-                            saveMode: SaveMode, truncate: Boolean = false): Unit = {
+  private def getDfFromTSVFileAndXMLSchema(tsvFilePath: String, tsvSep: String, tsvHeader: Boolean, xMLSchemaFilePath: String): DataFrame = {
+
+    logger.info(s"Attempting to load .tsv file at path '$tsvFilePath' (separator: '$tsvSep', file header presence: '$tsvHeader') as a spark.sql.DataFrame")
+
+    val tsvFileDf: DataFrame = sparkSession.read
+      .format("csv")
+      .option("path", tsvFilePath)
+      .option("sep", tsvSep)
+      .option("header", tsvHeader)
+      .schema(fromXMLToStructType(xMLSchemaFilePath))
+      .load()
+      .withColumn("ts_inizio_validita", lit(getJavaSQLTimestampFromNow))
+      .withColumn("dt_inizio_validita", lit(getJavaSQLDateFromNow))
+
+    logger.info(s"Successfully loaded .tsv file as a spark.sql.DataFrame")
+    tsvFileDf
+  }
+
+  private def writeLogRecords(loggingRecords: Seq[LogRecord]): Unit = {
+
+    import sparkSession.implicits._
+
+    logger.info("Trying to turn Seq of logging records to spark.sql.DataFrame")
+
+    val loggingRecordsDataset: DataFrame = loggingRecords.toDF()
+
+    logger.info("Successfully turned Seq of logging records to spark.sql.DataFrame")
+    writeToJDBC(loggingRecordsDataset, pcAuroraDBName, dataLoadLogTBLName, SaveMode.Append, truncate = false)
+  }
+
+  private def writeToJDBC(outputDataFrame: DataFrame, databaseName: String, tableName: String,
+                          saveMode: SaveMode, truncate: Boolean): Unit = {
 
     val truncateOptionValue: String = if (truncate & (saveMode == SaveMode.Overwrite)) "true" else "false"
     val savingDetails: String = s"table: '$databaseName'.'$tableName', savemode: '$saveMode', truncate: '$truncateOptionValue'"
     logger.info(s"Starting to save dataframe into $savingDetails")
     logger.info(f"Dataframe schema:\n\n${outputDataFrame.schema.treeString}")
 
-    val tryWriteDfToJDBC: Try[Unit] = Try(outputDataFrame.write
+    outputDataFrame.write
       .format("jdbc")
       .options(jdbcOptions)
       .option("dbtable", s"$databaseName.$tableName")
       .option("truncate", truncateOptionValue)
       .mode(saveMode)
-      .save())
+      .save()
 
-    tryWriteDfToJDBC match {
+    logger.info(s"Successfully saved data into $savingDetails")
+  }
+
+  private def getOrCreateSparkSession: SparkSession = {
+
+    logger.info("Trying to get or create SparkSession")
+
+    val sparkSession: SparkSession = SparkSession
+      .builder()
+      .getOrCreate()
+
+    val sparkContext: SparkContext = sparkSession.sparkContext
+    logger.info(s"Successfully created SparkSession for application '${sparkContext.appName}'. " +
+      s"Application Id: '${sparkContext.applicationId}', UI url: ${sparkContext.uiWebUrl.get}")
+    sparkSession
+  }
+
+  private def loadJobProperties(propertiesFile: String): Unit = {
+
+    Try(jobProperties.load(new File(propertiesFile))) match {
 
       case Failure(exception) =>
 
-        logger.error(s"Error while saving data to $savingDetails. Stack trace:", exception)
+        logger.error("Exception occurred while loading properties file. Stack trace: ", exception)
         throw exception
 
-      case Success(_) =>
-
-        logger.info(s"Successfully saved dataframe as $savingDetails")
+      case Success(_) => logger.info("Successfully loaded properties file")
     }
-  }
-
-  protected def getMappingSpecificationDf: DataFrame = {
-
-    val tsvPath: String = jobProperties.getString("table.mapping_specification.file.path")
-    val tsvSep: String = jobProperties.getString("table.mapping_specification.file.sep")
-    val tsvHeader: Boolean = jobProperties.getBoolean("table.mapping_specification.file.header")
-    val tsvXMLSchemaFilePath: String = jobProperties.getString("table.mapping_specification.xml.schema.path")
-
-    logger.info(s"Mapping specification file path: $tsvPath")
-    logger.info(s"Separator: $tsvSep")
-    logger.info(s"File header presence: $tsvHeader")
-
-    logger.info(s"Attempting to load mapping specification file as a spark.sql.DataFrame")
-
-    val mappingSpecificationDf: DataFrame = sparkSession.read
-      .format("csv")
-      .option("path", tsvPath)
-      .option("sep", tsvSep)
-      .option("header", tsvHeader)
-      .schema(fromXMLToStructType(tsvXMLSchemaFilePath))
-      .load()
-      .withColumn("ts_inizio_validita", lit(getJavaSQLTimestampFromNow))
-      .withColumn("dt_inizio_validita", lit(getJavaSQLDateFromNow))
-
-    logger.info(s"Successfully loaded mapping specification file file as a spark.sql.DataFrame")
-    mappingSpecificationDf
-  }
-
-  protected def getLookUpDf: DataFrame = {
-
-    val tsvPath: String = jobProperties.getString("table.lookup.file.path")
-    val tsvSep: String = jobProperties.getString("table.lookup.file.sep")
-    val tsvHeader: Boolean = jobProperties.getBoolean("table.lookup.file.header")
-    val tsvXMLSchemaFilePath: String = jobProperties.getString("table.lookup.xml.schema.path")
-
-    logger.info(s"Lookup specification file path: $tsvPath")
-    logger.info(s"Separator: $tsvSep")
-    logger.info(s"File header presence: $tsvHeader")
-
-    logger.info(s"Attempting to load look_up specification file as a spark.sql.DataFrame")
-
-    val lookupSpecificationDf: DataFrame = sparkSession.read
-      .format("csv")
-      .option("path", tsvPath)
-      .option("sep", tsvSep)
-      .option("header", tsvHeader)
-      .schema(fromXMLToStructType(tsvXMLSchemaFilePath))
-      .load()
-      .withColumn("ts_inizio_validita", lit(getJavaSQLTimestampFromNow))
-      .withColumn("dt_inizio_validita", lit(getJavaSQLDateFromNow))
-
-    logger.info(s"Successfully loaded look_up specification file as a spark.sql.DataFrame")
-    lookupSpecificationDf
   }
 }

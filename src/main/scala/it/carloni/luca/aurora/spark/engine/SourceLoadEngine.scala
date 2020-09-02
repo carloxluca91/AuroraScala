@@ -13,7 +13,7 @@ import org.apache.spark.sql.expressions.Window
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.{Column, DataFrame, Row, SaveMode}
 
-class SourceLoadEngine(private final val applicationPropertiesFile: String)
+class SourceLoadEngine(val applicationPropertiesFile: String)
   extends AbstractEngine(applicationPropertiesFile) {
 
   private final val logger = Logger.getLogger(getClass)
@@ -30,7 +30,7 @@ class SourceLoadEngine(private final val applicationPropertiesFile: String)
     val mappingSpecificationFilterColumn: Column = if (versionNumberOpt.isEmpty) {
 
       logger.info("No specification version number has been provided. Using latest version number")
-      col("flusso") === bancllName
+      col(ColumnName.FLUSSO.getName) === bancllName
 
     } else {
 
@@ -39,8 +39,8 @@ class SourceLoadEngine(private final val applicationPropertiesFile: String)
         .replace(',', '.')
 
       logger.info(f"Specification version number to be used: '$versionNumberFormatted")
-      (col("flusso") === bancllName) &&
-        (col("versione") === versionNumber)
+      (col(ColumnName.FLUSSO.getName) === bancllName) &&
+        (col(ColumnName.VERSIONE.getName) === versionNumber)
     }
 
     // TRY TO GET TABLE CONTAINING INGESTION SPECIFICATION
@@ -194,7 +194,7 @@ class SourceLoadEngine(private final val applicationPropertiesFile: String)
 
     val sourceName: String = specificationRecords.map(_.flusso).distinct.head
     lazy val lookUpDataFrame: DataFrame = readFromJDBC(pcAuroraDBName, lookupTBLName)
-      .filter(col("flusso") === sourceName)
+      .filter(col(ColumnName.FLUSSO.getName) === sourceName)
       .persist()
 
     specificationRecords
@@ -265,8 +265,8 @@ class SourceLoadEngine(private final val applicationPropertiesFile: String)
 
     val historicalTableName: String = actualTableName.concat("_h")
     logger.info(s"Saving data related to layer '$layer' ($description). Actual table name: '$actualTableName', historical: '$historicalTableName'")
-    writeToJDBC(dataFrame, database, actualTableName, SaveMode.Overwrite)
-    writeToJDBC(dataFrame, database, historicalTableName, SaveMode.Append)
+    tryWriteToJDBCAndLog(dataFrame, database, actualTableName, SaveMode.Overwrite)
+    tryWriteToJDBCAndLog(dataFrame, database, historicalTableName, SaveMode.Append)
 
   }
 }

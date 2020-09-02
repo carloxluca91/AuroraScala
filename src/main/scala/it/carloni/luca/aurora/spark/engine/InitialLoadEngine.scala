@@ -3,12 +3,10 @@ package it.carloni.luca.aurora.spark.engine
 import java.sql._
 
 import it.carloni.luca.aurora.option.Branch
-import it.carloni.luca.aurora.spark.data.LogRecord
+import it.carloni.luca.aurora.utils.ColumnName
 import org.apache.log4j.Logger
+import org.apache.spark.sql.SaveMode
 import org.apache.spark.sql.functions.lit
-import org.apache.spark.sql.{DataFrame, SaveMode}
-
-import scala.util.{Failure, Success, Try}
 
 class InitialLoadEngine(applicationPropertiesFile: String)
   extends AbstractEngine(applicationPropertiesFile) {
@@ -41,38 +39,27 @@ class InitialLoadEngine(applicationPropertiesFile: String)
     jdbcConnection.close()
     logger.info("Successfully closed JDBC connection")
 
-    // TABLE LOADING
-    val stringToDataFrameMap: Map[String, DataFrame] = Map(
+    tryWriteToJDBCAndLog(getMappingSpecificationDf
+      .withColumn(ColumnName.VERSIONE.getName, lit(1.0)),
+      pcAuroraDBName,
+      mappingSpecificationTBLName,
+      SaveMode.Append,
+      truncate = false,
+      createInitialLoadLogRecord)
 
-      mappingSpecificationTBLName -> super.getMappingSpecificationDf
-        .withColumn("versione", lit(1.0)),
-
-      lookupTBLName -> super.getLookUpDf
-        .withColumn("versione", lit(1.0))
-    )
-
-    // FOR EACH TABLE:
-    // [a] TRY TO EXECUTE THE RELATED LOADING PROCESS
-    // [b] DEFINE THE RELATED LOG RECORD
-    val initialLoadLogRecords: Seq[LogRecord] = (for ((tableName, dataFrame) <- stringToDataFrameMap) yield {
-
-      val functionExceptionMsgOpt: Option[String] = Try(writeToJDBC(dataFrame, pcAuroraDBName, tableName, SaveMode.Append)) match {
-
-        case Failure(exception) => Some(exception.getMessage)
-        case Success(_) => None
-      }
-
-      createInitialLoadLogRecord(tableName, functionExceptionMsgOpt)
-    }).toSeq
-
-    writeLogRecords(initialLoadLogRecords)
+    tryWriteToJDBCAndLog(getLookUpDf
+      .withColumn(ColumnName.VERSIONE.getName, lit(1.0)),
+      pcAuroraDBName,
+      lookupTBLName,
+      SaveMode.Append,
+      truncate = false,
+      createInitialLoadLogRecord)
   }
 
   private def createDatabaseIfNotExists(databaseToCreate: String, connection: Connection): Unit = {
 
     // RESULT SET CONTAINING DATABASE NAMES
-    val resultSet: ResultSet = connection
-      .getMetaData
+    val resultSet: ResultSet = connection.getMetaData
       .getCatalogs
 
     // EXTRACT THOSE NAMES
@@ -87,11 +74,11 @@ class InitialLoadEngine(applicationPropertiesFile: String)
       .mkString(", ")}")
 
     val databaseToCreateLower: String = databaseToCreate.toLowerCase
-    if (existingDatabases.contains(databaseToCreateLower))
+    if (existingDatabases.contains(databaseToCreateLower)) {
 
       logger.info(s"Database '$databaseToCreateLower' already exists. So, not much to do ;)")
 
-    else {
+    } else {
 
       val createDbStatement: Statement = connection.createStatement()
       createDbStatement.executeUpdate(s"CREATE DATABASE IF NOT EXISTS $databaseToCreateLower")
