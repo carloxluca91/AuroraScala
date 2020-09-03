@@ -5,5 +5,5 @@ class NoSpecificationException(bancllName: String)
 
 object NoSpecificationException {
 
-  private val msg: String = "Unable to retrieve any specification for BANCLL %s"
+  private val msg: String = "Unable to retrieve any specification for BANCLL '%s'"
 }
