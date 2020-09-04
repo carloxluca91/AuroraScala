@@ -188,11 +188,8 @@ abstract class AbstractEngine(private final val applicationPropertiesFile: Strin
 
     import sparkSession.implicits._
 
-    logger.info("Trying to turn Seq of logging records to spark.sql.DataFrame")
-
     val loggingRecordsDataset: DataFrame = loggingRecords.toDF()
-
-    logger.info("Successfully turned Seq of logging records to spark.sql.DataFrame")
+    logger.info(s"Successfully turned Seq of ${classOf[LogRecord].getSimpleName} to spark.sql.DataFrame")
     writeToJDBC(loggingRecordsDataset, pcAuroraDBName, dataLoadLogTBLName, SaveMode.Append, truncate = false)
   }
 

@@ -47,21 +47,26 @@ class ReLoadEngine(applicationPropertiesFile: String)
       }
 
       // EXECUTE SELECTED FLAGS
-      Map(mappingSpecificationFlag -> (mappingSpecificationTBLName,
-        jobProperties.getString("table.mapping_specification_historical.name"),
-        TableId.MAPPING_SPECIFICATION.getId),
+      val seqOfTablesToReload: Seq[(Boolean, (String, String, String))] = Seq(
 
-      lookupFlag -> (lookupTBLName,
-        jobProperties.getString("table.lookup_historical.name"),
-        TableId.LOOK_UP.getId))
+        (mappingSpecificationFlag, (mappingSpecificationTBLName,
+          jobProperties.getString("table.mapping_specification_historical.name"),
+          TableId.MAPPING_SPECIFICATION.getId)),
 
+        (lookupFlag, (lookupTBLName,
+          jobProperties.getString("table.lookup_historical.name"),
+          TableId.LOOK_UP.getId)))
+
+      seqOfTablesToReload
         .filter(_._1)
-        .values
         .foreach(x => {
 
-          val actualTable: String = x._1
-          val historicalTable: String = x._2
-          val tableId: String = x._3
+          val actualTable: String = x._2._1
+          val historicalTable: String = x._2._2
+          val tableId: String = x._2._3
+
+          logger.info(s"Starting to override table '$pcAuroraDBName'.'$actualTable' " +
+            s"and save overwritten data into '$pcAuroraDBName'.'$historicalTable'")
 
           // WRITE OLD DATA ON HISTORICAL TABLE
           tryWriteToJDBCWithFunction1[String](pcAuroraDBName,
