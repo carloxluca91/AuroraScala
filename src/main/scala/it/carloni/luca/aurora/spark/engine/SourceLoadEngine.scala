@@ -51,7 +51,7 @@ class SourceLoadEngine(val applicationPropertiesFile: String)
         logger.info(s"BANCLL '$bancllName' -> Trusted actual table: '$trdActualTableName', Trusted historical table: '$trdHistoricalTableName'")
 
         // TRY TO OVERWRITE TRD ACTUAL TABLE WITH CLEAN DATA
-        tryWriteToJDBCWithFunction1[Seq[SpecificationRecord]](
+        writeToJDBCAndLog[Seq[SpecificationRecord]](
           pcAuroraDBName,
           trdActualTableName,
           SaveMode.Overwrite,
@@ -68,7 +68,7 @@ class SourceLoadEngine(val applicationPropertiesFile: String)
           specificationRecords)
 
         // TRY TO APPEND CLEAN DATA ON TRD HISTORICAL TABLE
-        tryWriteToJDBCWithFunction1[Seq[SpecificationRecord]](
+        writeToJDBCAndLog[Seq[SpecificationRecord]](
           pcAuroraDBName,
           trdHistoricalTableName,
           SaveMode.Append,
@@ -82,17 +82,17 @@ class SourceLoadEngine(val applicationPropertiesFile: String)
           specificationRecords)
 
         // TRY TO WRITE OTHER RELATED TABLES
-        tryToWriteErrorAndDuplicatedTables(specificationRecords, rwActualTableName, trdActualTableName, createSourceLoadLogRecord)
+        writeErrorAndDuplicatedTables(specificationRecords, rwActualTableName, trdActualTableName, createSourceLoadLogRecord)
 
       } else throw new MultipleSrcOrDstException(bancllName, srcTables, dstTables)
 
     } else throw new NoSpecificationException(bancllName)
   }
 
-  private def tryToWriteErrorAndDuplicatedTables(specificationRecords: Seq[SpecificationRecord],
-                                                 rwActualTableName: String,
-                                                 trdActualTableName: String,
-                                                 createLogRecord: (String, Option[String]) => LogRecord): Unit = {
+  private def writeErrorAndDuplicatedTables(specificationRecords: Seq[SpecificationRecord],
+                                            rwActualTableName: String,
+                                            trdActualTableName: String,
+                                            createLogRecord: (String, Option[String]) => LogRecord): Unit = {
 
     // Map((db: String, actualTable: String) -> (Seq[SpecificationRecord] => DataFrame))
     Map(
@@ -138,28 +138,36 @@ class SourceLoadEngine(val applicationPropertiesFile: String)
         // UNWRAP INFORMATION AND FUNCTION
         val db: String = x._1._1
         val actualTable: String = x._1._2
+        val historicalTable: String = actualTable.concat("_h")
         val dfOperation: Seq[SpecificationRecord] => DataFrame = x._2
 
-        // TRY TO OVERWRITE ACTUAL TABLE
-        tryWriteToJDBCWithFunction1[Seq[SpecificationRecord]](
-          db,
-          actualTable,
-          SaveMode.Overwrite,
-          truncateFlag = false,
-          createLogRecord,
-          dfOperation,
-          specificationRecords)
+        if (rawDfPlusTrustedColumns == null) {
 
-        // TRY TO APPEND DATA ON HISTORICAL TABLE
-        tryWriteToJDBCWithFunction1[Seq[SpecificationRecord]](
-          db,
-          actualTable.concat("_h"),
-          SaveMode.Append,
-          truncateFlag = false,
-          createLogRecord,
-          dfOperation,
-          specificationRecords)})
+          logger.warn(s"Skipping write operation for tables '$db'.'$actualTable', '$db'.'$historicalTable'")
 
+        } else {
+
+          // TRY TO OVERWRITE ACTUAL TABLE
+          writeToJDBCAndLog[Seq[SpecificationRecord]](
+            db,
+            actualTable,
+            SaveMode.Overwrite,
+            truncateFlag = false,
+            createLogRecord,
+            dfOperation,
+            specificationRecords)
+
+          // TRY TO APPEND DATA ON HISTORICAL TABLE
+          writeToJDBCAndLog[Seq[SpecificationRecord]](
+            db,
+            historicalTable,
+            SaveMode.Append,
+            truncateFlag = false,
+            createLogRecord,
+            dfOperation,
+            specificationRecords)
+        }
+      })
   }
 
   private def persistRawDfPlusTrustedColumns(rawDf: DataFrame, specificationRecords: Seq[SpecificationRecord]): Unit = {

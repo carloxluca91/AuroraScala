@@ -21,8 +21,7 @@ abstract class AbstractEngine(private final val applicationPropertiesFile: Strin
 
   private final val logger = Logger.getLogger(getClass)
   protected final val sparkSession: SparkSession = getOrCreateSparkSession
-  protected final val jobProperties: PropertiesConfiguration = new PropertiesConfiguration()
-  loadJobProperties(applicationPropertiesFile)
+  protected final val jobProperties: PropertiesConfiguration = loadJobProperties(applicationPropertiesFile)
 
   // JDBC OPTIONS AND DATAFRAME READER
   private final val jdbcOptions: Map[String, String] = Map(
@@ -47,20 +46,17 @@ abstract class AbstractEngine(private final val applicationPropertiesFile: Strin
   protected final val dataLoadLogTBLName: String = jobProperties.getString("table.sourceload_log.name")
   protected final val lookupTBLName: String = jobProperties.getString("table.lookup.name")
 
+  // FUNCTION FOR GENERATING LOG RECORDS
   protected val createLogRecord: (String, Option[String], Option[String], String, Option[String]) => LogRecord =
-    (branchName, bancllNameOpt, dtBusinessDateOpt, impactedTable, exceptionMsgOpt) => {
+    (branchName, bancllNameOpt, dtRiferimentoOpt, impactedTable, exceptionMsgOpt) => {
 
       val applicationId: String = sparkSession.sparkContext.applicationId
       val applicationName: String = sparkSession.sparkContext.appName
-      val dtBusinessDateSQLDateOpt: Option[Date] = if (dtBusinessDateOpt.nonEmpty) {
+      val dtRiferimentoSQLDateOpt: Option[Date] = if (dtRiferimentoOpt.nonEmpty) {
 
-        val dtBusinessDateString: String = dtBusinessDateOpt.get
-        logger.info(s"Converting '$dtBusinessDateString' to java.sql.Date")
-        val dtBusinessDateLocalDate: LocalDate = LocalDate.parse(dtBusinessDateString, DateFormat.DT_RIFERIMENTO.getFormatter)
-
-        val dtBusinessDateSQLDateOpt: Option[Date] = Some(Date.valueOf(dtBusinessDateLocalDate))
-        logger.info(s"Successfully converted $dtBusinessDateString to java.sql.Date")
-        dtBusinessDateSQLDateOpt
+        Some(Date.valueOf(
+          LocalDate.parse(dtRiferimentoOpt.get,
+            DateFormat.DT_RIFERIMENTO.getFormatter)))
 
       } else None
 
@@ -75,19 +71,19 @@ abstract class AbstractEngine(private final val applicationPropertiesFile: Strin
         applicationStartTime,
         applicationEndTime,
         bancllNameOpt,
-        dtBusinessDateSQLDateOpt,
+        dtRiferimentoSQLDateOpt,
         impactedTable,
         exceptionMsgOpt,
         applicationFinishCode,
         applicationFinishStatus)
     }
 
-  protected def readTSVForTable(table: String): DataFrame = {
+  protected def readTSVForTable(tableId: String): DataFrame = {
 
-    val tsvFilePath: String = jobProperties.getString(s"table.$table.file.path")
-    val tsvSep: String = jobProperties.getString(s"table.$table.file.sep")
-    val tsvHeaderFlag: Boolean = jobProperties.getBoolean(s"table.$table.file.header")
-    val xMLSchemaFilePath: String = jobProperties.getString(s"table.$table.xml.schema.path")
+    val tsvFilePath: String = jobProperties.getString(s"table.$tableId.file.path")
+    val tsvSep: String = jobProperties.getString(s"table.$tableId.file.sep")
+    val tsvHeaderFlag: Boolean = jobProperties.getBoolean(s"table.$tableId.file.header")
+    val xMLSchemaFilePath: String = jobProperties.getString(s"table.$tableId.xml.schema.path")
 
     val details: String = s"path '$tsvFilePath' (separator: '$tsvSep', file header presence: '$tsvHeaderFlag')"
     logger.info(s"Attempting to load .tsv file at $details")
@@ -129,27 +125,40 @@ abstract class AbstractEngine(private final val applicationPropertiesFile: Strin
     }
   }
 
-  protected def tryWriteToJDBCWithFunction1[T](db: String,
-                                               table: String,
-                                               saveMode: SaveMode,
-                                               truncateFlag: Boolean,
-                                               logRecordFunction: (String, Option[String]) => LogRecord,
-                                               dfGenerationFunction: T => DataFrame,
-                                               dfGenerationFunctionArg: T): Unit = {
+  protected def writeToJDBCAndLog[T](db: String,
+                                     table: String,
+                                     saveMode: SaveMode,
+                                     truncateFlag: Boolean,
+                                     logRecordGenerationFunction: (String, Option[String]) => LogRecord,
+                                     dfGenerationFunction: T => DataFrame,
+                                     dfGenerationFunctionArg: T): Unit = {
 
-    Try {
+    import sparkSession.implicits._
 
-      writeToJDBC(dfGenerationFunction(dfGenerationFunctionArg), db, table, saveMode, truncateFlag)
+    val exceptionMsgOpt: Option[String] = Try {
+
+      writeToJDBC(dfGenerationFunction(dfGenerationFunctionArg),
+        db,
+        table,
+        saveMode,
+        truncateFlag)
 
     } match {
       case Failure(exception) =>
 
         val details: String = s"'$db'.'$table' with savemode '$saveMode'"
         logger.error(s"Caught exception while trying to save data into $details. Stack trace: ", exception)
-        writeLogRecords(logRecordFunction(table, Some(exception.getMessage)))
+        Some(exception.getMessage)
 
-      case Success(_) => writeLogRecords(logRecordFunction(table, None))
+      case Success(_) => None
     }
+
+    val logRecordDf: DataFrame = Seq(logRecordGenerationFunction(table, exceptionMsgOpt)).toDF
+    writeToJDBC(logRecordDf,
+      pcAuroraDBName,
+      dataLoadLogTBLName,
+      SaveMode.Append,
+      truncate = false)
   }
 
   /* PRIVATE AREA */
@@ -157,7 +166,7 @@ abstract class AbstractEngine(private final val applicationPropertiesFile: Strin
   private def fromXMLToStructType(xmlFilePath: String): StructType = {
 
     val xmlSchemaFile: File = new File(xmlFilePath)
-    if (xmlSchemaFile.exists()) {
+    if (xmlSchemaFile.exists) {
 
       logger.info(s"XML file '$xmlFilePath' exists. So, trying to infer table schema from it")
       val mappingSpecificationXML: Elem = XML.loadFile(xmlSchemaFile)
@@ -170,7 +179,7 @@ abstract class AbstractEngine(private final val applicationPropertiesFile: Strin
 
         val columnName: String = tuple3._1
         val columnType: DataType = resolveDataType(tuple3._2.toLowerCase)
-        val nullable: Boolean = if (tuple3._3.toLowerCase == "true") true else false
+        val nullable: Boolean = tuple3._3.toLowerCase == "true"
 
         logger.info(s"Defining column with name '$columnName', type '$columnType', nullable '$nullable'")
         StructField(columnName, columnType, nullable)
@@ -182,15 +191,6 @@ abstract class AbstractEngine(private final val applicationPropertiesFile: Strin
       logger.error(exceptionMsg)
       throw new FileNotFoundException(exceptionMsg)
     }
-  }
-
-  private def writeLogRecords(loggingRecords: LogRecord*): Unit = {
-
-    import sparkSession.implicits._
-
-    val loggingRecordsDataset: DataFrame = loggingRecords.toDF()
-    logger.info(s"Successfully turned Seq of ${classOf[LogRecord].getSimpleName} to spark.sql.DataFrame")
-    writeToJDBC(loggingRecordsDataset, pcAuroraDBName, dataLoadLogTBLName, SaveMode.Append, truncate = false)
   }
 
   private def writeToJDBC(outputDataFrame: DataFrame, databaseName: String, tableName: String,
@@ -226,11 +226,12 @@ abstract class AbstractEngine(private final val applicationPropertiesFile: Strin
     sparkSession
   }
 
-  private def loadJobProperties(propertiesFile: String): Unit = {
+  private def loadJobProperties(propertiesFile: String): PropertiesConfiguration = {
 
+    val propertiesConfiguration: PropertiesConfiguration = new PropertiesConfiguration
     Try {
 
-      jobProperties.load(new File(propertiesFile))
+      propertiesConfiguration.load(new File(propertiesFile))
 
     } match {
 
@@ -239,7 +240,10 @@ abstract class AbstractEngine(private final val applicationPropertiesFile: Strin
         logger.error("Exception occurred while loading properties file. Stack trace: ", exception)
         throw exception
 
-      case Success(_) => logger.info("Successfully loaded properties file")
+      case Success(_) =>
+
+        logger.info("Successfully loaded properties file")
+        propertiesConfiguration
     }
   }
 }

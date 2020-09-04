@@ -69,7 +69,7 @@ class ReLoadEngine(applicationPropertiesFile: String)
             s"and save overwritten data into '$pcAuroraDBName'.'$historicalTable'")
 
           // WRITE OLD DATA ON HISTORICAL TABLE
-          tryWriteToJDBCWithFunction1[String](pcAuroraDBName,
+          writeToJDBCAndLog[String](pcAuroraDBName,
             historicalTable,
             SaveMode.Append,
             completeOverwriteFlag,
@@ -86,7 +86,7 @@ class ReLoadEngine(applicationPropertiesFile: String)
             .getAs[Double](0)
 
           val nextDfVersionNumber: Double = getNextVersionNumber(oldVersionNumber)
-          tryWriteToJDBCWithFunction1[String](pcAuroraDBName,
+          writeToJDBCAndLog[String](pcAuroraDBName,
             actualTable,
             SaveMode.Overwrite,
             completeOverwriteFlag,

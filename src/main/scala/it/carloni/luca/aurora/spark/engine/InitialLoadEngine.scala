@@ -41,7 +41,7 @@ class InitialLoadEngine(applicationPropertiesFile: String)
     logger.info("Successfully closed JDBC connection")
 
     // Function1[String, DataFrame]
-    val readTSVPlusVersionNumber: String => DataFrame = tableId =>
+    val readTSVAddingVersionNumber: String => DataFrame = tableId =>
 
       readTSVForTable(tableId)
         .withColumn(ColumnName.VERSIONE.getName, lit(1.0).cast(DataTypes.DoubleType))
@@ -54,12 +54,12 @@ class InitialLoadEngine(applicationPropertiesFile: String)
         val tableName: String = x._1
         val tableId: String = x._2
 
-        tryWriteToJDBCWithFunction1[String](pcAuroraDBName,
+        writeToJDBCAndLog[String](pcAuroraDBName,
           tableName,
           SaveMode.Append,
           truncateFlag = false,
           createInitialLoadLogRecord,
-          readTSVPlusVersionNumber,
+          readTSVAddingVersionNumber,
           dfGenerationFunctionArg = tableId)
       })
   }
