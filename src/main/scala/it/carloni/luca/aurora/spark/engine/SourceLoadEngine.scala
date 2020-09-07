@@ -141,9 +141,9 @@ class SourceLoadEngine(val applicationPropertiesFile: String)
         val historicalTable: String = actualTable.concat("_h")
         val dfOperation: Seq[SpecificationRecord] => DataFrame = x._2
 
-        if (rawDfPlusTrustedColumnsOpt.nonEmpty) {
+        if (rawDfPlusTrustedColumnsOpt.isEmpty) {
 
-          logger.warn(s"Skipping write operation for tables '$db'.'$actualTable', '$db'.'$historicalTable'")
+          logger.warn(s"Skipping insert operation for table(s) '$db'.'$actualTable', '$db'.'$historicalTable'")
 
         } else {
 
