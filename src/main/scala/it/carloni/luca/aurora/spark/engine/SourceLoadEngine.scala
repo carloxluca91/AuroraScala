@@ -20,7 +20,7 @@ class SourceLoadEngine(val applicationPropertiesFile: String)
   extends AbstractEngine(applicationPropertiesFile) {
 
   private final val logger = Logger.getLogger(getClass)
-  private var rawDfPlusTrustedColumns: DataFrame = _
+  private var rawDfPlusTrustedColumnsOpt: Option[DataFrame] = None
 
   def run(sourceLoadConfig: SourceLoadConfig): Unit = {
 
@@ -61,7 +61,7 @@ class SourceLoadEngine(val applicationPropertiesFile: String)
 
             val rawDf: DataFrame = getRawDataFrame(rwActualTableName, rwHistoricalTableName, dtBusinessDateOpt)
             persistRawDfPlusTrustedColumns(rawDf, specifications)
-            rawDfPlusTrustedColumns
+            rawDfPlusTrustedColumnsOpt.get
               .filter(!getErrorFilterCol(specificationRecords))
               .select(getTrdColsToSelect(specificationRecords): _*)},
 
@@ -76,7 +76,7 @@ class SourceLoadEngine(val applicationPropertiesFile: String)
           createSourceLoadLogRecord,
           (specifications: Seq[SpecificationRecord]) => {
 
-            rawDfPlusTrustedColumns
+            rawDfPlusTrustedColumnsOpt.get
               .filter(!getErrorFilterCol(specifications))
               .select(getTrdColsToSelect(specifications): _*)},
           specificationRecords)
@@ -100,14 +100,14 @@ class SourceLoadEngine(val applicationPropertiesFile: String)
       // RW_ERROR
       (lakeCedacriDBName, rwActualTableName.concat("_error")) -> ((specifications: Seq[SpecificationRecord]) =>  {
 
-        rawDfPlusTrustedColumns
+        rawDfPlusTrustedColumnsOpt.get
           .filter(getErrorFilterCol(specifications))
           .select(getRwColsToSelect(specifications): _*)}),
 
       // TRD_ERROR
       (pcAuroraDBName, trdActualTableName.concat("_error")) -> ((specifications: Seq[SpecificationRecord]) => {
 
-        rawDfPlusTrustedColumns
+        rawDfPlusTrustedColumnsOpt.get
           .filter(getErrorFilterCol(specifications))
           .select(getTrdColsToSelect(specifications): _*)}),
 
@@ -119,7 +119,7 @@ class SourceLoadEngine(val applicationPropertiesFile: String)
           .map(x => col(x.colonnaTd))
 
         val trdDfSelectCols: Seq[Column] = getTrdColsToSelect(specifications)
-        val trustedCleanDf: DataFrame =  rawDfPlusTrustedColumns
+        val trustedCleanDf: DataFrame =  rawDfPlusTrustedColumnsOpt.get
           .filter(!getErrorFilterCol(specifications))
           .select(trdDfSelectCols: _*)
 
@@ -141,7 +141,7 @@ class SourceLoadEngine(val applicationPropertiesFile: String)
         val historicalTable: String = actualTable.concat("_h")
         val dfOperation: Seq[SpecificationRecord] => DataFrame = x._2
 
-        if (rawDfPlusTrustedColumns == null) {
+        if (rawDfPlusTrustedColumnsOpt.nonEmpty) {
 
           logger.warn(s"Skipping write operation for tables '$db'.'$actualTable', '$db'.'$historicalTable'")
 
@@ -174,13 +174,15 @@ class SourceLoadEngine(val applicationPropertiesFile: String)
 
     // ENRICH RAW DATAFRAME WITH COLUMNS DERIVED FROM SPECIFICATIONS
     val trustedColumns: Seq[(Column, String)] = deriveTrustedColumns(specificationRecords)
-    rawDfPlusTrustedColumns = trustedColumns
+    val rawDfPlusTrustedColumns: DataFrame = trustedColumns
       .foldLeft(rawDf)((df, tuple2) => df.withColumn(tuple2._2, tuple2._1))
 
       // TECHNICAL COLUMNS
       .withColumn(ColumnName.TS_INSERIMENTO.getName, lit(getJavaSQLTimestampFromNow))
       .withColumn(ColumnName.DT_INSERIMENTO.getName, lit(getJavaSQLDateFromNow))
       .persist()
+
+    rawDfPlusTrustedColumnsOpt = Some(rawDfPlusTrustedColumns)
   }
 
   private def getErrorFilterCol(specificationRecords: Seq[SpecificationRecord]): Column = {

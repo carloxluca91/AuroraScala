@@ -116,12 +116,9 @@ object ScoptParser {
 
     opt[String](ScoptOption.DT_RIFERIMENTO.getShortOption, ScoptOption.DT_RIFERIMENTO.getLongOption)
       .text(ScoptOption.DT_RIFERIMENTO.getDescription)
-      .required()
       .validate(inputDate => {
 
-        val tryParseDtRiferimento: Try[LocalDate] = Try(LocalDate.parse(inputDate,
-          DateFormat.DT_RIFERIMENTO.getFormatter))
-
+        val tryParseDtRiferimento: Try[LocalDate] = Try(LocalDate.parse(inputDate, DateFormat.DT_RIFERIMENTO.getFormatter))
         if (tryParseDtRiferimento.isSuccess) success
         else failure(s"Cannot parse business date. Provided '$inputDate', should follow format '${DateFormat.DT_RIFERIMENTO.getFormat}'")
       })
