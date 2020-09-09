@@ -1,7 +1,7 @@
 val sparkVersion = "2.2.3"
 val scalaTestVersion = "3.0.0"
 val scoptVersion = "3.3.0"
-val mySqlConnectorVersion = "5.1.47"
+val mySqlConnectorVersion = "5.1.45"
 
 lazy val auroraScala = (project in file("."))
   .settings(

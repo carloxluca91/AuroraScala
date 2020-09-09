@@ -178,7 +178,8 @@ class SourceLoadEngine(val applicationPropertiesFile: String)
         val rwColumnName: String = x.colonnaRd
         val trdColumnName: String = x.colonnaTd
 
-        // IF RW COLUMN IS NOT NULL BUT RELATED TRD COLUMN DOES, AN ERROR OCCURRED
+        // IF RW COLUMN IS NOT NULL BUT RELATED TRD COLUMN DOES, AN ERROR OCCURRED.
+        // THUS, DEFINE A STRING REPORTING COLUMN NAME AND VALUE
         when(col(rwColumnName).isNotNull && col(trdColumnName).isNull,
           concat(lit(rwColumnName), lit(" ("), col(rwColumnName), lit(")")))
           .otherwise(null)
@@ -188,11 +189,15 @@ class SourceLoadEngine(val applicationPropertiesFile: String)
     val createErrorDescriptionCol: UserDefinedFunction = udf((s: Seq[String]) => {
 
       val seqWithoutNull: Seq[String] = s.filterNot(_ == null)
-      if (seqWithoutNull.nonEmpty) "Invalid columns: ".concat(seqWithoutNull.mkString(", "))
-      else null
+      if (seqWithoutNull.nonEmpty) {
+
+        s"${seqWithoutNull.length} invalid column(s): ".concat(seqWithoutNull.mkString(", "))
+
+      } else null
     })
 
-    createErrorDescriptionCol(array(errorColumns: _*)).as(ColumnName.ERROR_DESCRIPTION.getName)
+    createErrorDescriptionCol(array(errorColumns: _*))
+      .as(ColumnName.ERROR_DESCRIPTION.getName)
   }
 
   private def persistRawDfPlusTrustedColumns(rawDf: DataFrame, specificationRecords: Seq[SpecificationRecord]): Unit = {

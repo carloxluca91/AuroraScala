@@ -4,10 +4,9 @@ In order to define a function-matching regex, following rules on groups must be 
 
 `[1]` group 1: name of the function
 
-`[2]` group 2: nested function plus comma and optional separating char. If not present, the match will extract null.
+`[2]` group 2: nested function plus comma and optional separating char
 
-`[3]` group 3: 'pure' nested function. If not present, the match will extract null. 
-Use `@` if the transformation must be applied directly on the current column.
+`[3]` group 3: 'pure' nested function. Use `@` if the transformation must be applied directly on the current column.
 
 Then, a group for each parameter of function identified by group 1, if any. Thus
 
