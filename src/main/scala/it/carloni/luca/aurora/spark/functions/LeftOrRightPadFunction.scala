@@ -12,8 +12,9 @@ case class LeftOrRightPadFunction(functionToApply: String)
 
   override def toString: String = s"'$functionName($nestedFunctionGroup3, padding_length = $paddingLength, padding charsequence = '$paddingString')'"
 
-  override def transform(inputColumn: Column): Column =
+  override protected val transformationFunction: Column => Column = {
 
-    if (functionName.toLowerCase.startsWith("l")) lpad(inputColumn, paddingLength, paddingString)
-    else rpad(inputColumn, paddingLength, paddingString)
+    if (functionName.toLowerCase.startsWith("l")) lpad(_, paddingLength, paddingString)
+    else rpad(_, paddingLength, paddingString)
+  }
 }

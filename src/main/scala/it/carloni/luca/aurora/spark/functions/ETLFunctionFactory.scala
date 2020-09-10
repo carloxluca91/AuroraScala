@@ -26,6 +26,14 @@ object ETLFunctionFactory {
         case Signature.`toDateOrTimestamp` => ToDateOrTimestampFunction(functionToApply)
       }
 
+      matchedFunction match {
+
+        case DateFormatFunction(_) =>
+        case LeftOrRightPadFunction(_) =>
+        case ToDateOrTimestampFunction(_) =>
+        case _ =>
+      }
+
       val columnToTransform: Column = if (matchedFunction.hasNestedFunction) {
 
         logger.info(s"Detected nested function: '${matchedFunction.nestedFunctionGroup3}'. Trying to resolve it")

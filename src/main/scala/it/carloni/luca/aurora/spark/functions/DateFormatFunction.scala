@@ -1,7 +1,7 @@
 package it.carloni.luca.aurora.spark.functions
 
 import org.apache.spark.sql.Column
-import org.apache.spark.sql.functions.{from_unixtime, unix_timestamp}
+import org.apache.spark.sql.functions.date_format
 
 case class DateFormatFunction(functionToApply: String)
   extends ETLFunction(functionToApply, Signature.dateFormat.regex) {
@@ -12,5 +12,5 @@ case class DateFormatFunction(functionToApply: String)
 
   override def toString: String = s"'$functionName($nestedFunctionGroup3, old_format = '$inputFormat', new_format = '$outputFormat')'"
 
-  override def transform(inputColumn: Column): Column = from_unixtime(unix_timestamp(inputColumn, inputFormat), outputFormat)
+  override protected val transformationFunction: Column => Column = date_format(_, inputFormat)
 }

@@ -11,8 +11,9 @@ case class ToDateOrTimestampFunction(functionToApply: String)
 
   override def toString: String = s"'$functionName($nestedFunctionGroup3, format = '$inputFormat')'"
 
-  override def transform(inputColumn: Column): Column =
+  override protected val transformationFunction: Column => Column = {
 
-    if (functionName.equalsIgnoreCase("to_date")) to_date(inputColumn, inputFormat)
-    else to_timestamp(inputColumn, inputFormat)
+    if (functionName.equalsIgnoreCase("to_date")) to_date(_, inputFormat)
+    else to_timestamp(_, inputFormat)
+  }
 }
