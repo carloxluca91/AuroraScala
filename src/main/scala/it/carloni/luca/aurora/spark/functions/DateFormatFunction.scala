@@ -8,6 +8,7 @@ case class DateFormatFunction(functionToApply: String)
 
   private final val inputFormat: String = signatureMatch.group(4)
   private final val outputFormat: String = signatureMatch.group(5)
+
   logger.info(toString)
 
   override def toString: String = s"'$functionName($nestedFunctionGroup3, old_format = '$inputFormat', new_format = '$outputFormat')'"

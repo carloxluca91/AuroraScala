@@ -7,6 +7,16 @@ case class LeftOfRightConcat(functionToApply: String)
 
   private final val otherConcatColumn: Column = getColumnDefinitionAtGroup(4)
 
+  logger.info(toString)
+
+  override def toString: String = {
+
+    val firstArgument: String = if (functionName equalsIgnoreCase "lconcat") otherConcatColumn.toString else nestedFunctionGroup3
+    val secondArgument: String = if (functionName equalsIgnoreCase "rconcat") otherConcatColumn.toString else nestedFunctionGroup3
+
+    s"$functionName($nestedFunctionGroup3, $firstArgument, $secondArgument)"
+  }
+
   override protected val transformationFunction: Column => Column = {
 
     if (functionName equalsIgnoreCase "lconcat") concat(otherConcatColumn, _)

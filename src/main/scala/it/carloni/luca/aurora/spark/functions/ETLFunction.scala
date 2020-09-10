@@ -47,10 +47,12 @@ abstract class ETLFunction(functionToApply: String, signature: Regex) {
     if (matchesATransformationFunction) {
 
       val idStr: String = id match {
+
         case 1 => "1st"
         case 2 => "2nd"
         case 3 => "3rd"
         case other => s"${other}th"
+
       }
 
       logger.info(s"Identified a transformation function for $idStr argument. Trying to resolve it")
