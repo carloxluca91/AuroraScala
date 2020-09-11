@@ -170,36 +170,6 @@ class SourceLoadEngine(val applicationPropertiesFile: String)
       col(ColumnName.DT_RIFERIMENTO.getName))
   }
 
-  private def getErrorDescriptionColumn(specificationRecords: Seq[SpecificationRecord]): Column = {
-
-    val errorColumns: Seq[Column] = specificationRecords
-      .map(x => {
-
-        val rwColumnName: String = x.colonnaRd
-        val trdColumnName: String = x.colonnaTd
-
-        // IF RW COLUMN IS NOT NULL BUT RELATED TRD COLUMN DOES, AN ERROR OCCURRED.
-        // THUS, DEFINE A STRING REPORTING COLUMN NAME AND VALUE
-        when(col(rwColumnName).isNotNull && col(trdColumnName).isNull,
-          concat(lit(rwColumnName), lit(" ("), col(rwColumnName), lit(")")))
-          .otherwise(null)
-          .cast("string")})
-
-
-    val createErrorDescriptionCol: UserDefinedFunction = udf((s: Seq[String]) => {
-
-      val seqWithoutNull: Seq[String] = s.filterNot(_ == null)
-      if (seqWithoutNull.nonEmpty) {
-
-        s"${seqWithoutNull.length} invalid column(s): ".concat(seqWithoutNull.mkString(", "))
-
-      } else null
-    })
-
-    createErrorDescriptionCol(array(errorColumns: _*))
-      .as(ColumnName.ERROR_DESCRIPTION.getName)
-  }
-
   private def persistRawDfPlusTrustedColumns(rawDf: DataFrame, specificationRecords: Seq[SpecificationRecord]): Unit = {
 
     // ENRICH RAW DATAFRAME WITH COLUMNS DERIVED FROM SPECIFICATIONS
@@ -362,6 +332,8 @@ class SourceLoadEngine(val applicationPropertiesFile: String)
         val rwColName: String = x.colonnaRd
         val trdColName: String = x.colonnaTd
 
+        //TODO: gestione dipendenza da altra colonna
+
         col(rwColName).isNotNull && col(trdColName).isNull})
       .reduce(_ || _)
   }
@@ -386,6 +358,38 @@ class SourceLoadEngine(val applicationPropertiesFile: String)
       .filter(col(ColumnName.ROW_COUNT.getName) > 1)
       .select(duplicatesDfSelectCols: _*)
       .sort(primaryKeyColumns: _*)
+  }
+
+  private def getErrorDescriptionColumn(specificationRecords: Seq[SpecificationRecord]): Column = {
+
+    val errorColumns: Seq[Column] = specificationRecords
+      .map(x => {
+
+        val rwColumnName: String = x.colonnaRd
+        val trdColumnName: String = x.colonnaTd
+
+        //TODO: gestione dipendenza da altra colonna
+
+        // IF RW COLUMN IS NOT NULL BUT RELATED TRD COLUMN DOES, AN ERROR OCCURRED.
+        // THUS, DEFINE A STRING REPORTING COLUMN NAME AND VALUE
+        when(col(rwColumnName).isNotNull && col(trdColumnName).isNull,
+          concat(lit(rwColumnName), lit(" ("), col(rwColumnName), lit(")")))
+          .otherwise(null)
+          .cast("string")})
+
+
+    val createErrorDescriptionCol: UserDefinedFunction = udf((s: Seq[String]) => {
+
+      val seqWithoutNull: Seq[String] = s.filterNot(_ == null)
+      if (seqWithoutNull.nonEmpty) {
+
+        s"${seqWithoutNull.length} invalid column(s): ".concat(seqWithoutNull.mkString(", "))
+
+      } else null
+    })
+
+    createErrorDescriptionCol(array(errorColumns: _*))
+      .as(ColumnName.ERROR_DESCRIPTION.getName)
   }
 }
 
