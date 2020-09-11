@@ -22,7 +22,7 @@ object Utils {
       .toInstant.toEpochMilli)
   }
 
-  def fullyMatchColOrLit(s: String): Boolean = Signature.colOrLit
+  def fullyMatchColOrLit(s: String): Boolean = Signature.dfColOrLit
     .regex
     .pattern
     .matcher(s)

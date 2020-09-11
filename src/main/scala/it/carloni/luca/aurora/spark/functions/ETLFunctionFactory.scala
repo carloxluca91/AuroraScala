@@ -11,7 +11,7 @@ object ETLFunctionFactory {
   def apply(functionToApply: String, inputColumn: Column): Column = {
 
     val matchingSignatures: Signature.ValueSet = Signature.values
-      .filterNot(_ == Signature.colOrLit)
+      .filterNot(_ == Signature.dfColOrLit)
       .filter(_.regex
         .findFirstMatchIn(functionToApply)
         .nonEmpty)

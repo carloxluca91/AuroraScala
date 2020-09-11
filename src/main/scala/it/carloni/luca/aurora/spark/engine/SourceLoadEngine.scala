@@ -62,7 +62,7 @@ class SourceLoadEngine(val applicationPropertiesFile: String)
             val rawDf: DataFrame = getRawDataFrame(rwActualTableName, rwHistoricalTableName, dtRiferimentoOpt)
             persistRawDfPlusTrustedColumns(rawDf, specifications)
             rawDfPlusTrustedColumnsOpt.get
-              .filter(!getErrorFilterCol(specificationRecords))
+              .filter(!getErrorFilterConditionCol(specificationRecords))
               .select(getColsToSelect(specificationRecords, s => col(s.colonnaTd)): _*)},
 
           specificationRecords)
@@ -77,7 +77,7 @@ class SourceLoadEngine(val applicationPropertiesFile: String)
           (specifications: Seq[SpecificationRecord]) => {
 
             rawDfPlusTrustedColumnsOpt.get
-              .filter(!getErrorFilterCol(specifications))
+              .filter(!getErrorFilterConditionCol(specifications))
               .select(getColsToSelect(specificationRecords, s => col(s.colonnaTd)): _*)},
           specificationRecords)
 
@@ -156,7 +156,7 @@ class SourceLoadEngine(val applicationPropertiesFile: String)
         indexOfTsInserimentoCol)
 
       rawDfPlusTrustedColumnsOpt.get
-        .filter(getErrorFilterCol(specifications))
+        .filter(getErrorFilterConditionCol(specifications))
         .select(columnsToSelectPlusErrorDescription: _*)
     }
 
@@ -201,7 +201,7 @@ class SourceLoadEngine(val applicationPropertiesFile: String)
 
         logger.info(s"Analyzing specification for raw column '$rwColumnName'")
 
-        val trustedColumnBeforeLK: Column = if (specificationRecord.funzioneEtl.isEmpty && specificationRecord.flagDiscard.isEmpty) {
+        val trustedColumnBeforeLK: Column = if (!specificationRecord.involvesATransformation && specificationRecord.hasToBeDiscarded) {
 
           // IF THE COLUMN DOES NOT IMPLY ANY TRANSFORMATION BUT NEEDS TO BE KEPT
           logger.info(s"No transformation to apply to raw column '$rwColumnName'")
@@ -209,7 +209,7 @@ class SourceLoadEngine(val applicationPropertiesFile: String)
           // CHECK IF INPUT DATATYPE MATCHES WITH OUTPUT DATATYPE
           val rwColumnType: String = specificationRecord.tipoColonnaRd
           val trdColumnType: String = specificationRecord.tipoColonnaTd
-          if (rwColumnType.equalsIgnoreCase(trdColumnType)) {
+          if (!specificationRecord.involvesCasting) {
 
             // IF THEY DO, NO CASTING IS NEEDED
             logger.info(s"No type conversion to apply to raw column '$rwColumnName' " +
@@ -225,15 +225,15 @@ class SourceLoadEngine(val applicationPropertiesFile: String)
         } else {
 
           // OTHERWISE, THE COLUMN IMPLIES SOME TRANSFORMATION
-          ETLFunctionFactory(specificationRecord.funzioneEtl.get, rwColumn)
+          ETLFunctionFactory(specificationRecord.funzioneEtlOpt.get, rwColumn)
         }
 
         // CHECK LOOKUP FLAG
-        val flagLookUp: Boolean = if (specificationRecord.flagLookup.isEmpty) false else {
+        val flagLookUp: Boolean = if (!specificationRecord.involvesLookUp) false else {
 
-          val flagLookUpStr: String = specificationRecord.flagLookup.get
+          val flagLookUpStr: String = specificationRecord.flagLookupOpt.get
           logger.info(f"Lookup flag for column '${specificationRecord.colonnaRd}': '$flagLookUpStr''")
-          flagLookUpStr.equalsIgnoreCase("y")
+          flagLookUpStr equalsIgnoreCase "y"
         }
 
         // IF true, DEFINE A CASE-WHEN COLUMN ABLE TO CATCH PROVIDED CASES
@@ -324,29 +324,45 @@ class SourceLoadEngine(val applicationPropertiesFile: String)
     }
   }
 
-  private def getErrorFilterCol(specificationRecords: Seq[SpecificationRecord]): Column = {
+  private def getErrorFilterConditionCol(specificationRecords: Seq[SpecificationRecord]): Column = {
 
     specificationRecords
       .map(x => {
 
         val rwColName: String = x.colonnaRd
         val trdColName: String = x.colonnaTd
+        val (areOtherColumnsInvolved, involvedColumnsOpt): (Boolean, Option[Seq[String]]) = x.involvesOtherColumns
+        val rawColumnsInvolved: Seq[Column] = if (areOtherColumnsInvolved) {
 
-        //TODO: gestione dipendenza da altra colonna
+          // CONSIDER ALL OF THEM
+          col(rwColName) +: involvedColumnsOpt.get.map(col)
 
-        col(rwColName).isNotNull && col(trdColName).isNull})
+        } else Seq(col(rwColName))
+
+        // IF JUST ONE OF THE INVOLVED RAW COLUMNS IS NULL
+        val leftSideContitionCol: Column = rawColumnsInvolved
+          .map(_.isNull)
+          .reduce(_ || _)
+
+        // OR ALL OF THEM ARE NOT NULL BUT RESULTING TRUSTED COLUMN IS NULL (WHICH MEANS AN ERROR OCCURED DURING TRANSFORMATION)
+        val rightSideConditionCol: Column = rawColumnsInvolved
+          .map(_.isNotNull)
+          .reduce(_ && _) && col(trdColName).isNull
+
+       leftSideContitionCol || rightSideConditionCol
+      })
       .reduce(_ || _)
   }
 
   private def getDuplicatedDf(specifications: Seq[SpecificationRecord]): DataFrame = {
 
     val primaryKeyColumns: Seq[Column] = specifications
-      .filter(_.flagPrimaryKey.nonEmpty)
+      .filter(_.flagPrimaryKeyOpt.nonEmpty)
       .map(x => col(x.colonnaTd))
 
     val trdDfSelectCols: Seq[Column] = getColsToSelect(specifications, s => col(s.colonnaTd))
     val trustedCleanDf: DataFrame =  rawDfPlusTrustedColumnsOpt.get
-      .filter(!getErrorFilterCol(specifications))
+      .filter(!getErrorFilterConditionCol(specifications))
       .select(trdDfSelectCols: _*)
 
     val duplicatesDfSelectCols: Seq[Column] = insertElementAtIndex(trdDfSelectCols,
@@ -367,10 +383,14 @@ class SourceLoadEngine(val applicationPropertiesFile: String)
 
         val rwColumnName: String = x.colonnaRd
         val trdColumnName: String = x.colonnaTd
+        val (areOtherColumnsInvolved, involvedColumnsOpt): (Boolean, Option[Seq[String]]) = x.involvesOtherColumns
+        if (areOtherColumnsInvolved) {
 
-        //TODO: gestione dipendenza da altra colonna
+          //TODO: gestione dipendenza da altra colonna
 
-        // IF RW COLUMN IS NOT NULL BUT RELATED TRD COLUMN DOES, AN ERROR OCCURRED.
+        }
+
+        // IF RW COLUMN IS NOT NULL BUT RELATED TRD COLUMN DOES, AN ERROR OCCURRED DURING TRANSFORMATION.
         // THUS, DEFINE A STRING REPORTING COLUMN NAME AND VALUE
         when(col(rwColumnName).isNotNull && col(trdColumnName).isNull,
           concat(lit(rwColumnName), lit(" ("), col(rwColumnName), lit(")")))

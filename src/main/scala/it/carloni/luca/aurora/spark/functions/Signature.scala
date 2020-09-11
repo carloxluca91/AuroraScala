@@ -9,7 +9,7 @@ object Signature extends Enumeration {
   import scala.language.implicitConversions
   implicit def valueToVal(x: Value): Val = x.asInstanceOf[Val]
 
-  val colOrLit: Val = Val("(col|lit)\\('([\\w|\\s]+)'\\)".r)
+  val dfColOrLit: Val = Val("(col|lit)\\('([\\w|\\s]+)'\\)".r)
   val dateFormat: Val = Val("^(date_format)\\(((.+),\\s?)'(.+)',\\s?'(.+)'\\)$".r)
   val leftOrRightPad: Val = Val("^([r|l]pad)\\(((.+),\\s?)(\\d+),\\s?'(.+)'\\)$".r)
   val leftOrRightConcat: Val = Val("^([r|l]concat)\\(((.+),\\s)((.+\\()?col\\('\\w+'\\),\\s[^)]+\\)|col\\('\\w+'\\)|lit\\('[\\w|\\s]+'\\))\\)$".r)
