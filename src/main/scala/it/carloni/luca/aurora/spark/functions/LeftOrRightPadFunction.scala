@@ -9,13 +9,13 @@ case class LeftOrRightPadFunction(functionToApply: String)
   private final val paddingLength: Int = signatureMatch.group(4).toInt
   private final val paddingString: String = signatureMatch.group(5)
 
-  logger.info(toString)
-
-  override def toString: String = s"'$functionName($nestedFunctionGroup3, padding_length = $paddingLength, padding charsequence = '$paddingString')'"
-
   override protected val transformationFunction: Column => Column = {
 
     if (functionName.toLowerCase.startsWith("l")) lpad(_, paddingLength, paddingString)
     else rpad(_, paddingLength, paddingString)
   }
+
+  override protected def toStringRepr: String =
+
+    s"$functionName($nestedFunctionGroup3, padding_length = $paddingLength, padding_charsequence = '$paddingString')"
 }

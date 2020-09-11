@@ -1,6 +1,7 @@
 package it.carloni.luca.aurora.spark.functions
 
 import it.carloni.luca.aurora.spark.exception.UnmatchedFunctionException
+import it.carloni.luca.aurora.utils.Utils.fullyMatchColOrLit
 import org.apache.log4j.Logger
 import org.apache.spark.sql.Column
 import org.apache.spark.sql.functions.{col, lit}
@@ -16,47 +17,54 @@ abstract class ETLFunction(functionToApply: String, signature: Regex) {
 
   protected val transformationFunction: Column => Column
 
+  protected def toStringRepr: String
+
   def hasNestedFunction: Boolean = {
 
-    (!nestedFunctionGroup3.equalsIgnoreCase("@")) ||
-      Signature.colOrLit.regex.pattern.matcher(nestedFunctionGroup3).matches
+    !(nestedFunctionGroup3.equalsIgnoreCase("@") ||
+      fullyMatchColOrLit(nestedFunctionGroup3))
   }
 
-  def transform(inputColumn: Column): Column = transformationFunction(inputColumn)
+  def transform(inputColumn: Column): Column = {
 
-  protected final def getColumnDefinitionAtGroup(id: Int): Column = {
+    logger.info(s"Defined transformation: $toStringRepr")
+    transformationFunction(inputColumn)
+  }
 
-    val nthFunctionArgument: String = signatureMatch.group(id)
-    val startingColumn: Column = Signature.colOrLit.regex.findFirstMatchIn(nthFunctionArgument) match {
+  //noinspection SameParameterValue
+  protected final def getColumnDefinitionAtGroup(n: Int): Column = {
 
-      case None => throw new UnmatchedFunctionException(nthFunctionArgument)
+    val nthArgument: String = signatureMatch.group(n)
+    val startingColumn: Column = Signature.colOrLit.regex.findFirstMatchIn(nthArgument) match {
+
+      case None => throw new UnmatchedFunctionException(nthArgument)
       case Some(x) =>
 
-        val functioName: String = x.group(1)
+        val functionName: String = x.group(1)
         val functionArgument: String = x.group(2)
+        val t3: (String => Column, String) = if (functionName equalsIgnoreCase "lit") (lit, "literal") else (col, "dataframe")
 
-        logger.info(s"Indentified column '$functioName('$functionArgument')'")
-        if (functioName equalsIgnoreCase "lit") lit(functionArgument)
-        else col(functioName)
+        val columnOp: String => Column = t3._1
+        val columnType: String = t3._2
+
+        logger.info(s"Identified $columnType column => $functionName('$functionArgument')")
+        columnOp(functionArgument)
     }
 
-    val matchesATransformationFunction: Boolean = Signature.values
-      .filterNot(_ == Signature.colOrLit)
-      .exists(_.regex.findFirstMatchIn(nthFunctionArgument).nonEmpty)
+    // IF THERE'S SOMETHING MORE THAN JUST A COL OR LIT ...
+    if (!fullyMatchColOrLit(nthArgument)) {
 
-    if (matchesATransformationFunction) {
+      val suffix: String = n match {
 
-      val idStr: String = id match {
-
-        case 1 => "1st"
-        case 2 => "2nd"
-        case 3 => "3rd"
-        case other => s"${other}th"
+        case 1 => "st"
+        case 2 => "nd"
+        case 3 => "rd"
+        case _ => "th"
 
       }
 
-      logger.info(s"Identified a transformation function for $idStr argument. Trying to resolve it")
-      ETLFunctionFactory(nthFunctionArgument, startingColumn)
+      logger.info(s"Identified a transformation function for $n$suffix argument '$nthArgument'. Trying to resolve it")
+      ETLFunctionFactory(nthArgument, startingColumn)
 
     } else startingColumn
   }

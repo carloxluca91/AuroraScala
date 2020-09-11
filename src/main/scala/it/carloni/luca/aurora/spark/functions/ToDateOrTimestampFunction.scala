@@ -8,13 +8,11 @@ case class ToDateOrTimestampFunction(functionToApply: String)
 
   private final val inputFormat: String = signatureMatch.group(4)
 
-  logger.info(toString)
-
-  override def toString: String = s"'$functionName($nestedFunctionGroup3, format = '$inputFormat')'"
-
   override protected val transformationFunction: Column => Column = {
 
     if (functionName.equalsIgnoreCase("to_date")) to_date(_, inputFormat)
     else to_timestamp(_, inputFormat)
   }
+
+  override protected def toStringRepr: String = s"$functionName($nestedFunctionGroup3, format = '$inputFormat')"
 }

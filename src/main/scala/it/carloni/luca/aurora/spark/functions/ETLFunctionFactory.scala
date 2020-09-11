@@ -11,6 +11,7 @@ object ETLFunctionFactory {
   def apply(functionToApply: String, inputColumn: Column): Column = {
 
     val matchingSignatures: Signature.ValueSet = Signature.values
+      .filterNot(_ == Signature.colOrLit)
       .filter(_.regex
         .findFirstMatchIn(functionToApply)
         .nonEmpty)
@@ -21,17 +22,11 @@ object ETLFunctionFactory {
       // RETRIEVE IT
       val matchedFunction: ETLFunction = matchingSignatures.head match {
 
-        case Signature.`dateFormat` => DateFormatFunction(functionToApply)
-        case Signature.`leftOrRightPad` => LeftOrRightPadFunction(functionToApply)
-        case Signature.`toDateOrTimestamp` => ToDateOrTimestampFunction(functionToApply)
-      }
-
-      matchedFunction match {
-
-        case DateFormatFunction(_) =>
-        case LeftOrRightPadFunction(_) =>
-        case ToDateOrTimestampFunction(_) =>
-        case _ =>
+        case Signature.dateFormat => DateFormatFunction(functionToApply)
+        case Signature.leftOrRightPad => LeftOrRightPadFunction(functionToApply)
+        case Signature.leftOrRightConcat => LeftOfRightConcatFunction(functionToApply)
+        case Signature.leftOrRightConcatWs => LeftOrRightConcatWsFunction(functionToApply)
+        case Signature.toDateOrTimestamp => ToDateOrTimestampFunction(functionToApply)
       }
 
       val columnToTransform: Column = if (matchedFunction.hasNestedFunction) {
@@ -39,11 +34,7 @@ object ETLFunctionFactory {
         logger.info(s"Detected nested function: '${matchedFunction.nestedFunctionGroup3}'. Trying to resolve it")
         ETLFunctionFactory(matchedFunction.nestedFunctionGroup3, inputColumn)
 
-      } else {
-
-        logger.info("No further nested function identified")
-        inputColumn
-      }
+      } else inputColumn
 
       matchedFunction.transform(columnToTransform)
 
