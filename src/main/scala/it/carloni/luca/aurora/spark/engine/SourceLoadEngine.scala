@@ -361,36 +361,49 @@ class SourceLoadEngine(val applicationPropertiesFile: String)
         val rwColumnName: String = x.colonnaRd
         val trdColumnName: String = x.colonnaTd
         val (areOtherColumnsInvolved, involvedColumnsOpt): (Boolean, Option[Seq[String]]) = x.involvesOtherColumns
-        val rawColumnsInvolved: Seq[Column] = if (areOtherColumnsInvolved) {
+        val rawColNamesInvolved: Seq[String] = if (areOtherColumnsInvolved) {
 
-          col(rwColumnName) +: involvedColumnsOpt.get.map(col)
-        } else Seq(col(rwColumnName))
+          rwColumnName +: involvedColumnsOpt.get
+        } else rwColumnName :: Nil
 
-        //TODO: gestione dipendenza altre colonne
+        val rawColumnsInvolved: Seq[Column] = rawColNamesInvolved.map(col)
 
-        // JUST ONE OF THE RAW COLUMNS INVOLVED ARE NULL
-        // when(rawColumnsInvolved.map(_.isNull).reduce(_ || _), )
+        /*** A RECORD IS CONSIDERED IN ERROR IF FOR AT LEAST ONE SPECIFICATION
+           * [a] ONE (OR MORE) RAW COLUMN INVOLVED IS NULL
+           * [b] ALL OF RAW COLUMNS ARE NOT NULL BUT RELATED TRUSTED COLUMN IS NULL -> i.e. APPLIED TRANSFORMATION GENERATED AN ERROR
+           *
+           * IN ORDER TO DEFINE A PRECISE ERROR DESCRIPTION,
+           * [a] GET NAMES OF NULL COLUMNS
+           * [b] GET NAMES OF ALL RAW INVOLVED COLUMNS
+           */
 
-        // IF RW COLUMN IS NOT NULL BUT RELATED TRD COLUMN DOES, AN ERROR OCCURRED DURING TRANSFORMATION.
-        // THUS, DEFINE A STRING REPORTING COLUMN NAME AND VALUE
-        when(col(rwColumnName).isNotNull && col(trdColumnName).isNull,
-          concat(lit(rwColumnName), lit(" ("), col(rwColumnName), lit(")")))
-          .otherwise(null)
-          .cast("string")})
+        // TODO: creazione stringhe descrizione
+        when(rawColumnsInvolved.map(_.isNull).reduce(_ || _),
+          concat_ws(",", rawColNamesInvolved.map(x => when(col(x).isNull, lit(x))): _*))
+          .when(rawColumnsInvolved.map(_.isNotNull).reduce(_ && _) && col(trdColumnName).isNull,
+            concat_ws(",", rawColNamesInvolved.map(lit): _*))
+      })
 
+    val createErrorDescriptionCol: UserDefinedFunction = udf((seqOfColumnsToCheck: Seq[String]) => {
 
-    val createErrorDescriptionCol: UserDefinedFunction = udf((s: Seq[String]) => {
+      // RETRIEVE COLUMN NAMES
+      val sDistinct: Seq[String] = seqOfColumnsToCheck
+        .mkString(",")
+        .split(",")
+        .distinct
 
-      val seqWithoutNull: Seq[String] = s.filterNot(_ == null)
-      if (seqWithoutNull.nonEmpty) {
+      if (sDistinct.nonEmpty) {
 
-        s"${seqWithoutNull.length} invalid column(s): ".concat(seqWithoutNull.mkString(", "))
+        if (sDistinct.head.length != 0) {
 
-      } else null
+          val nullColumnsDescription: String = "a"
+          Some(s"${sDistinct.head} invalid columns: ")
+
+        } else None
+      } else None
     })
 
-    createErrorDescriptionCol(array(errorColumns: _*))
-      .as(ColumnName.ERROR_DESCRIPTION.getName)
+    createErrorDescriptionCol(array(errorColumns: _*)).as(ColumnName.ERROR_DESCRIPTION.getName)
   }
 
   private def getDuplicatedDf(specifications: Seq[SpecificationRecord]): DataFrame = {
