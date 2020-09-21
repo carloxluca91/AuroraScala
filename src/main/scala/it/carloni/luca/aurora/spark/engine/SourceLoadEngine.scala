@@ -16,8 +16,8 @@ import org.apache.spark.sql.{Column, DataFrame, Row, SaveMode}
 
 import scala.util.matching.Regex
 
-class SourceLoadEngine(val applicationPropertiesFile: String)
-  extends AbstractEngine(applicationPropertiesFile) {
+class SourceLoadEngine(val jobPropertiesFile: String)
+  extends AbstractEngine(jobPropertiesFile) {
 
   private final val logger = Logger.getLogger(getClass)
   private var rawDfPlusTrustedColumnsOpt: Option[DataFrame] = None
@@ -81,7 +81,7 @@ class SourceLoadEngine(val applicationPropertiesFile: String)
               .select(getColsToSelect(specificationRecords, s => col(s.colonnaTd)): _*)},
           specificationRecords)
 
-        // TRY TO WRITE OTHER RELATED TABLES
+        // WRITE OTHER RELATED TABLES
         writeErrorAndDuplicatedTables(specificationRecords, rwActualTableName, trdActualTableName, createSourceLoadLogRecord)
 
       } else throw new MultipleSrcOrDstException(bancllName, srcTables, dstTables)
@@ -121,7 +121,7 @@ class SourceLoadEngine(val applicationPropertiesFile: String)
 
         } else {
 
-          // TRY TO OVERWRITE ACTUAL TABLE
+          // OVERWRITE ACTUAL TABLE
           writeToJDBCAndLog[Seq[SpecificationRecord]](
             db,
             actualTable,
@@ -131,7 +131,7 @@ class SourceLoadEngine(val applicationPropertiesFile: String)
             dfOperation,
             specificationRecords)
 
-          // TRY TO APPEND DATA ON HISTORICAL TABLE
+          // APPEND DATA ON HISTORICAL TABLE
           writeToJDBCAndLog[Seq[SpecificationRecord]](
             db,
             historicalTable,
@@ -201,7 +201,7 @@ class SourceLoadEngine(val applicationPropertiesFile: String)
 
         logger.info(s"Analyzing specification for raw column '$rwColumnName'")
 
-        val trustedColumnBeforeLK: Column = if (!specificationRecord.involvesATransformation && specificationRecord.hasToBeDiscarded) {
+        val trustedColumnBeforeLK: Column = if (!specificationRecord.involvesATransformation) {
 
           // IF THE COLUMN DOES NOT IMPLY ANY TRANSFORMATION BUT NEEDS TO BE KEPT
           logger.info(s"No transformation to apply to raw column '$rwColumnName'")
@@ -211,7 +211,6 @@ class SourceLoadEngine(val applicationPropertiesFile: String)
           val trdColumnType: String = specificationRecord.tipoColonnaTd
           if (!specificationRecord.involvesCasting) {
 
-            // IF THEY DO, NO CASTING IS NEEDED
             logger.info(s"No type conversion to apply to raw column '$rwColumnName' " +
               s"(Raw data type: '$rwColumnType', trusted data type: '$trdColumnType')")
             rwColumn
@@ -225,13 +224,13 @@ class SourceLoadEngine(val applicationPropertiesFile: String)
         } else {
 
           // OTHERWISE, THE COLUMN IMPLIES SOME TRANSFORMATION
-          ETLFunctionFactory(specificationRecord.funzioneEtlOpt.get, rwColumn)
+          ETLFunctionFactory(specificationRecord.funzioneEtl.get, rwColumn)
         }
 
         // CHECK LOOKUP FLAG
         val flagLookUp: Boolean = if (!specificationRecord.involvesLookUp) false else {
 
-          val flagLookUpStr: String = specificationRecord.flagLookupOpt.get
+          val flagLookUpStr: String = specificationRecord.flagLookup.get
           logger.info(f"Lookup flag for column '${specificationRecord.colonnaRd}': '$flagLookUpStr''")
           flagLookUpStr equalsIgnoreCase "y"
         }
@@ -249,7 +248,6 @@ class SourceLoadEngine(val applicationPropertiesFile: String)
           lookUpCaseRows.tail
             .foldLeft(foldLeftSeedCol)((col1, row) =>
               col1.when(trustedColumnBeforeLK === row.get(0), row.get(1)))
-            .otherwise(null)
 
         } else trustedColumnBeforeLK
 
@@ -292,7 +290,7 @@ class SourceLoadEngine(val applicationPropertiesFile: String)
       .selectExpr(toSelect: _*)
 
     // RENAME EACH COLUMN WITH A RULE SUCH THAT, e.g. sorgente_rd => sorgenteRd, tabella_td => tabellaTd
-    val regex: Regex = new Regex("_([a-z]|[A-Z])")
+    val regex: Regex = "_([a-z]|[A-Z])".r
     val specificationRecords: Seq[SpecificationRecord] = toSelect
       .map(x => (x, regex.replaceAllIn(x, m => m.group(1).toUpperCase)))
       .foldLeft(specificationDf)((df, tuple2) => df.withColumnRenamed(tuple2._1, tuple2._2))
@@ -336,7 +334,7 @@ class SourceLoadEngine(val applicationPropertiesFile: String)
 
           // CONSIDER ALL OF THEM
           col(rwColName) +: involvedColumnsOpt.get.map(col)
-        } else Seq(col(rwColName))
+        } else col(rwColName) :: Nil
 
         // IF JUST ONE OF THE INVOLVED RAW COLUMNS IS NULL
         val leftSideContitionCol: Column = rawColumnsInvolved
@@ -377,39 +375,29 @@ class SourceLoadEngine(val applicationPropertiesFile: String)
            * [b] GET NAMES OF ALL RAW INVOLVED COLUMNS
            */
 
-        // TODO: creazione stringhe descrizione
         when(rawColumnsInvolved.map(_.isNull).reduce(_ || _),
-          concat_ws(",", rawColNamesInvolved.map(x => when(col(x).isNull, lit(x))): _*))
+          concat_ws(", ", rawColNamesInvolved.map(x => when(col(x).isNull, concat(lit(x), lit(" (null)")))): _*))
           .when(rawColumnsInvolved.map(_.isNotNull).reduce(_ && _) && col(trdColumnName).isNull,
-            concat_ws(",", rawColNamesInvolved.map(lit): _*))
+            concat_ws(", ", rawColNamesInvolved.map(x => concat(lit(x), lit(" ('", col(x), lit("')")))): _*))
       })
 
-    val createErrorDescriptionCol: UserDefinedFunction = udf((seqOfColumnsToCheck: Seq[String]) => {
+    val errorColumnsRegex: Regex = "(\\w+\\s\\('?\\w+'?\\))".r
+    val createErrorDescriptionCol: UserDefinedFunction = udf((s: String) => {
 
-      // RETRIEVE COLUMN NAMES
-      val sDistinct: Seq[String] = seqOfColumnsToCheck
-        .mkString(",")
-        .split(",")
-        .distinct
+      if (!s.isEmpty){
 
-      if (sDistinct.nonEmpty) {
-
-        if (sDistinct.head.length != 0) {
-
-          val nullColumnsDescription: String = "a"
-          Some(s"${sDistinct.head} invalid columns: ")
-
-        } else None
+        val numberOfMatches: Int = errorColumnsRegex.findAllMatchIn(s).size
+        Some(s"$numberOfMatches invalid columns: ".concat(s))
       } else None
     })
 
-    createErrorDescriptionCol(array(errorColumns: _*)).as(ColumnName.ERROR_DESCRIPTION.getName)
+    createErrorDescriptionCol(concat_ws(", ", errorColumns: _*)).as(ColumnName.ERROR_DESCRIPTION.getName)
   }
 
   private def getDuplicatedDf(specifications: Seq[SpecificationRecord]): DataFrame = {
 
     val primaryKeyColumns: Seq[Column] = specifications
-      .filter(_.flagPrimaryKeyOpt.nonEmpty)
+      .filter(_.flagPrimaryKey.nonEmpty)
       .map(x => col(x.colonnaTd))
 
     val trdDfSelectCols: Seq[Column] = getColsToSelect(specifications, s => col(s.colonnaTd))

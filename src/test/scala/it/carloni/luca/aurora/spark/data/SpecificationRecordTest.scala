@@ -14,13 +14,13 @@ class SpecificationRecordTest extends FunSuite with BeforeAndAfterEach {
       colonnaRd = "colonnaRd",
       tipoColonnaRd = "tipoColonnaRd",
       posizioneIniziale = 1,
-      flagDiscardOpt = None,
-      funzioneEtlOpt = Some("to_timestamp(lconcat_ws(@, col('data_movimento'), ' '), 'dd/MM/yyyy HH:mm:ss')"),
-      flagLookupOpt = None,
+      flagDiscard = None,
+      funzioneEtl = Some("to_timestamp(lconcat_ws(@, col('data_movimento'), ' '), 'dd/MM/yyyy HH:mm:ss')"),
+      flagLookup = None,
       colonnaTd = "colonnaTd",
       tipoColonnaTd = "tipoColonnatd",
       posizioneFinale = 1,
-      flagPrimaryKeyOpt = None)
+      flagPrimaryKey = None)
   }
 
   test("testInvolvesOtherColumns") {

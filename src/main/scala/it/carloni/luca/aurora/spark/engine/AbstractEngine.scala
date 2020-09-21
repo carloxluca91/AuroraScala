@@ -17,11 +17,11 @@ import org.apache.spark.sql.{DataFrame, DataFrameReader, SaveMode, SparkSession}
 import scala.util.{Failure, Success, Try}
 import scala.xml.{Elem, XML}
 
-abstract class AbstractEngine(private final val applicationPropertiesFile: String) {
+abstract class AbstractEngine(private final val jobPropertiesFile: String) {
 
   private final val logger = Logger.getLogger(getClass)
   protected final val sparkSession: SparkSession = getOrCreateSparkSession
-  protected final val jobProperties: PropertiesConfiguration = loadJobProperties(applicationPropertiesFile)
+  protected final val jobProperties: PropertiesConfiguration = loadJobProperties(jobPropertiesFile)
 
   // JDBC OPTIONS AND DATAFRAME READER
   private final val jdbcOptions: Map[String, String] = Map(

@@ -8,20 +8,20 @@ case class SpecificationRecord(flusso: String,
                                colonnaRd: String,
                                tipoColonnaRd: String,
                                posizioneIniziale: Int,
-                               flagDiscardOpt: Option[String],
-                               funzioneEtlOpt: Option[String],
-                               flagLookupOpt: Option[String],
+                               flagDiscard: Option[String],
+                               funzioneEtl: Option[String],
+                               flagLookup: Option[String],
                                colonnaTd: String,
                                tipoColonnaTd: String,
                                posizioneFinale: Int,
-                               flagPrimaryKeyOpt: Option[String]) {
+                               flagPrimaryKey: Option[String]) {
 
   def involvesOtherColumns: (Boolean, Option[Seq[String]]) = {
 
     val falseReturnValue: (Boolean, Option[Seq[String]]) = (false, None)
-    if (funzioneEtlOpt.nonEmpty) {
+    if (funzioneEtl.nonEmpty) {
 
-      val funzioneEtlValue: String = funzioneEtlOpt.get
+      val funzioneEtlValue: String = funzioneEtl.get
       val involvedColumnNames: Seq[String] = Signature.dfColOrLit
         .regex
         .findAllMatchIn(funzioneEtlValue)
@@ -38,11 +38,11 @@ case class SpecificationRecord(flusso: String,
     } else falseReturnValue
   }
 
-  def involvesLookUp: Boolean = flagLookupOpt.nonEmpty
+  def involvesLookUp: Boolean = flagLookup.nonEmpty
 
-  def hasToBeDiscarded: Boolean = flagDiscardOpt.nonEmpty
+  def hasToBeDiscarded: Boolean = flagDiscard.nonEmpty
 
-  def involvesATransformation: Boolean = funzioneEtlOpt.nonEmpty
+  def involvesATransformation: Boolean = funzioneEtl.nonEmpty
 
   def involvesRenaming: Boolean = !(colonnaRd equalsIgnoreCase colonnaTd)
 
