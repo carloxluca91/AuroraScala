@@ -67,19 +67,26 @@ class SourceLoadEngine(val jobPropertiesFile: String)
 
           specificationRecords)
 
-        // TRY TO APPEND CLEAN DATA ON TRD HISTORICAL TABLE
-        writeToJDBCAndLog[Seq[SpecificationRecord]](
-          pcAuroraDBName,
-          trdHistoricalTableName,
-          SaveMode.Append,
-          truncateFlag = false,
-          createSourceLoadLogRecord,
-          (specifications: Seq[SpecificationRecord]) => {
+        if (rawDfPlusTrustedColumnsOpt.nonEmpty) {
 
-            rawDfPlusTrustedColumnsOpt.get
-              .filter(!getErrorFilterConditionCol(specifications))
-              .select(getColsToSelect(specificationRecords, s => col(s.colonnaTd)): _*)},
-          specificationRecords)
+          // TRY TO APPEND CLEAN DATA ON TRD HISTORICAL TABLE
+          writeToJDBCAndLog[Seq[SpecificationRecord]](
+            pcAuroraDBName,
+            trdHistoricalTableName,
+            SaveMode.Append,
+            truncateFlag = false,
+            createSourceLoadLogRecord,
+            (specifications: Seq[SpecificationRecord]) => {
+
+              rawDfPlusTrustedColumnsOpt.get
+                .filter(!getErrorFilterConditionCol(specifications))
+                .select(getColsToSelect(specificationRecords, s => col(s.colonnaTd)): _*)},
+            specificationRecords)
+
+        } else {
+
+          logger.warn(s"Skipping insert operation for table(s) '$pcAuroraDBName'.'$trdHistoricalTableName'")
+        }
 
         // WRITE OTHER RELATED TABLES
         writeErrorAndDuplicatedTables(specificationRecords, rwActualTableName, trdActualTableName, createSourceLoadLogRecord)
@@ -378,7 +385,7 @@ class SourceLoadEngine(val jobPropertiesFile: String)
         when(rawColumnsInvolved.map(_.isNull).reduce(_ || _),
           concat_ws(", ", rawColNamesInvolved.map(x => when(col(x).isNull, concat(lit(x), lit(" (null)")))): _*))
           .when(rawColumnsInvolved.map(_.isNotNull).reduce(_ && _) && col(trdColumnName).isNull,
-            concat_ws(", ", rawColNamesInvolved.map(x => concat(lit(x), lit(" ('", col(x), lit("')")))): _*))
+            concat_ws(", ", rawColNamesInvolved.map(x => concat(lit(x), lit(" ('"), col(x), lit("')"))): _*))
       })
 
     val errorColumnsRegex: Regex = "(\\w+\\s\\('?\\w+'?\\))".r

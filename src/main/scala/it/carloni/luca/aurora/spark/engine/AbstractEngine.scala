@@ -148,7 +148,13 @@ abstract class AbstractEngine(private final val jobPropertiesFile: String) {
 
         val details: String = s"'$db'.'$table' with savemode '$saveMode'"
         logger.error(s"Caught exception while trying to save data into $details. Stack trace: ", exception)
-        Some(exception.getMessage)
+        val firstNStackTraceStrings: String = exception.getStackTrace
+          .toSeq
+          .take(10)
+          .map(_.toString)
+          .mkString("\n")
+
+        Some(s"${exception.toString}. Stack trace: \n" + firstNStackTraceStrings)
 
       case Success(_) => None
     }

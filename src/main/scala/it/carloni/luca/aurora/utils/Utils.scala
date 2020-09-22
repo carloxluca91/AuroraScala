@@ -42,6 +42,7 @@ object Utils {
       case "int" => DataTypes.IntegerType
       case "date" => DataTypes.DateType
       case "timestamp" => DataTypes.TimestampType
+      case "double" => DataTypes.DoubleType
     }
   }
 }
