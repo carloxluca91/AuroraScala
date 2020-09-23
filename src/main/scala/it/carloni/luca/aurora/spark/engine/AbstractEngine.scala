@@ -1,21 +1,17 @@
 package it.carloni.luca.aurora.spark.engine
 
-import java.io.{File, FileNotFoundException}
-import java.sql.{Date, Timestamp}
+import java.io.File
+import java.sql.{Connection, Date, DriverManager, Timestamp}
 import java.time.{Instant, LocalDate, ZoneId, ZonedDateTime}
 
 import it.carloni.luca.aurora.spark.data.LogRecord
-import it.carloni.luca.aurora.utils.DateFormat
-import it.carloni.luca.aurora.utils.Utils.{getJavaSQLDateFromNow, getJavaSQLTimestampFromNow, resolveDataType}
+import it.carloni.luca.aurora.utils.{ColumnName, DateFormat}
 import org.apache.commons.configuration.PropertiesConfiguration
 import org.apache.log4j.Logger
 import org.apache.spark.SparkContext
-import org.apache.spark.sql.functions.lit
-import org.apache.spark.sql.types.{DataType, StructField, StructType}
 import org.apache.spark.sql.{DataFrame, DataFrameReader, SaveMode, SparkSession}
 
 import scala.util.{Failure, Success, Try}
-import scala.xml.{Elem, XML}
 
 abstract class AbstractEngine(private final val jobPropertiesFile: String) {
 
@@ -63,7 +59,7 @@ abstract class AbstractEngine(private final val jobPropertiesFile: String) {
       val applicationStartTime: Timestamp = Timestamp.from(Instant.ofEpochMilli(sparkSession.sparkContext.startTime))
       val applicationEndTime: Timestamp = Timestamp.from(ZonedDateTime.now(ZoneId.of("Europe/Rome")).toInstant)
       val applicationFinishCode: Int = if (exceptionMsgOpt.isEmpty) 0 else -1
-      val applicationFinishStatus: String = if (exceptionMsgOpt.isEmpty) "SUCCESSED" else "FAILED"
+      val applicationFinishStatus: String = if (exceptionMsgOpt.isEmpty) "successed" else "failed"
 
       LogRecord(applicationId,
         applicationName,
@@ -78,28 +74,24 @@ abstract class AbstractEngine(private final val jobPropertiesFile: String) {
         applicationFinishStatus)
     }
 
-  protected def readTSVForTable(tableId: String): DataFrame = {
+  protected def getJDBCConnection: java.sql.Connection = {
 
-    val tsvFilePath: String = jobProperties.getString(s"table.$tableId.file.path")
-    val tsvSep: String = jobProperties.getString(s"table.$tableId.file.sep")
-    val tsvHeaderFlag: Boolean = jobProperties.getBoolean(s"table.$tableId.file.header")
-    val xMLSchemaFilePath: String = jobProperties.getString(s"table.$tableId.xml.schema.path")
+    val jdbcURL: String = jobProperties.getString("jdbc.url")
+    val jdbcUser: String = jobProperties.getString("jdbc.user")
+    val jdbcPassword: String = jobProperties.getString("jdbc.password")
+    val jdbcUseSSL: String = jobProperties.getString("jdbc.useSSL")
 
-    val details: String = s"path '$tsvFilePath' (separator: '$tsvSep', file header presence: '$tsvHeaderFlag')"
-    logger.info(s"Attempting to load .tsv file at $details")
+    Class.forName("com.mysql.jdbc.Driver")
 
-    val tsvFileDf: DataFrame = sparkSession.read
-      .format("csv")
-      .option("path", tsvFilePath)
-      .option("sep", tsvSep)
-      .option("header", tsvHeaderFlag)
-      .schema(fromXMLToStructType(xMLSchemaFilePath))
-      .load()
-      .withColumn("ts_inizio_validita", lit(getJavaSQLTimestampFromNow))
-      .withColumn("dt_inizio_validita", lit(getJavaSQLDateFromNow))
+    val jdbcUrlConnectionStr: String = s"$jdbcURL/?useSSL=$jdbcUseSSL"
+    logger.info(s"Attempting to connect to JDBC url $jdbcUrlConnectionStr with credentials ($jdbcUser, $jdbcPassword)")
 
-    logger.info(s"Successfully loaded .tsv file at $details")
-    tsvFileDf
+    val jdbcConnection: Connection = DriverManager.getConnection(jdbcUrlConnectionStr,
+      jobProperties.getString("jdbc.user"),
+      jobProperties.getString("jdbc.password"))
+
+    logger.info(s"Successfully connected to JDBC url $jdbcUrlConnectionStr with credentials ($jdbcUser, $jdbcPassword)")
+    jdbcConnection
   }
 
   protected def readFromJDBC(databaseName: String, tableName: String): DataFrame = {
@@ -137,7 +129,36 @@ abstract class AbstractEngine(private final val jobPropertiesFile: String) {
 
     val exceptionMsgOpt: Option[String] = Try {
 
-      writeToJDBC(dfGenerationFunction(dfGenerationFunctionArg),
+      val dfToWrite: DataFrame = dfGenerationFunction(dfGenerationFunctionArg)
+      val dfTimestampColumnsExceptTsInserimento: Seq[String] = dfToWrite.dtypes
+        .filter(_._2 equalsIgnoreCase "timestampType")
+        .filterNot(_._1 equalsIgnoreCase ColumnName.TS_INSERIMENTO.getName)
+        .map(_._1)
+
+      /**
+       * If a dataframe column (different from "ts_inserimento") is a timestamp,
+       * we must first create the table via JDBC connection in order to set "datetime" type for such column.
+       * This is due to the limited timestamp range on MySQL.
+       *
+       * Indeed, from MySQL docs:
+       *
+       * The TIMESTAMP data type has a range of '1970-01-01 00:00:01' UTC to '2038-01-09 03:14:07' UTC
+       * The DATETIME data type has a range of '1000-01-01 00:00:00' to '9999-12-31 23:59:59'.
+       */
+
+      if (dfTimestampColumnsExceptTsInserimento.nonEmpty) {
+
+        logger.info(s"Identified ${dfTimestampColumnsExceptTsInserimento.size} timestamp column(s) different from " +
+          s"'${ColumnName.TS_INSERIMENTO.getName}' (${dfTimestampColumnsExceptTsInserimento.map(x => s"'$x'").mkString(", ")})")
+
+        val jdbcConnection: java.sql.Connection = getJDBCConnection
+
+        //TODO: controllo preesistenza tabella
+        val createTableStatement: java.sql.Statement = jdbcConnection.createStatement
+        createTableStatement.execute(getCreateTableStatementFromDfSchema(dfToWrite, db, table))
+      }
+
+      writeToJDBC(dfToWrite,
         db,
         table,
         saveMode,
@@ -169,34 +190,10 @@ abstract class AbstractEngine(private final val jobPropertiesFile: String) {
 
   /* PRIVATE AREA */
 
-  private def fromXMLToStructType(xmlFilePath: String): StructType = {
+  private def getCreateTableStatementFromDfSchema(df: DataFrame, database: String, table: String): String = {
 
-    val xmlSchemaFile: File = new File(xmlFilePath)
-    if (xmlSchemaFile.exists) {
-
-      logger.info(s"XML file '$xmlFilePath' exists. So, trying to infer table schema from it")
-      val mappingSpecificationXML: Elem = XML.loadFile(xmlSchemaFile)
-      val columnSpecifications: Seq[(String, String, String)] = (mappingSpecificationXML \\ "tableSchema" \\ "columns" \\ "column")
-        .map(columnTag => (columnTag.attribute("name").get.text,
-          columnTag.attribute("type").get.text,
-          columnTag.attribute("nullable").get.text))
-
-      StructType(columnSpecifications.map(tuple3 => {
-
-        val columnName: String = tuple3._1
-        val columnType: DataType = resolveDataType(tuple3._2.toLowerCase)
-        val nullable: Boolean = tuple3._3.toLowerCase == "true"
-
-        logger.info(s"Defining column with name '$columnName', type '$columnType', nullable '$nullable'")
-        StructField(columnName, columnType, nullable)
-      }))
-
-    } else {
-
-      val exceptionMsg: String = s"File '$xmlFilePath' does not exists (or cannot be found)"
-      logger.error(exceptionMsg)
-      throw new FileNotFoundException(exceptionMsg)
-    }
+    // TODO: definizione stringa di creazione tabella a partire da df
+    s"CREATE TABLE IF NOT EXISTS $database.$table (\n "
   }
 
   private def writeToJDBC(outputDataFrame: DataFrame, databaseName: String, tableName: String,

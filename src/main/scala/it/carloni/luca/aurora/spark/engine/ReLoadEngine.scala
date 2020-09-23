@@ -9,7 +9,7 @@ import org.apache.spark.sql.functions.lit
 import org.apache.spark.sql.{DataFrame, SaveMode}
 
 class ReLoadEngine(applicationPropertiesFile: String)
-  extends AbstractEngine(applicationPropertiesFile) {
+  extends AbstractInitialOrReloadEngine(applicationPropertiesFile) {
 
   private final val logger = Logger.getLogger(getClass)
   private final val createReLoadLogRecord = createLogRecord(Branch.RE_LOAD.getName, None, None, _: String, _: Option[String])
@@ -106,7 +106,7 @@ class ReLoadEngine(applicationPropertiesFile: String)
     val oldVersionNumberStr: String = f"$oldVersionNumber%.1f"
       .replace(',', '.')
 
-    logger.info(f"Old specification version: '$oldVersionNumberStr'. Overriding with version '$newSpecificationVersion'")
+    logger.info(f"Old specification number: '$oldVersionNumberStr'. Overriding with version number '$newSpecificationVersion'")
     newSpecificationVersion
   }
 }
