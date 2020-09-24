@@ -55,7 +55,7 @@ class SourceLoadEngine(val jobPropertiesFile: String)
           pcAuroraDBName,
           trdActualTableName,
           SaveMode.Overwrite,
-          truncateFlag = false,
+          truncateFlag = true,
           createSourceLoadLogRecord,
           (specifications: Seq[SpecificationRecord]) => {
 
@@ -133,7 +133,7 @@ class SourceLoadEngine(val jobPropertiesFile: String)
             db,
             actualTable,
             SaveMode.Overwrite,
-            truncateFlag = false,
+            truncateFlag = true,
             createLogRecord,
             dfOperation,
             specificationRecords)
@@ -162,6 +162,7 @@ class SourceLoadEngine(val jobPropertiesFile: String)
         getErrorDescriptionColumn(specifications),
         indexOfTsInserimentoCol)
 
+    // TODO: correct error description definition
       rawDfPlusTrustedColumnsOpt.get
         .filter(getErrorFilterConditionCol(specifications))
         .select(columnsToSelectPlusErrorDescription: _*)

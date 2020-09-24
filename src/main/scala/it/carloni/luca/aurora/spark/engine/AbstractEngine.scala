@@ -9,7 +9,7 @@ import it.carloni.luca.aurora.utils.{ColumnName, DateFormat}
 import org.apache.commons.configuration.PropertiesConfiguration
 import org.apache.log4j.Logger
 import org.apache.spark.SparkContext
-import org.apache.spark.sql.{DataFrame, DataFrameReader, SaveMode, SparkSession}
+import org.apache.spark.sql.{DataFrame, SaveMode, SparkSession}
 
 import scala.util.{Failure, Success, Try}
 
@@ -28,10 +28,6 @@ abstract class AbstractEngine(private final val jobPropertiesFile: String) {
     "password" -> jobProperties.getString("jdbc.password"),
     "useSSL" -> jobProperties.getString("jdbc.useSSL")
   )
-
-  private final val jdbcReader: DataFrameReader = sparkSession.read
-    .format("jdbc")
-    .options(jdbcOptions)
 
   // DATABASES
   protected final val pcAuroraDBName: String = jobProperties.getString("database.pc_aurora")
@@ -99,7 +95,9 @@ abstract class AbstractEngine(private final val jobPropertiesFile: String) {
     logger.info(s"Starting to load table '$databaseName'.'$tableName'")
     Try {
 
-      jdbcReader
+      sparkSession.read
+        .format("jdbc")
+        .options(jdbcOptions)
         .option("dbtable", s"$databaseName.$tableName")
         .load()
 
@@ -131,7 +129,7 @@ abstract class AbstractEngine(private final val jobPropertiesFile: String) {
 
       val dfToWrite: DataFrame = dfGenerationFunction(dfGenerationFunctionArg)
       val timestampColumnsExceptTsInserimento: Seq[String] = dfToWrite.dtypes
-        .filter(_._2 equalsIgnoreCase "timestampType")
+        .filter(_._2 equalsIgnoreCase "timestamptype")
         .filterNot(_._1 equalsIgnoreCase ColumnName.TS_INSERIMENTO.getName)
         .map(_._1)
 
@@ -149,24 +147,29 @@ abstract class AbstractEngine(private final val jobPropertiesFile: String) {
       if (timestampColumnsExceptTsInserimento.nonEmpty) {
 
         logger.info(s"Identified ${timestampColumnsExceptTsInserimento.size} timestamp column(s) different from " +
-          s"'${ColumnName.TS_INSERIMENTO.getName}': ${timestampColumnsExceptTsInserimento.map(x => s"'$x'").mkString(", ")})")
+          s"'${ColumnName.TS_INSERIMENTO.getName}': ${timestampColumnsExceptTsInserimento.map(x => s"'$x'").mkString(", ")}")
 
         val jdbcConnection: java.sql.Connection = getJDBCConnection
-        val existsCurrentTable: Boolean = jdbcConnection.getMetaData.getTables(db, null, table, null).next()
+        val existsCurrentTable: Boolean = jdbcConnection.getMetaData
+          .getTables(db, null, table, null)
+          .next()
+
         if (existsCurrentTable) {
 
-          logger.info(s"Table '$db'.'$table' has some timestamp columns but exists already. Thus, not creating again")
+          logger.info(s"Table '$db'.'$table' has some timestamp columns but it exists already. Thus, not creating it again")
         } else {
 
-          logger.warn(s"Table '$db'.'$table' has some timestamp columns but does not exist yet. Thus, defining it now")
+          logger.warn(s"Table '$db'.'$table' has some timestamp columns but it does not exist yet. Thus, defining it now")
           val createTableStatement: java.sql.Statement = jdbcConnection.createStatement
           createTableStatement.execute(getCreateTableStatementFromDfSchema(dfToWrite, db, table))
           logger.info(s"Successfully created table '$db'.'$table'")
+
         }
+
+        jdbcConnection.close()
       }
 
-      writeToJDBC(dfToWrite,
-        db,
+      writeToJDBC(dfToWrite, db,
         table,
         saveMode,
         truncateFlag)
@@ -188,6 +191,7 @@ abstract class AbstractEngine(private final val jobPropertiesFile: String) {
     }
 
     val logRecordDf: DataFrame = Seq(logRecordGenerationFunction(table, exceptionMsgOpt)).toDF
+
     writeToJDBC(logRecordDf,
       pcAuroraDBName,
       dataLoadLogTBLName,
@@ -199,7 +203,7 @@ abstract class AbstractEngine(private final val jobPropertiesFile: String) {
 
   private def getCreateTableStatementFromDfSchema(df: DataFrame, database: String, table: String): String = {
 
-    val fromSparkToMySQLType: ((String, String)) => String = tuple2 => {
+    val fromSparkTypeToMySQLType: ((String, String)) => String = tuple2 => {
 
       val columnName: String = tuple2._1
       val columnType: String = tuple2._2.toLowerCase
@@ -214,8 +218,8 @@ abstract class AbstractEngine(private final val jobPropertiesFile: String) {
       }
     }
 
-    val createTableStateMent: String = s" CREATE TABLE IF NOT EXISTS $database.$table (\n " +
-      df.dtypes.map(x => s"    ${x._1} ${fromSparkToMySQLType(x)}").mkString(",\n    ") + "  \n    )\n"
+    val createTableStateMent: String = s" CREATE TABLE IF NOT EXISTS $database.$table (\n" +
+      df.dtypes.map(x => s"    ${x._1} ${fromSparkTypeToMySQLType(x)}").mkString(",\n") + " )\n"
 
     logger.info(s"Create table statement for table '$database'.'$table': \n\n $createTableStateMent")
     createTableStateMent
