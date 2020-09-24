@@ -383,9 +383,9 @@ class SourceLoadEngine(val jobPropertiesFile: String)
            */
 
         when(rawColumnsInvolved.map(_.isNull).reduce(_ || _),
-          concat_ws(", ", rawColNamesInvolved.map(x => when(col(x).isNull, concat(lit(x), lit(" (null)")))): _*))
+          concat_ws(", ", rawColNamesInvolved.map(x => when(col(x).isNull, concat(lit(x + " (null)")))): _*))
           .when(rawColumnsInvolved.map(_.isNotNull).reduce(_ && _) && col(trdColumnName).isNull,
-            concat_ws(", ", rawColNamesInvolved.map(x => concat(lit(x), lit(" ('"), col(x), lit("')"))): _*))
+            concat_ws(", ", rawColNamesInvolved.map(x => concat(lit(x + " ('"), col(x), lit("')"))): _*))
       })
 
     val errorColumnsRegex: Regex = "(\\w+\\s\\('?\\w+'?\\))".r

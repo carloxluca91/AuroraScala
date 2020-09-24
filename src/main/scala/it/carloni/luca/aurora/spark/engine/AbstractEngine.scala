@@ -130,7 +130,7 @@ abstract class AbstractEngine(private final val jobPropertiesFile: String) {
     val exceptionMsgOpt: Option[String] = Try {
 
       val dfToWrite: DataFrame = dfGenerationFunction(dfGenerationFunctionArg)
-      val dfTimestampColumnsExceptTsInserimento: Seq[String] = dfToWrite.dtypes
+      val timestampColumnsExceptTsInserimento: Seq[String] = dfToWrite.dtypes
         .filter(_._2 equalsIgnoreCase "timestampType")
         .filterNot(_._1 equalsIgnoreCase ColumnName.TS_INSERIMENTO.getName)
         .map(_._1)
@@ -146,16 +146,23 @@ abstract class AbstractEngine(private final val jobPropertiesFile: String) {
        * The DATETIME data type has a range of '1000-01-01 00:00:00' to '9999-12-31 23:59:59'.
        */
 
-      if (dfTimestampColumnsExceptTsInserimento.nonEmpty) {
+      if (timestampColumnsExceptTsInserimento.nonEmpty) {
 
-        logger.info(s"Identified ${dfTimestampColumnsExceptTsInserimento.size} timestamp column(s) different from " +
-          s"'${ColumnName.TS_INSERIMENTO.getName}' (${dfTimestampColumnsExceptTsInserimento.map(x => s"'$x'").mkString(", ")})")
+        logger.info(s"Identified ${timestampColumnsExceptTsInserimento.size} timestamp column(s) different from " +
+          s"'${ColumnName.TS_INSERIMENTO.getName}': ${timestampColumnsExceptTsInserimento.map(x => s"'$x'").mkString(", ")})")
 
         val jdbcConnection: java.sql.Connection = getJDBCConnection
+        val existsCurrentTable: Boolean = jdbcConnection.getMetaData.getTables(db, null, table, null).next()
+        if (existsCurrentTable) {
 
-        //TODO: controllo preesistenza tabella
-        val createTableStatement: java.sql.Statement = jdbcConnection.createStatement
-        createTableStatement.execute(getCreateTableStatementFromDfSchema(dfToWrite, db, table))
+          logger.info(s"Table '$db'.'$table' has some timestamp columns but exists already. Thus, not creating again")
+        } else {
+
+          logger.warn(s"Table '$db'.'$table' has some timestamp columns but does not exist yet. Thus, defining it now")
+          val createTableStatement: java.sql.Statement = jdbcConnection.createStatement
+          createTableStatement.execute(getCreateTableStatementFromDfSchema(dfToWrite, db, table))
+          logger.info(s"Successfully created table '$db'.'$table'")
+        }
       }
 
       writeToJDBC(dfToWrite,
@@ -192,8 +199,26 @@ abstract class AbstractEngine(private final val jobPropertiesFile: String) {
 
   private def getCreateTableStatementFromDfSchema(df: DataFrame, database: String, table: String): String = {
 
-    // TODO: definizione stringa di creazione tabella a partire da df
-    s"CREATE TABLE IF NOT EXISTS $database.$table (\n "
+    val fromSparkToMySQLType: ((String, String)) => String = tuple2 => {
+
+      val columnName: String = tuple2._1
+      val columnType: String = tuple2._2.toLowerCase
+      columnType match {
+
+        case "stringtype" => "VARCHAR(50)"
+        case "integertype" => "INT"
+        case "doubletype" => "DOUBLE"
+        case "longtype" => "BIGINT"
+        case "datetype" => "DATE"
+        case "timestamptype" => if (columnName equalsIgnoreCase ColumnName.TS_INSERIMENTO.getName) "TIMESTAMP" else "DATETIME"
+      }
+    }
+
+    val createTableStateMent: String = s" CREATE TABLE IF NOT EXISTS $database.$table (\n " +
+      df.dtypes.map(x => s"    ${x._1} ${fromSparkToMySQLType(x)}").mkString(",\n    ") + "  \n    )\n"
+
+    logger.info(s"Create table statement for table '$database'.'$table': \n\n $createTableStateMent")
+    createTableStateMent
   }
 
   private def writeToJDBC(outputDataFrame: DataFrame, databaseName: String, tableName: String,
