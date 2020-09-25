@@ -37,6 +37,7 @@ abstract class AbstractEngine(private final val jobPropertiesFile: String) {
   protected final val mappingSpecificationTBLName: String = jobProperties.getString("table.mapping_specification.name")
   protected final val dataLoadLogTBLName: String = jobProperties.getString("table.sourceload_log.name")
   protected final val lookupTBLName: String = jobProperties.getString("table.lookup.name")
+  protected final val maxVarCharColumnsLength: Int = jobProperties.getInt("jdbc.varchar.maximum_length")
 
   // FUNCTION FOR GENERATING LOG RECORDS
   protected val createLogRecord: (String, Option[String], Option[String], String, Option[String]) => LogRecord =
@@ -209,7 +210,7 @@ abstract class AbstractEngine(private final val jobPropertiesFile: String) {
       val columnType: String = tuple2._2.toLowerCase
       columnType match {
 
-        case "stringtype" => "VARCHAR(50)"
+        case "stringtype" => s"VARCHAR($maxVarCharColumnsLength)"
         case "integertype" => "INT"
         case "doubletype" => "DOUBLE"
         case "longtype" => "BIGINT"

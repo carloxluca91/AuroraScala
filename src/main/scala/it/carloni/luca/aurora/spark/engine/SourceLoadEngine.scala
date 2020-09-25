@@ -9,9 +9,11 @@ import it.carloni.luca.aurora.spark.exception.{MultipleSrcOrDstException, NoSpec
 import it.carloni.luca.aurora.spark.functions.ETLFunctionFactory
 import it.carloni.luca.aurora.utils.Utils._
 import it.carloni.luca.aurora.utils.{ColumnName, DateFormat}
+import org.apache.commons.lang.StringUtils.abbreviate
 import org.apache.log4j.Logger
 import org.apache.spark.sql.expressions.{UserDefinedFunction, Window}
 import org.apache.spark.sql.functions._
+import org.apache.spark.sql.types.DataTypes
 import org.apache.spark.sql.{Column, DataFrame, Row, SaveMode}
 
 import scala.util.matching.Regex
@@ -20,6 +22,21 @@ class SourceLoadEngine(val jobPropertiesFile: String)
   extends AbstractEngine(jobPropertiesFile) {
 
   private final val logger = Logger.getLogger(getClass)
+  private final val createNullColumnsDescription: UserDefinedFunction = udf((columnNames: Seq[String], columnValues: Seq[String]) => {
+
+    columnNames.zip(columnValues)
+      .filter(x => x._2 == null)
+      .map(x => s"${x._1} (null)")
+      .mkString(", ")
+  })
+
+  private final val createNotNullColumnsDescription: UserDefinedFunction = udf((columnNames: Seq[String], columnValues: Seq[String]) => {
+
+    columnNames.zip(columnValues)
+      .map(x => s"${x._1} (${x._2})")
+      .mkString(", ")
+  })
+
   private var rawDfPlusTrustedColumnsOpt: Option[DataFrame] = None
 
   def run(sourceLoadConfig: SourceLoadConfig): Unit = {
@@ -103,14 +120,11 @@ class SourceLoadEngine(val jobPropertiesFile: String)
 
     val tablesToWrite: Map[(String, String), Seq[SpecificationRecord] => DataFrame] = Map(
 
-      // RW_ERROR
+      // RW_ERROR, TRD_ERROR, TRD_DUPLICATED
+
       (lakeCedacriDBName, rwActualTableName.concat("_error")) -> (getErrorDf(_, s => col(s.colonnaRd))),
-
-      // TRD_ERROR
       (pcAuroraDBName, trdActualTableName.concat("_error")) -> (getErrorDf(_, s => col(s.colonnaTd))),
-
-      // TRD_DUPLICATED
-      (pcAuroraDBName, trdActualTableName.concat("_duplicated")) -> getDuplicatedDf)
+      (pcAuroraDBName, trdActualTableName.concat("_duplicated")) -> getDuplicatesRecordDf)
 
     // FOR EACH (k, v) PAIR
     tablesToWrite
@@ -120,7 +134,7 @@ class SourceLoadEngine(val jobPropertiesFile: String)
         val db: String = x._1._1
         val actualTable: String = x._1._2
         val historicalTable: String = actualTable.concat("_h")
-        val dfOperation: Seq[SpecificationRecord] => DataFrame = x._2
+        val dfGeneratorFunction: Seq[SpecificationRecord] => DataFrame = x._2
 
         if (rawDfPlusTrustedColumnsOpt.isEmpty) {
 
@@ -135,7 +149,7 @@ class SourceLoadEngine(val jobPropertiesFile: String)
             SaveMode.Overwrite,
             truncateFlag = true,
             createLogRecord,
-            dfOperation,
+            dfGeneratorFunction,
             specificationRecords)
 
           // APPEND DATA ON HISTORICAL TABLE
@@ -145,7 +159,7 @@ class SourceLoadEngine(val jobPropertiesFile: String)
             SaveMode.Append,
             truncateFlag = false,
             createLogRecord,
-            dfOperation,
+            dfGeneratorFunction,
             specificationRecords)
         }
       })
@@ -162,7 +176,6 @@ class SourceLoadEngine(val jobPropertiesFile: String)
         getErrorDescriptionColumn(specifications),
         indexOfTsInserimentoCol)
 
-    // TODO: correct error description definition
       rawDfPlusTrustedColumnsOpt.get
         .filter(getErrorFilterConditionCol(specifications))
         .select(columnsToSelectPlusErrorDescription: _*)
@@ -333,29 +346,7 @@ class SourceLoadEngine(val jobPropertiesFile: String)
   private def getErrorFilterConditionCol(specificationRecords: Seq[SpecificationRecord]): Column = {
 
     specificationRecords
-      .map(x => {
-
-        val rwColName: String = x.colonnaRd
-        val trdColName: String = x.colonnaTd
-        val (areOtherColumnsInvolved, involvedColumnsOpt): (Boolean, Option[Seq[String]]) = x.involvesOtherColumns
-        val rawColumnsInvolved: Seq[Column] = if (areOtherColumnsInvolved) {
-
-          // CONSIDER ALL OF THEM
-          col(rwColName) +: involvedColumnsOpt.get.map(col)
-        } else col(rwColName) :: Nil
-
-        // IF JUST ONE OF THE INVOLVED RAW COLUMNS IS NULL
-        val leftSideContitionCol: Column = rawColumnsInvolved
-          .map(_.isNull)
-          .reduce(_ || _)
-
-        // OR ALL OF THEM ARE NOT NULL BUT RESULTING TRUSTED COLUMN IS NULL (WHICH MEANS AN ERROR OCCURED DURING TRANSFORMATION)
-        val rightSideConditionCol: Column = rawColumnsInvolved
-          .map(_.isNotNull)
-          .reduce(_ && _) && col(trdColName).isNull
-
-       leftSideContitionCol || rightSideConditionCol
-      })
+      .map(x => x.areSomeRwColumnsNull || x.isTrdColumnNullWhileRwColumnsAreNot)
       .reduce(_ || _)
   }
 
@@ -365,44 +356,38 @@ class SourceLoadEngine(val jobPropertiesFile: String)
       .map(x => {
 
         val rwColumnName: String = x.colonnaRd
-        val trdColumnName: String = x.colonnaTd
         val (areOtherColumnsInvolved, involvedColumnsOpt): (Boolean, Option[Seq[String]]) = x.involvesOtherColumns
-        val rawColNamesInvolved: Seq[String] = if (areOtherColumnsInvolved) {
+        val involvedRwColumnNames: Seq[String] = if (areOtherColumnsInvolved) {
 
           rwColumnName +: involvedColumnsOpt.get
         } else rwColumnName :: Nil
 
-        val rawColumnsInvolved: Seq[Column] = rawColNamesInvolved.map(col)
+        val arrayOfInvolvedRwColumnNames: Column = array(involvedRwColumnNames.map(lit): _*)
+        val arrayOfInvolvedRwColumnValues: Column = array(involvedRwColumnNames.map(col(_).cast(DataTypes.StringType)): _*)
 
-        /*** A RECORD IS CONSIDERED IN ERROR IF FOR AT LEAST ONE SPECIFICATION
-           * [a] ONE (OR MORE) RAW COLUMN INVOLVED IS NULL
-           * [b] ALL OF RAW COLUMNS ARE NOT NULL BUT RELATED TRUSTED COLUMN IS NULL -> i.e. APPLIED TRANSFORMATION GENERATED AN ERROR
-           *
-           * IN ORDER TO DEFINE A PRECISE ERROR DESCRIPTION,
-           * [a] GET NAMES OF NULL COLUMNS
-           * [b] GET NAMES OF ALL RAW INVOLVED COLUMNS
-           */
-
-        when(rawColumnsInvolved.map(_.isNull).reduce(_ || _),
-          concat_ws(", ", rawColNamesInvolved.map(x => when(col(x).isNull, concat(lit(x + " (null)")))): _*))
-          .when(rawColumnsInvolved.map(_.isNotNull).reduce(_ && _) && col(trdColumnName).isNull,
-            concat_ws(", ", rawColNamesInvolved.map(x => concat(lit(x + " ('"), col(x), lit("')"))): _*))
+        when(x.areSomeRwColumnsNull, createNullColumnsDescription(arrayOfInvolvedRwColumnNames, arrayOfInvolvedRwColumnValues))
+          .when(x.isTrdColumnNullWhileRwColumnsAreNot, createNotNullColumnsDescription(arrayOfInvolvedRwColumnNames, arrayOfInvolvedRwColumnValues))
       })
 
     val errorColumnsRegex: Regex = "(\\w+\\s\\('?\\w+'?\\))".r
-    val createErrorDescriptionCol: UserDefinedFunction = udf((s: String) => {
+    val createErrorDescriptionCol: UserDefinedFunction = udf((s: String, maximumStringLength: Int) => {
 
       if (!s.isEmpty){
 
-        val numberOfMatches: Int = errorColumnsRegex.findAllMatchIn(s).size
-        Some(s"$numberOfMatches invalid columns: ".concat(s))
+        val distinctMatches: Seq[String] = errorColumnsRegex.findAllMatchIn(s)
+          .toSeq
+          .map(_.group(1))
+          .distinct
+
+        Some(abbreviate(s"${distinctMatches.size} invalid column(s): " + distinctMatches.mkString(", "), maximumStringLength))
       } else None
     })
 
-    createErrorDescriptionCol(concat_ws(", ", errorColumns: _*)).as(ColumnName.ERROR_DESCRIPTION.getName)
+    createErrorDescriptionCol(concat_ws(", ", errorColumns: _*), lit(maxVarCharColumnsLength))
+      .as(ColumnName.ERROR_DESCRIPTION.getName)
   }
 
-  private def getDuplicatedDf(specifications: Seq[SpecificationRecord]): DataFrame = {
+  private def getDuplicatesRecordDf(specifications: Seq[SpecificationRecord]): DataFrame = {
 
     val primaryKeyColumns: Seq[Column] = specifications
       .filter(_.flagPrimaryKey.nonEmpty)
