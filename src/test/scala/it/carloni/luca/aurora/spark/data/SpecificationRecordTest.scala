@@ -25,16 +25,11 @@ class SpecificationRecordTest extends FunSuite with BeforeAndAfterEach {
 
   test("testInvolvesOtherColumns") {
 
-    val (t1, t2): (Boolean, Option[Seq[String]]) = specificationRecord.involvesOtherColumns
+    val (t1, t2): (Boolean, Option[Seq[String]]) = specificationRecord.involvesOtherRwColumns
     assertResult(true)(t1)
     assertResult(true)(t2.nonEmpty)
     assertResult(1)(t2.get.size)
     assertResult("data_movimento")(t2.get.head)
-  }
-
-  test("involvesRenaming") {
-
-    assertResult(true)(specificationRecord.involvesRenaming)
   }
 
   test("involvesCasting") {

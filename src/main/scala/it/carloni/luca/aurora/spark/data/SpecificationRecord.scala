@@ -1,7 +1,6 @@
 package it.carloni.luca.aurora.spark.data
 
 import it.carloni.luca.aurora.spark.functions.Signature
-import org.apache.log4j.Logger
 import org.apache.spark.sql.Column
 import org.apache.spark.sql.functions.col
 
@@ -19,9 +18,7 @@ case class SpecificationRecord(flusso: String,
                                posizioneFinale: Int,
                                flagPrimaryKey: Option[String]) {
 
-  private final val logger: Logger = Logger.getLogger(getClass)
-
-  def involvesOtherColumns: (Boolean, Option[Seq[String]]) = {
+  def involvesOtherRwColumns: (Boolean, Option[Seq[String]]) = {
 
     val falseReturnValue: (Boolean, Option[Seq[String]]) = (false, None)
     if (involvesATransformation) {
@@ -49,13 +46,11 @@ case class SpecificationRecord(flusso: String,
 
   def involvesATransformation: Boolean = funzioneEtl.nonEmpty
 
-  def involvesRenaming: Boolean = !(colonnaRd equalsIgnoreCase colonnaTd)
-
   def involvesCasting: Boolean = !(tipoColonnaRd equalsIgnoreCase tipoColonnaTd)
 
   def areSomeRwColumnsNull: Column = {
 
-    val (areOtherRwColumnsInvolved, otherInvolvedColumnsOpt): (Boolean, Option[Seq[String]]) = involvesOtherColumns
+    val (areOtherRwColumnsInvolved, otherInvolvedColumnsOpt): (Boolean, Option[Seq[String]]) = involvesOtherRwColumns
     val allRwColumnsInvolved: Seq[Column] = if (areOtherRwColumnsInvolved) {
 
       col(colonnaRd) +: otherInvolvedColumnsOpt.get.map(col)
@@ -69,7 +64,7 @@ case class SpecificationRecord(flusso: String,
 
   def isTrdColumnNullWhileRwColumnsAreNot: Column = {
 
-    val (areOtherRwColumnsInvolved, otherInvolvedColumnsOpt): (Boolean, Option[Seq[String]]) = involvesOtherColumns
+    val (areOtherRwColumnsInvolved, otherInvolvedColumnsOpt): (Boolean, Option[Seq[String]]) = involvesOtherRwColumns
     val allRwColumnsInvolved: Seq[Column] = if (areOtherRwColumnsInvolved) {
 
       col(colonnaRd) +: otherInvolvedColumnsOpt.get.map(col)

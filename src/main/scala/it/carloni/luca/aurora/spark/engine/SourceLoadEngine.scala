@@ -9,11 +9,9 @@ import it.carloni.luca.aurora.spark.exception.{MultipleSrcOrDstException, NoSpec
 import it.carloni.luca.aurora.spark.functions.ETLFunctionFactory
 import it.carloni.luca.aurora.utils.Utils._
 import it.carloni.luca.aurora.utils.{ColumnName, DateFormat}
-import org.apache.commons.lang.StringUtils.abbreviate
 import org.apache.log4j.Logger
 import org.apache.spark.sql.expressions.{UserDefinedFunction, Window}
 import org.apache.spark.sql.functions._
-import org.apache.spark.sql.types.DataTypes
 import org.apache.spark.sql.{Column, DataFrame, Row, SaveMode}
 
 import scala.util.matching.Regex
@@ -22,6 +20,7 @@ class SourceLoadEngine(val jobPropertiesFile: String)
   extends AbstractEngine(jobPropertiesFile) {
 
   private final val logger = Logger.getLogger(getClass)
+
   private final val createNullColumnsDescription: UserDefinedFunction = udf((columnNames: Seq[String], columnValues: Seq[String]) => {
 
     columnNames.zip(columnValues)
@@ -35,6 +34,20 @@ class SourceLoadEngine(val jobPropertiesFile: String)
     columnNames.zip(columnValues)
       .map(x => s"${x._1} (${x._2})")
       .mkString(", ")
+  })
+
+  private final val createErrorDescriptionCol: UserDefinedFunction = udf((s: Seq[String]) => {
+
+    val distinctSeq: Seq[String] = s
+      .filter(_ != null)
+      .map(_.split(", "))
+      .flatMap(_.toList)
+      .distinct
+
+    if (distinctSeq.nonEmpty) {
+
+      Some(s"${distinctSeq.size} invalid column(s): " + distinctSeq.mkString(", "))
+    } else None
   })
 
   private var rawDfPlusTrustedColumnsOpt: Option[DataFrame] = None
@@ -113,6 +126,73 @@ class SourceLoadEngine(val jobPropertiesFile: String)
     } else throw new NoSpecificationException(bancllName)
   }
 
+  private def getSpecificationRecords(bancllName: String, versionNumberOpt: Option[Double]): Seq[SpecificationRecord] = {
+
+    import sparkSession.implicits._
+
+    logger.info(s"Provided BANCLL name: '$bancllName'")
+    val mappingSpecificationTBLNameAndFilterColumn: (String, Column) = if (versionNumberOpt.isEmpty) {
+
+      // NO VERSION NUMBER PROVIDED => READ ACTUAL TABLE SPECIFICATION
+      logger.info(s"No specification version number provided. Thus, reading specifications from '$pcAuroraDBName'.'$mappingSpecificationTBLName'")
+      (mappingSpecificationTBLName, col(ColumnName.FLUSSO.getName) === bancllName)
+
+    } else {
+
+      // VERSION NUMBER PROVIDED => READ HISTORICAL SPECIFICATION TABLE
+      val versionNumber: Double = versionNumberOpt.get
+      val versionNumberFormatted: String = f"$versionNumber%.1f"
+        .replace(',', '.')
+
+      val mappingSpecificationHistTBLName: String = jobProperties.getString("table.mapping_specification_historical.name")
+      logger.info(s"Specification version number to be used: '$versionNumberFormatted'. Thus, reading specifications from '$pcAuroraDBName'.'$mappingSpecificationHistTBLName'")
+      (mappingSpecificationHistTBLName, col(ColumnName.FLUSSO.getName) === bancllName && col(ColumnName.VERSIONE.getName) === versionNumber)
+    }
+
+    // RETRIEVE SPECIFICATIONS FOR GIVEN bancllName
+    val mappingSpecificationTableToRead: String = mappingSpecificationTBLNameAndFilterColumn._1
+    val mappingSpecificationFilterCol: Column = mappingSpecificationTBLNameAndFilterColumn._2
+
+    val toSelect: Seq[String] = Seq("flusso", "sorgente_rd", "tabella_td", "colonna_rd", "tipo_colonna_rd", "flag_discard",
+      "posizione_iniziale", "funzione_etl", "flag_lookup", "colonna_td", "tipo_colonna_td", "posizione_finale", "flag_primary_key")
+
+    val specificationDf: DataFrame = readFromJDBC(pcAuroraDBName, mappingSpecificationTableToRead)
+      .filter(mappingSpecificationFilterCol)
+      .selectExpr(toSelect: _*)
+
+    // RENAME EACH COLUMN WITH A RULE SUCH THAT, e.g. sorgente_rd => sorgenteRd, tabella_td => tabellaTd
+    val regex: Regex = "_([a-z]|[A-Z])".r
+    val specificationRecords: Seq[SpecificationRecord] = toSelect
+      .map(x => (x, regex.replaceAllIn(x, m => m.group(1).toUpperCase)))
+      .foldLeft(specificationDf)((df, tuple2) => df.withColumnRenamed(tuple2._1, tuple2._2))
+      .as[SpecificationRecord]
+      .collect()
+      .toSeq
+
+    logger.info(f"Successfully parsed dataframe as a set of elements of type ${SpecificationRecord.getClass.getSimpleName}")
+    specificationRecords
+  }
+
+  private def getRawDataFrame(rawActualTableName: String, rawHistoricalTableName: String, dtRiferimentoOpt: Option[String]): DataFrame = {
+
+    if (dtRiferimentoOpt.nonEmpty) {
+
+      // IF A dt_riferimento HAS BEEN PROVIDED, READ FROM RAW_HISTORICAL_TABLE
+      val dtRiferimentoStr: String = dtRiferimentoOpt.get
+      logger.info(s"Provided business date: '$dtRiferimentoStr'. Thus, reading raw data from '$rawHistoricalTableName'")
+
+      val dtRiferimentoSQLDate: java.sql.Date =  java.sql.Date.valueOf(LocalDate.parse(dtRiferimentoStr, DateFormat.DT_RIFERIMENTO.getFormatter))
+      readFromJDBC(lakeCedacriDBName, rawHistoricalTableName)
+        .filter(col(ColumnName.DT_RIFERIMENTO.getName) === dtRiferimentoSQLDate)
+
+    } else {
+
+      // OTHERWISE, READ FROM RAW_ACTUAL_TABLE
+      logger.info(s"No business date has been provided. Thus, reading raw data from '$rawActualTableName'")
+      readFromJDBC(lakeCedacriDBName, rawActualTableName)
+    }
+  }
+
   private def writeErrorAndDuplicatedTables(specificationRecords: Seq[SpecificationRecord],
                                             rwActualTableName: String,
                                             trdActualTableName: String,
@@ -133,8 +213,8 @@ class SourceLoadEngine(val jobPropertiesFile: String)
         // UNWRAP INFORMATION AND FUNCTION
         val db: String = x._1._1
         val actualTable: String = x._1._2
-        val historicalTable: String = actualTable.concat("_h")
-        val dfGeneratorFunction: Seq[SpecificationRecord] => DataFrame = x._2
+        val historicalTable: String = actualTable + "_h"
+        val dfGenerationFunction: Seq[SpecificationRecord] => DataFrame = x._2
 
         if (rawDfPlusTrustedColumnsOpt.isEmpty) {
 
@@ -149,7 +229,7 @@ class SourceLoadEngine(val jobPropertiesFile: String)
             SaveMode.Overwrite,
             truncateFlag = true,
             createLogRecord,
-            dfGeneratorFunction,
+            dfGenerationFunction,
             specificationRecords)
 
           // APPEND DATA ON HISTORICAL TABLE
@@ -159,27 +239,11 @@ class SourceLoadEngine(val jobPropertiesFile: String)
             SaveMode.Append,
             truncateFlag = false,
             createLogRecord,
-            dfGeneratorFunction,
+            dfGenerationFunction,
             specificationRecords)
         }
       })
   }
-
-  private def getErrorDf(specifications: Seq[SpecificationRecord], op: SpecificationRecord => Column): DataFrame = {
-
-      // GET INITIAL SET OF COLUMNS
-      val columnsToSelect: Seq[Column] = getColsToSelect(specifications, op)
-
-      // AND THEN ADD ERROR DESCRIPTION COLUMN (BEFORE 'ts_inserimento')
-      val indexOfTsInserimentoCol: Int = columnsToSelect.indexOf(col(ColumnName.TS_INSERIMENTO.getName))
-      val columnsToSelectPlusErrorDescription: Seq[Column] = insertElementAtIndex(columnsToSelect,
-        getErrorDescriptionColumn(specifications),
-        indexOfTsInserimentoCol)
-
-      rawDfPlusTrustedColumnsOpt.get
-        .filter(getErrorFilterConditionCol(specifications))
-        .select(columnsToSelectPlusErrorDescription: _*)
-    }
 
   private def getColsToSelect(specificationRecords: Seq[SpecificationRecord], op: SpecificationRecord => Column): Seq[Column] = {
 
@@ -276,71 +340,38 @@ class SourceLoadEngine(val jobPropertiesFile: String)
       })
   }
 
-  private def getSpecificationRecords(bancllName: String, versionNumberOpt: Option[Double]): Seq[SpecificationRecord] = {
+  private def getErrorDf(specifications: Seq[SpecificationRecord], op: SpecificationRecord => Column): DataFrame = {
 
-    import sparkSession.implicits._
+    val tdErrorColumns: Seq[(String, Column)] = specifications
+      .map(x => {
 
-    logger.info(s"Provided BANCLL name: '$bancllName'")
-    val mappingSpecificationTBLNameAndFilterColumn: (String, Column) = if (versionNumberOpt.isEmpty) {
+        val (areOtherRwColumnsInvolved, rwInvolvedColumnNamesOpt): (Boolean, Option[Seq[String]]) = x.involvesOtherRwColumns
+        val allOfRwColumnsInvolved: Seq[String] = if (areOtherRwColumnsInvolved) {
 
-      // NO VERSION NUMBER PROVIDED => READ ACTUAL TABLE SPECIFICATION
-      logger.info(s"No specification version number provided. Thus, reading specifications from '$pcAuroraDBName'.'$mappingSpecificationTBLName'")
-      (mappingSpecificationTBLName, col(ColumnName.FLUSSO.getName) === bancllName)
+          x.colonnaRd +: rwInvolvedColumnNamesOpt.get
+        } else x.colonnaRd :: Nil
 
-    } else {
+        (x.colonnaTd + "_error", when(x.areSomeRwColumnsNull,
+          createNullColumnsDescription(array(allOfRwColumnsInvolved.map(lit): _*), array(allOfRwColumnsInvolved.map(col): _*)))
+          .when(x.isTrdColumnNullWhileRwColumnsAreNot,
+            createNotNullColumnsDescription(array(allOfRwColumnsInvolved.map(lit): _*), array(allOfRwColumnsInvolved.map(col): _*))))
+      })
 
-      // VERSION NUMBER PROVIDED => READ HISTORICAL SPECIFICATION TABLE
-      val versionNumber: Double = versionNumberOpt.get
-      val versionNumberFormatted: String = f"$versionNumber%.1f"
-        .replace(',', '.')
+    // GET INITIAL SET OF COLUMNS AND THEN ADD ERROR DESCRIPTION COLUMN (BEFORE 'ts_inserimento')
+    val columnsToSelect: Seq[Column] = getColsToSelect(specifications, op)
+    val columnsToSelectPlusErrorDescription: Seq[Column] = insertElementAtIndex(columnsToSelect,
+      col(ColumnName.ERROR_DESCRIPTION.getName),
+      columnsToSelect.indexOf(col(ColumnName.TS_INSERIMENTO.getName)))
 
-      val mappingSpecificationHistTBLName: String = jobProperties.getString("table.mapping_specification_historical.name")
-      logger.info(s"Specification version number to be used: '$versionNumberFormatted'. Thus, reading specifications from '$pcAuroraDBName'.'$mappingSpecificationHistTBLName'")
-      (mappingSpecificationHistTBLName, col(ColumnName.FLUSSO.getName) === bancllName && col(ColumnName.VERSIONE.getName) === versionNumber)
-    }
+    tdErrorColumns
+      .foldLeft(rawDfPlusTrustedColumnsOpt.get
+        .filter(getErrorFilterConditionCol(specifications)))((df, tuple2) => {
 
-    // RETRIEVE SPECIFICATIONS FOR GIVEN bancllName
-    val mappingSpecificationTableToRead: String = mappingSpecificationTBLNameAndFilterColumn._1
-    val mappingSpecificationFilterCol: Column = mappingSpecificationTBLNameAndFilterColumn._2
-
-    val toSelect: Seq[String] = Seq("flusso", "sorgente_rd", "tabella_td", "colonna_rd", "tipo_colonna_rd", "flag_discard",
-      "posizione_iniziale", "funzione_etl", "flag_lookup", "colonna_td", "tipo_colonna_td", "posizione_finale", "flag_primary_key")
-
-    val specificationDf: DataFrame = readFromJDBC(pcAuroraDBName, mappingSpecificationTableToRead)
-      .filter(mappingSpecificationFilterCol)
-      .selectExpr(toSelect: _*)
-
-    // RENAME EACH COLUMN WITH A RULE SUCH THAT, e.g. sorgente_rd => sorgenteRd, tabella_td => tabellaTd
-    val regex: Regex = "_([a-z]|[A-Z])".r
-    val specificationRecords: Seq[SpecificationRecord] = toSelect
-      .map(x => (x, regex.replaceAllIn(x, m => m.group(1).toUpperCase)))
-      .foldLeft(specificationDf)((df, tuple2) => df.withColumnRenamed(tuple2._1, tuple2._2))
-      .as[SpecificationRecord]
-      .collect()
-      .toSeq
-
-    logger.info(f"Successfully parsed dataframe as a set of elements of type ${SpecificationRecord.getClass.getSimpleName}")
-    specificationRecords
-  }
-
-  private def getRawDataFrame(rawActualTableName: String, rawHistoricalTableName: String, dtRiferimentoOpt: Option[String]): DataFrame = {
-
-    if (dtRiferimentoOpt.nonEmpty) {
-
-      // IF A dt_riferimento HAS BEEN PROVIDED, READ FROM RAW_HISTORICAL_TABLE
-      val dtRiferimentoStr: String = dtRiferimentoOpt.get
-      logger.info(s"Provided business date: '$dtRiferimentoStr'. Thus, reading raw data from '$rawHistoricalTableName'")
-
-      val dtRiferimentoSQLDate: java.sql.Date =  java.sql.Date.valueOf(LocalDate.parse(dtRiferimentoStr, DateFormat.DT_RIFERIMENTO.getFormatter))
-      readFromJDBC(lakeCedacriDBName, rawHistoricalTableName)
-        .filter(col(ColumnName.DT_RIFERIMENTO.getName) === dtRiferimentoSQLDate)
-
-    } else {
-
-      // OTHERWISE, READ FROM RAW_ACTUAL_TABLE
-      logger.info(s"No business date has been provided. Thus, reading raw data from '$rawActualTableName'")
-      readFromJDBC(lakeCedacriDBName, rawActualTableName)
-    }
+        df.withColumn(tuple2._1, tuple2._2)
+      })
+      .withColumn(ColumnName.ERROR_DESCRIPTION.getName,
+        createErrorDescriptionCol(array(specifications.map(x => col(x.colonnaTd + "_error")): _*)))
+      .select(columnsToSelectPlusErrorDescription: _*)
   }
 
   private def getErrorFilterConditionCol(specificationRecords: Seq[SpecificationRecord]): Column = {
@@ -348,43 +379,6 @@ class SourceLoadEngine(val jobPropertiesFile: String)
     specificationRecords
       .map(x => x.areSomeRwColumnsNull || x.isTrdColumnNullWhileRwColumnsAreNot)
       .reduce(_ || _)
-  }
-
-  private def getErrorDescriptionColumn(specificationRecords: Seq[SpecificationRecord]): Column = {
-
-    val errorColumns: Seq[Column] = specificationRecords
-      .map(x => {
-
-        val rwColumnName: String = x.colonnaRd
-        val (areOtherColumnsInvolved, involvedColumnsOpt): (Boolean, Option[Seq[String]]) = x.involvesOtherColumns
-        val involvedRwColumnNames: Seq[String] = if (areOtherColumnsInvolved) {
-
-          rwColumnName +: involvedColumnsOpt.get
-        } else rwColumnName :: Nil
-
-        val arrayOfInvolvedRwColumnNames: Column = array(involvedRwColumnNames.map(lit): _*)
-        val arrayOfInvolvedRwColumnValues: Column = array(involvedRwColumnNames.map(col(_).cast(DataTypes.StringType)): _*)
-
-        when(x.areSomeRwColumnsNull, createNullColumnsDescription(arrayOfInvolvedRwColumnNames, arrayOfInvolvedRwColumnValues))
-          .when(x.isTrdColumnNullWhileRwColumnsAreNot, createNotNullColumnsDescription(arrayOfInvolvedRwColumnNames, arrayOfInvolvedRwColumnValues))
-      })
-
-    val errorColumnsRegex: Regex = "(\\w+\\s\\('?\\w+'?\\))".r
-    val createErrorDescriptionCol: UserDefinedFunction = udf((s: String, maximumStringLength: Int) => {
-
-      if (!s.isEmpty){
-
-        val distinctMatches: Seq[String] = errorColumnsRegex.findAllMatchIn(s)
-          .toSeq
-          .map(_.group(1))
-          .distinct
-
-        Some(abbreviate(s"${distinctMatches.size} invalid column(s): " + distinctMatches.mkString(", "), maximumStringLength))
-      } else None
-    })
-
-    createErrorDescriptionCol(concat_ws(", ", errorColumns: _*), lit(maxVarCharColumnsLength))
-      .as(ColumnName.ERROR_DESCRIPTION.getName)
   }
 
   private def getDuplicatesRecordDf(specifications: Seq[SpecificationRecord]): DataFrame = {

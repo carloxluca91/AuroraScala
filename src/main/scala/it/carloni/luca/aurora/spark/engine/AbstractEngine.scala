@@ -37,7 +37,6 @@ abstract class AbstractEngine(private final val jobPropertiesFile: String) {
   protected final val mappingSpecificationTBLName: String = jobProperties.getString("table.mapping_specification.name")
   protected final val dataLoadLogTBLName: String = jobProperties.getString("table.sourceload_log.name")
   protected final val lookupTBLName: String = jobProperties.getString("table.lookup.name")
-  protected final val maxVarCharColumnsLength: Int = jobProperties.getInt("jdbc.varchar.maximum_length")
 
   // FUNCTION FOR GENERATING LOG RECORDS
   protected val createLogRecord: (String, Option[String], Option[String], String, Option[String]) => LogRecord =
@@ -81,13 +80,13 @@ abstract class AbstractEngine(private final val jobPropertiesFile: String) {
     Class.forName("com.mysql.jdbc.Driver")
 
     val jdbcUrlConnectionStr: String = s"$jdbcURL/?useSSL=$jdbcUseSSL"
-    logger.info(s"Attempting to connect to JDBC url $jdbcUrlConnectionStr with credentials ($jdbcUser, $jdbcPassword)")
+    logger.info(s"Attempting to connect to JDBC url '$jdbcUrlConnectionStr' with credentials ('$jdbcUser', '$jdbcPassword')")
 
     val jdbcConnection: Connection = DriverManager.getConnection(jdbcUrlConnectionStr,
       jobProperties.getString("jdbc.user"),
       jobProperties.getString("jdbc.password"))
 
-    logger.info(s"Successfully connected to JDBC url $jdbcUrlConnectionStr with credentials ($jdbcUser, $jdbcPassword)")
+    logger.info(s"Successfully connected to JDBC url '$jdbcUrlConnectionStr' with credentials ('$jdbcUser', '$jdbcPassword')")
     jdbcConnection
   }
 
@@ -164,7 +163,6 @@ abstract class AbstractEngine(private final val jobPropertiesFile: String) {
           val createTableStatement: java.sql.Statement = jdbcConnection.createStatement
           createTableStatement.execute(getCreateTableStatementFromDfSchema(dfToWrite, db, table))
           logger.info(s"Successfully created table '$db'.'$table'")
-
         }
 
         jdbcConnection.close()
@@ -210,7 +208,7 @@ abstract class AbstractEngine(private final val jobPropertiesFile: String) {
       val columnType: String = tuple2._2.toLowerCase
       columnType match {
 
-        case "stringtype" => s"VARCHAR($maxVarCharColumnsLength)"
+        case "stringtype" => s"TEXT"
         case "integertype" => "INT"
         case "doubletype" => "DOUBLE"
         case "longtype" => "BIGINT"
