@@ -21,7 +21,8 @@ class SourceLoadEngine(val jobPropertiesFile: String)
 
   private final val logger = Logger.getLogger(getClass)
 
-  private final val createNullColumnsDescription: UserDefinedFunction = udf((columnNames: Seq[String], columnValues: Seq[String]) => {
+  private final val createNullColumnsDescription: UserDefinedFunction =
+    udf((columnNames: Seq[String], columnValues: Seq[String]) => {
 
     columnNames.zip(columnValues)
       .filter(x => x._2 == null)
@@ -29,14 +30,16 @@ class SourceLoadEngine(val jobPropertiesFile: String)
       .mkString(", ")
   })
 
-  private final val createNotNullColumnsDescription: UserDefinedFunction = udf((columnNames: Seq[String], columnValues: Seq[String]) => {
+  private final val createNotNullColumnsDescription: UserDefinedFunction =
+    udf((columnNames: Seq[String], columnValues: Seq[String]) => {
 
     columnNames.zip(columnValues)
       .map(x => s"${x._1} (${x._2})")
       .mkString(", ")
   })
 
-  private final val createErrorDescriptionCol: UserDefinedFunction = udf((s: Seq[String]) => {
+  private final val createErrorDescriptionCol: UserDefinedFunction =
+    udf((s: Seq[String]) => {
 
     val distinctSeq: Seq[String] = s
       .filter(_ != null)
