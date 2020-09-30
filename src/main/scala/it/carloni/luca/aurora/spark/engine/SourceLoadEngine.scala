@@ -61,7 +61,12 @@ class SourceLoadEngine(val jobPropertiesFile: String)
     val dtRiferimentoOpt: Option[String] = sourceLoadConfig.dtRiferimentoOpt
     val versionNumberOpt: Option[Double] = sourceLoadConfig.versionNumberOpt
 
-    val createSourceLoadLogRecord = createLogRecord(Branch.SOURCE_LOAD.getName, Some(bancllName), dtRiferimentoOpt, _: String, _: Option[String])
+    val createSourceLoadLogRecord = createLogRecord(Branch.SOURCE_LOAD.getName,
+      Some(bancllName),
+      dtRiferimentoOpt,
+      _: String,
+      _: String,
+      _: Option[String])
 
     // CHECK IF CURRENT BANCLL IS DEFINED
     val specificationRecords: Seq[SpecificationRecord] = getSpecificationRecords(bancllName, versionNumberOpt)
@@ -199,7 +204,7 @@ class SourceLoadEngine(val jobPropertiesFile: String)
   private def writeErrorAndDuplicatedTables(specificationRecords: Seq[SpecificationRecord],
                                             rwActualTableName: String,
                                             trdActualTableName: String,
-                                            createLogRecord: (String, Option[String]) => LogRecord): Unit = {
+                                            createLogRecord: (String, String, Option[String]) => LogRecord): Unit = {
 
     val tablesToWrite: Map[(String, String), Seq[SpecificationRecord] => DataFrame] = Map(
 

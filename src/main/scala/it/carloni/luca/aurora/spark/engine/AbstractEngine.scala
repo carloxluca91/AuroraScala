@@ -39,8 +39,8 @@ abstract class AbstractEngine(private final val jobPropertiesFile: String) {
   protected final val lookupTBLName: String = jobProperties.getString("table.lookup.name")
 
   // FUNCTION FOR GENERATING LOG RECORDS
-  protected val createLogRecord: (String, Option[String], Option[String], String, Option[String]) => LogRecord =
-    (branchName, bancllNameOpt, dtRiferimentoOpt, impactedTable, exceptionMsgOpt) => {
+  protected val createLogRecord: (String, Option[String], Option[String], String, String, Option[String]) => LogRecord =
+    (branchName, bancllNameOpt, dtRiferimentoOpt, targetDatabase, targetTable, exceptionMsgOpt) => {
 
       val applicationId: String = sparkSession.sparkContext.applicationId
       val applicationName: String = sparkSession.sparkContext.appName
@@ -64,7 +64,8 @@ abstract class AbstractEngine(private final val jobPropertiesFile: String) {
         applicationEndTime,
         bancllNameOpt,
         dtRiferimentoSQLDateOpt,
-        impactedTable,
+        targetDatabase,
+        targetTable,
         exceptionMsgOpt,
         applicationFinishCode,
         applicationFinishStatus)
@@ -119,7 +120,7 @@ abstract class AbstractEngine(private final val jobPropertiesFile: String) {
                                      table: String,
                                      saveMode: SaveMode,
                                      truncateFlag: Boolean,
-                                     logRecordGenerationFunction: (String, Option[String]) => LogRecord,
+                                     logRecordGenerationFunction: (String, String, Option[String]) => LogRecord,
                                      dfGenerationFunction: T => DataFrame,
                                      dfGenerationFunctionArg: T): Unit = {
 
@@ -159,7 +160,7 @@ abstract class AbstractEngine(private final val jobPropertiesFile: String) {
           logger.info(s"Table '$db'.'$table' has some timestamp columns but it exists already. Thus, not creating it again")
         } else {
 
-          logger.warn(s"Table '$db'.'$table' has some timestamp columns but it does not exist yet. Thus, defining it now")
+          logger.warn(s"Table '$db'.'$table' has some timestamp columns but it does not exist yet. Thus, defining and creating it now")
           val createTableStatement: java.sql.Statement = jdbcConnection.createStatement
           createTableStatement.execute(getCreateTableStatementFromDfSchema(dfToWrite, db, table))
           logger.info(s"Successfully created table '$db'.'$table'")
@@ -189,7 +190,7 @@ abstract class AbstractEngine(private final val jobPropertiesFile: String) {
       case Success(_) => None
     }
 
-    val logRecordDf: DataFrame = Seq(logRecordGenerationFunction(table, exceptionMsgOpt)).toDF
+    val logRecordDf: DataFrame = Seq(logRecordGenerationFunction(db, table, exceptionMsgOpt)).toDF
 
     writeToJDBC(logRecordDf,
       pcAuroraDBName,

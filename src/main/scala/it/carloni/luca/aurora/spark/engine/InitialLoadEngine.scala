@@ -13,7 +13,12 @@ class InitialLoadEngine(applicationPropertiesFile: String)
   extends AbstractInitialOrReloadEngine(applicationPropertiesFile) {
 
   private final val logger = Logger.getLogger(getClass)
-  private final val createInitialLoadLogRecord = createLogRecord(Branch.INITIAL_LOAD.getName, None, None, _: String, _: Option[String])
+  private final val createInitialLoadLogRecord = createLogRecord(Branch.INITIAL_LOAD.getName,
+    None,
+    None,
+    _: String,
+    _: String,
+    _: Option[String])
 
   def run(): Unit = {
 
