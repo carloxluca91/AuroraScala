@@ -81,9 +81,9 @@ class SourceLoadEngine(val jobPropertiesFile: String)
       if (srcTables.length == 1 && dstTables.length == 1) {
 
         val rwActualTableName: String = srcTables.head.toLowerCase
-        val rwHistoricalTableName: String = rwActualTableName.concat("_h")
+        val rwHistoricalTableName: String = rwActualTableName + "_h"
         val trdActualTableName: String = dstTables.head.toLowerCase
-        val trdHistoricalTableName: String = trdActualTableName.concat("_h")
+        val trdHistoricalTableName: String = trdActualTableName + "_h"
 
         logger.info(s"BANCLL '$bancllName' -> Raw actual table: '$rwActualTableName', Raw historical table: '$rwHistoricalTableName'")
         logger.info(s"BANCLL '$bancllName' -> Trusted actual table: '$trdActualTableName', Trusted historical table: '$trdHistoricalTableName'")
@@ -101,8 +101,9 @@ class SourceLoadEngine(val jobPropertiesFile: String)
             persistRawDfPlusTrustedColumns(rawDf, specifications)
             rawDfPlusTrustedColumnsOpt.get
               .filter(!getErrorFilterConditionCol(specificationRecords))
-              .select(getColsToSelect(specificationRecords, s => col(s.colonnaTd)): _*)},
-
+              .select(getColsToSelect(specificationRecords,
+                s => s.posizioneFinale,
+                s => col(s.colonnaTd)): _*)},
           specificationRecords)
 
         if (rawDfPlusTrustedColumnsOpt.nonEmpty) {
@@ -118,7 +119,9 @@ class SourceLoadEngine(val jobPropertiesFile: String)
 
               rawDfPlusTrustedColumnsOpt.get
                 .filter(!getErrorFilterConditionCol(specifications))
-                .select(getColsToSelect(specificationRecords, s => col(s.colonnaTd)): _*)},
+                .select(getColsToSelect(specificationRecords,
+                  s => s.posizioneFinale,
+                  s => col(s.colonnaTd)): _*)},
             specificationRecords)
 
         } else {
@@ -208,10 +211,17 @@ class SourceLoadEngine(val jobPropertiesFile: String)
 
     val tablesToWrite: Map[(String, String), Seq[SpecificationRecord] => DataFrame] = Map(
 
-      // RW_ERROR, TRD_ERROR, TRD_DUPLICATED
+      // RW_ERROR
+      (lakeCedacriDBName, rwActualTableName.concat("_error")) -> (getErrorDf(_,
+        s => s.posizioneIniziale,
+        s => col(s.colonnaRd))),
 
-      (lakeCedacriDBName, rwActualTableName.concat("_error")) -> (getErrorDf(_, s => col(s.colonnaRd))),
-      (pcAuroraDBName, trdActualTableName.concat("_error")) -> (getErrorDf(_, s => col(s.colonnaTd))),
+      // TRD_ERROR
+      (pcAuroraDBName, trdActualTableName.concat("_error")) -> (getErrorDf(_,
+        s => s.posizioneFinale,
+        s => col(s.colonnaTd))),
+
+      // TRD_DUPLICATED
       (pcAuroraDBName, trdActualTableName.concat("_duplicated")) -> getDuplicatesRecordDf)
 
     // FOR EACH (k, v) PAIR
@@ -253,12 +263,16 @@ class SourceLoadEngine(val jobPropertiesFile: String)
       })
   }
 
-  private def getColsToSelect(specificationRecords: Seq[SpecificationRecord], op: SpecificationRecord => Column): Seq[Column] = {
+  private def getColsToSelect(specificationRecords: Seq[SpecificationRecord],
+                              specificationRecordSortingOp: SpecificationRecord => Int,
+                              specificationRecordToColumnOp: SpecificationRecord => Column): Seq[Column] = {
 
     // DEPENDING ON THE PROVIDED op, DEFINES SET OF RW OR TRUSTED COLUMNS TO SELECT
+    val columnsSorted: Seq[Column] = specificationRecords
+      .sortBy(specificationRecordSortingOp)
+      .map(specificationRecordToColumnOp)
 
-    (col(ColumnName.ROW_ID.getName)
-      +: specificationRecords.map(op)) ++ Seq(col(ColumnName.TS_INSERIMENTO.getName),
+    (col(ColumnName.ROW_ID.getName) +: columnsSorted) ++ Seq(col(ColumnName.TS_INSERIMENTO.getName),
       col(ColumnName.DT_INSERIMENTO.getName),
       col(ColumnName.DT_RIFERIMENTO.getName))
   }
@@ -348,7 +362,9 @@ class SourceLoadEngine(val jobPropertiesFile: String)
       })
   }
 
-  private def getErrorDf(specifications: Seq[SpecificationRecord], op: SpecificationRecord => Column): DataFrame = {
+  private def getErrorDf(specifications: Seq[SpecificationRecord],
+                         specificationRecordSortingOp: SpecificationRecord => Int,
+                         specificationRecordToColumnOp: SpecificationRecord => Column): DataFrame = {
 
     val tdErrorColumns: Seq[(String, Column)] = specifications
       .map(x => {
@@ -366,7 +382,10 @@ class SourceLoadEngine(val jobPropertiesFile: String)
       })
 
     // GET INITIAL SET OF COLUMNS AND THEN ADD ERROR DESCRIPTION COLUMN (BEFORE 'ts_inserimento')
-    val columnsToSelect: Seq[Column] = getColsToSelect(specifications, op)
+    val columnsToSelect: Seq[Column] = getColsToSelect(specifications,
+      specificationRecordSortingOp,
+      specificationRecordToColumnOp)
+
     val columnsToSelectPlusErrorDescription: Seq[Column] = insertElementAtIndex(columnsToSelect,
       col(ColumnName.ERROR_DESCRIPTION.getName),
       columnsToSelect.indexOf(col(ColumnName.TS_INSERIMENTO.getName)))
@@ -395,7 +414,10 @@ class SourceLoadEngine(val jobPropertiesFile: String)
       .filter(_.flagPrimaryKey.nonEmpty)
       .map(x => col(x.colonnaTd))
 
-    val trdDfSelectCols: Seq[Column] = getColsToSelect(specifications, s => col(s.colonnaTd))
+    val trdDfSelectCols: Seq[Column] = getColsToSelect(specifications,
+      s => s.posizioneFinale,
+      s => col(s.colonnaTd))
+
     val trustedCleanDf: DataFrame =  rawDfPlusTrustedColumnsOpt.get
       .filter(!getErrorFilterConditionCol(specifications))
       .select(trdDfSelectCols: _*)
