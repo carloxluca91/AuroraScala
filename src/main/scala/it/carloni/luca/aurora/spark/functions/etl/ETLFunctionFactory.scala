@@ -1,4 +1,4 @@
-package it.carloni.luca.aurora.spark.functions
+package it.carloni.luca.aurora.spark.functions.etl
 
 import it.carloni.luca.aurora.spark.exception.UnmatchedFunctionException
 import org.apache.log4j.Logger
@@ -10,8 +10,8 @@ object ETLFunctionFactory {
 
   def apply(functionToApply: String, inputColumn: Column): Column = {
 
-    val matchingSignatures: Signature.ValueSet = Signature.values
-      .filterNot(_ == Signature.dfColOrLit)
+    val matchingSignatures: ETLSignatures.ValueSet = ETLSignatures.values
+      .filterNot(_ == ETLSignatures.dfColOrLit)
       .filter(_.regex
         .findFirstMatchIn(functionToApply)
         .nonEmpty)
@@ -22,11 +22,12 @@ object ETLFunctionFactory {
       // RETRIEVE IT
       val matchedFunction: ETLFunction = matchingSignatures.head match {
 
-        case Signature.dateFormat => DateFormatFunction(functionToApply)
-        case Signature.leftOrRightPad => LeftOrRightPadFunction(functionToApply)
-        case Signature.leftOrRightConcat => LeftOfRightConcatFunction(functionToApply)
-        case Signature.leftOrRightConcatWs => LeftOrRightConcatWsFunction(functionToApply)
-        case Signature.toDateOrTimestamp => ToDateOrTimestampFunction(functionToApply)
+        case ETLSignatures.dateFormat => DateFormatFunction(functionToApply)
+        case ETLSignatures.leftOrRightPad => LeftOrRightPadFunction(functionToApply)
+        case ETLSignatures.leftOrRightConcat => LeftOfRightConcatFunction(functionToApply)
+        case ETLSignatures.leftOrRightConcatWs => LeftOrRightConcatWsFunction(functionToApply)
+        case ETLSignatures.toDateOrTimestamp => ToDateOrTimestampFunction(functionToApply)
+        case ETLSignatures.toDateY2 => ToDateY2(functionToApply)
       }
 
       val columnToTransform: Column = if (matchedFunction.hasNestedFunction) {

@@ -1,7 +1,7 @@
-package it.carloni.luca.aurora.spark.functions
+package it.carloni.luca.aurora.spark.functions.etl
 
 import it.carloni.luca.aurora.spark.exception.UnmatchedFunctionException
-import it.carloni.luca.aurora.utils.Utils.fullyMatchColOrLit
+import it.carloni.luca.aurora.utils.Utils.fullyMatchesColOrLit
 import org.apache.log4j.Logger
 import org.apache.spark.sql.Column
 import org.apache.spark.sql.functions.{col, lit}
@@ -22,7 +22,7 @@ abstract class ETLFunction(functionToApply: String, signature: Regex) {
   def hasNestedFunction: Boolean = {
 
     !(nestedFunctionGroup3.equalsIgnoreCase("@") ||
-      fullyMatchColOrLit(nestedFunctionGroup3))
+      fullyMatchesColOrLit(nestedFunctionGroup3))
   }
 
   def transform(inputColumn: Column): Column = {
@@ -35,7 +35,7 @@ abstract class ETLFunction(functionToApply: String, signature: Regex) {
   protected final def getColumnDefinitionAtGroup(n: Int): Column = {
 
     val nthArgument: String = signatureMatch.group(n)
-    val startingColumn: Column = Signature.dfColOrLit.regex.findFirstMatchIn(nthArgument) match {
+    val startingColumn: Column = ETLSignatures.dfColOrLit.regex.findFirstMatchIn(nthArgument) match {
 
       case None => throw new UnmatchedFunctionException(nthArgument)
       case Some(x) =>
@@ -52,7 +52,7 @@ abstract class ETLFunction(functionToApply: String, signature: Regex) {
     }
 
     // IF THERE'S SOMETHING MORE THAN JUST A COL OR LIT ...
-    if (!fullyMatchColOrLit(nthArgument)) {
+    if (!fullyMatchesColOrLit(nthArgument)) {
 
       val suffix: String = n match {
 

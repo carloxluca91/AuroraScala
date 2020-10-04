@@ -6,7 +6,8 @@ import it.carloni.luca.aurora.option.Branch
 import it.carloni.luca.aurora.option.ScoptParser.SourceLoadConfig
 import it.carloni.luca.aurora.spark.data.{LogRecord, SpecificationRecord}
 import it.carloni.luca.aurora.spark.exception.{MultipleSrcOrDstException, NoSpecificationException}
-import it.carloni.luca.aurora.spark.functions.ETLFunctionFactory
+import it.carloni.luca.aurora.spark.functions.constant.ConstantFunctionFactory
+import it.carloni.luca.aurora.spark.functions.etl.ETLFunctionFactory
 import it.carloni.luca.aurora.utils.Utils._
 import it.carloni.luca.aurora.utils.{ColumnName, DateFormat}
 import org.apache.log4j.Logger
@@ -102,6 +103,7 @@ class SourceLoadEngine(val jobPropertiesFile: String)
             rawDfPlusTrustedColumnsOpt.get
               .filter(!getErrorFilterConditionCol(specificationRecords))
               .select(getColsToSelect(specificationRecords,
+                None,
                 s => s.posizioneFinale,
                 s => col(s.colonnaTd)): _*)},
           specificationRecords)
@@ -120,6 +122,7 @@ class SourceLoadEngine(val jobPropertiesFile: String)
               rawDfPlusTrustedColumnsOpt.get
                 .filter(!getErrorFilterConditionCol(specifications))
                 .select(getColsToSelect(specificationRecords,
+                  None,
                   s => s.posizioneFinale,
                   s => col(s.colonnaTd)): _*)},
             specificationRecords)
@@ -213,11 +216,13 @@ class SourceLoadEngine(val jobPropertiesFile: String)
 
       // RW_ERROR
       (lakeCedacriDBName, rwActualTableName.concat("_error")) -> (getErrorDf(_,
+        Some({s => s.colonnaRd.nonEmpty}),
         s => s.posizioneIniziale,
-        s => col(s.colonnaRd))),
+        s => col(s.colonnaRd.get))),
 
       // TRD_ERROR
       (pcAuroraDBName, trdActualTableName.concat("_error")) -> (getErrorDf(_,
+        None,
         s => s.posizioneFinale,
         s => col(s.colonnaTd))),
 
@@ -264,11 +269,21 @@ class SourceLoadEngine(val jobPropertiesFile: String)
   }
 
   private def getColsToSelect(specificationRecords: Seq[SpecificationRecord],
+                              specificationRecordFilterOp: Option[SpecificationRecord => Boolean],
                               specificationRecordSortingOp: SpecificationRecord => Int,
                               specificationRecordToColumnOp: SpecificationRecord => Column): Seq[Column] = {
 
+    val specificationRecordsMaybeFiltered: Seq[SpecificationRecord] = if (specificationRecordFilterOp.isEmpty) {
+
+      specificationRecords
+    } else {
+
+      specificationRecords
+        .filter(specificationRecordFilterOp.get)
+    }
+
     // DEPENDING ON THE PROVIDED op, DEFINES SET OF RW OR TRUSTED COLUMNS TO SELECT
-    val columnsSorted: Seq[Column] = specificationRecords
+    val columnsSorted: Seq[Column] = specificationRecordsMaybeFiltered
       .sortBy(specificationRecordSortingOp)
       .map(specificationRecordToColumnOp)
 
@@ -299,11 +314,11 @@ class SourceLoadEngine(val jobPropertiesFile: String)
       .filter(col(ColumnName.FLUSSO.getName) === sourceName)
       .persist()
 
-    specificationRecords
-      .sortBy(_.posizioneFinale)
-      .map((specificationRecord: SpecificationRecord) => {
+    val trustedColumnsFromRwColumns: Seq[(Int, Column, String)] = specificationRecords
+      .filter(_.colonnaRd.nonEmpty)
+      .map(specificationRecord => {
 
-        val rwColumnName: String = specificationRecord.colonnaRd
+        val rwColumnName: String = specificationRecord.colonnaRd.get
         val rwColumn: Column = col(rwColumnName)
 
         logger.info(s"Analyzing specification for raw column '$rwColumnName'")
@@ -312,22 +327,8 @@ class SourceLoadEngine(val jobPropertiesFile: String)
 
           // IF THE COLUMN DOES NOT IMPLY ANY TRANSFORMATION BUT NEEDS TO BE KEPT
           logger.info(s"No transformation to apply to raw column '$rwColumnName'")
+          rwColumn
 
-          // CHECK IF INPUT DATATYPE MATCHES WITH OUTPUT DATATYPE
-          val rwColumnType: String = specificationRecord.tipoColonnaRd
-          val trdColumnType: String = specificationRecord.tipoColonnaTd
-          if (!specificationRecord.involvesCasting) {
-
-            logger.info(s"No type conversion to apply to raw column '$rwColumnName' " +
-              s"(Raw data type: '$rwColumnType', trusted data type: '$trdColumnType')")
-            rwColumn
-
-          } else {
-
-            // OTHERWISE, APPLY CASTING
-            logger.info(s"Defining conversion for raw column '$rwColumnName' (from '$rwColumnType' to '$trdColumnType')")
-            rwColumn.cast(resolveDataType(trdColumnType))
-          }
         } else {
 
           // OTHERWISE, THE COLUMN IMPLIES SOME TRANSFORMATION
@@ -358,22 +359,35 @@ class SourceLoadEngine(val jobPropertiesFile: String)
 
         } else trustedColumnBeforeLK
 
-        (trustedColumnAfterLK, specificationRecord.colonnaTd)
+        (specificationRecord.posizioneFinale, trustedColumnAfterLK, specificationRecord.colonnaTd)
       })
+
+    val newlyTrustedColumns: Seq[(Int, Column, String)] = specificationRecords
+      .filter(x => x.colonnaRd.isEmpty & x.funzioneEtl.nonEmpty)
+      .map(x => {
+
+        (x.posizioneFinale, ConstantFunctionFactory(x.funzioneEtl.get), x.colonnaTd)
+      })
+
+    (trustedColumnsFromRwColumns ++ newlyTrustedColumns)
+      .sortBy(_._1)
+      .map(x => (x._2, x._3))
   }
 
   private def getErrorDf(specifications: Seq[SpecificationRecord],
+                         specificationRecordFilterOp: Option[SpecificationRecord => Boolean],
                          specificationRecordSortingOp: SpecificationRecord => Int,
                          specificationRecordToColumnOp: SpecificationRecord => Column): DataFrame = {
 
     val tdErrorColumns: Seq[(String, Column)] = specifications
+      .filter(x => x.colonnaRd.nonEmpty)
       .map(x => {
 
         val (areOtherRwColumnsInvolved, rwInvolvedColumnNamesOpt): (Boolean, Option[Seq[String]]) = x.involvesOtherRwColumns
         val allOfRwColumnsInvolved: Seq[String] = if (areOtherRwColumnsInvolved) {
 
-          x.colonnaRd +: rwInvolvedColumnNamesOpt.get
-        } else x.colonnaRd :: Nil
+          x.colonnaRd.get +: rwInvolvedColumnNamesOpt.get
+        } else x.colonnaRd.get :: Nil
 
         (x.colonnaTd + "_error", when(x.areSomeRwColumnsNull,
           createNullColumnsDescription(array(allOfRwColumnsInvolved.map(lit): _*), array(allOfRwColumnsInvolved.map(col): _*)))
@@ -383,6 +397,7 @@ class SourceLoadEngine(val jobPropertiesFile: String)
 
     // GET INITIAL SET OF COLUMNS AND THEN ADD ERROR DESCRIPTION COLUMN (BEFORE 'ts_inserimento')
     val columnsToSelect: Seq[Column] = getColsToSelect(specifications,
+      specificationRecordFilterOp,
       specificationRecordSortingOp,
       specificationRecordToColumnOp)
 
@@ -415,6 +430,7 @@ class SourceLoadEngine(val jobPropertiesFile: String)
       .map(x => col(x.colonnaTd))
 
     val trdDfSelectCols: Seq[Column] = getColsToSelect(specifications,
+      None,
       s => s.posizioneFinale,
       s => col(s.colonnaTd))
 

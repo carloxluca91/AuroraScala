@@ -3,7 +3,7 @@ package it.carloni.luca.aurora.utils
 import java.sql.{Date, Timestamp}
 import java.time.{ZoneId, ZonedDateTime}
 
-import it.carloni.luca.aurora.spark.functions.Signature
+import it.carloni.luca.aurora.spark.functions.etl.ETLSignatures
 import org.apache.spark.sql.types.{DataType, DataTypes}
 
 object Utils {
@@ -22,7 +22,7 @@ object Utils {
       .toInstant.toEpochMilli)
   }
 
-  def fullyMatchesColOrLit(s: String): Boolean = Signature.dfColOrLit
+  def fullyMatchesColOrLit(s: String): Boolean = ETLSignatures.dfColOrLit
     .regex
     .pattern
     .matcher(s)

@@ -1,13 +1,13 @@
 package it.carloni.luca.aurora.spark.data
 
-import it.carloni.luca.aurora.spark.functions.Signature
+import it.carloni.luca.aurora.spark.functions.etl.ETLSignatures
 import org.apache.spark.sql.Column
 import org.apache.spark.sql.functions.col
 
 case class SpecificationRecord(flusso: String,
                                sorgenteRd: String,
                                tabellaTd: String,
-                               colonnaRd: String,
+                               colonnaRd: Option[String],
                                tipoColonnaRd: String,
                                posizioneIniziale: Int,
                                flagDiscard: Option[String],
@@ -24,7 +24,7 @@ case class SpecificationRecord(flusso: String,
     if (involvesATransformation) {
 
       val funzioneEtlValue: String = funzioneEtl.get
-      val involvedColumnNames: Seq[String] = Signature.dfColOrLit
+      val involvedColumnNames: Seq[String] = ETLSignatures.dfColOrLit
         .regex
         .findAllMatchIn(funzioneEtlValue)
         .filter(_.group(1) equalsIgnoreCase "col")
@@ -53,9 +53,11 @@ case class SpecificationRecord(flusso: String,
     val (areOtherRwColumnsInvolved, otherInvolvedColumnsOpt): (Boolean, Option[Seq[String]]) = involvesOtherRwColumns
     val allRwColumnsInvolved: Seq[Column] = if (areOtherRwColumnsInvolved) {
 
-      col(colonnaRd) +: otherInvolvedColumnsOpt.get.map(col)
+      col(colonnaRd.get) +: otherInvolvedColumnsOpt
+        .get
+        .map(col)
 
-    } else col(colonnaRd) :: Nil
+    } else col(colonnaRd.get) :: Nil
 
     allRwColumnsInvolved
       .map(_.isNull)
@@ -67,9 +69,9 @@ case class SpecificationRecord(flusso: String,
     val (areOtherRwColumnsInvolved, otherInvolvedColumnsOpt): (Boolean, Option[Seq[String]]) = involvesOtherRwColumns
     val allRwColumnsInvolved: Seq[Column] = if (areOtherRwColumnsInvolved) {
 
-      col(colonnaRd) +: otherInvolvedColumnsOpt.get.map(col)
+      col(colonnaRd.get) +: otherInvolvedColumnsOpt.get.map(col)
 
-    } else col(colonnaRd) :: Nil
+    } else col(colonnaRd.get) :: Nil
 
     allRwColumnsInvolved
       .map(_.isNotNull)

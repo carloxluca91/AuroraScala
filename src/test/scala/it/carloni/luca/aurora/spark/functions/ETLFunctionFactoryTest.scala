@@ -1,7 +1,9 @@
 package it.carloni.luca.aurora.spark.functions
 
 import it.carloni.luca.aurora.spark.exception.UnmatchedFunctionException
-import it.carloni.luca.aurora.utils.Utils.fullyMatchColOrLit
+import it.carloni.luca.aurora.spark.functions.etl.{DateFormatFunction, ETLFunctionFactory, LeftOfRightConcatFunction,
+  LeftOrRightConcatWsFunction, LeftOrRightPadFunction, ToDateOrTimestampFunction}
+import it.carloni.luca.aurora.utils.Utils.fullyMatchesColOrLit
 import org.apache.log4j.Logger
 import org.apache.spark.sql.Column
 import org.apache.spark.sql.functions.col
@@ -17,8 +19,8 @@ class ETLFunctionFactoryTest extends FunSuite {
     val sPartialMatch: String = s"a$sFullMatch"
 
     // TEST FULL SIGNATURE MATCH
-    assertResult(true)(fullyMatchColOrLit(sFullMatch))
-    assertResult(false)(fullyMatchColOrLit(sPartialMatch))
+    assertResult(true)(fullyMatchesColOrLit(sFullMatch))
+    assertResult(false)(fullyMatchesColOrLit(sPartialMatch))
   }
 
   test(s"${classOf[DateFormatFunction].getSimpleName}") {
@@ -42,7 +44,7 @@ class ETLFunctionFactoryTest extends FunSuite {
   test(s"${classOf[ToDateOrTimestampFunction].getSimpleName}") {
 
     val stringToMatch: String = "to_timestamp(lconcat_ws(@, col('data'), ' '), 'dd/MM/yyyy HH:mm:ss')"
-    val column: Column = ETLFunctionFactory(stringToMatch, col("ora"))
+    val column: Column = etl.ETLFunctionFactory(stringToMatch, col("ora"))
     logger.info(s"Column definition: ${column.toString}")
   }
 
