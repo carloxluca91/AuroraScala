@@ -168,7 +168,8 @@ class SourceLoadEngine(val jobPropertiesFile: String)
     val mappingSpecificationFilterCol: Column = mappingSpecificationTBLNameAndFilterColumn._2
 
     val toSelect: Seq[String] = Seq("flusso", "sorgente_rd", "tabella_td", "colonna_rd", "tipo_colonna_rd", "flag_discard",
-      "posizione_iniziale", "funzione_etl", "flag_lookup", "colonna_td", "tipo_colonna_td", "posizione_finale", "flag_primary_key")
+      "posizione_iniziale", "funzione_etl", "flag_lookup", "flag_lookup", "tipo_lookup", "lookup_id", "colonna_td",
+      "tipo_colonna_td", "posizione_finale", "flag_primary_key")
 
     val specificationDf: DataFrame = readFromJDBC(pcAuroraDBName, mappingSpecificationTableToRead)
       .filter(mappingSpecificationFilterCol)
@@ -217,7 +218,7 @@ class SourceLoadEngine(val jobPropertiesFile: String)
       // RW_ERROR
       (lakeCedacriDBName, rwActualTableName.concat("_error")) -> (getErrorDf(_,
         Some({s => s.colonnaRd.nonEmpty}),
-        s => s.posizioneIniziale,
+        s => s.posizioneIniziale.get,
         s => col(s.colonnaRd.get))),
 
       // TRD_ERROR
@@ -295,7 +296,7 @@ class SourceLoadEngine(val jobPropertiesFile: String)
   private def persistRawDfPlusTrustedColumns(rawDf: DataFrame, specificationRecords: Seq[SpecificationRecord]): Unit = {
 
     // ENRICH RAW DATAFRAME WITH COLUMNS DERIVED FROM SPECIFICATIONS
-    val trustedColumns: Seq[(Column, String)] = deriveTrustedColumns(specificationRecords)
+    val trustedColumns: Seq[(Column, String)] = defineTrustedColumns(specificationRecords)
     val rawDfPlusTrustedColumns: DataFrame = trustedColumns
       .foldLeft(rawDf)((df, tuple2) => df.withColumn(tuple2._2, tuple2._1))
 
@@ -307,14 +308,23 @@ class SourceLoadEngine(val jobPropertiesFile: String)
     rawDfPlusTrustedColumnsOpt = Some(rawDfPlusTrustedColumns)
   }
 
-  private def deriveTrustedColumns(specificationRecords: Seq[SpecificationRecord]): Seq[(Column, String)] = {
+  private def defineTrustedColumns(specificationRecords: Seq[SpecificationRecord]): Seq[(Column, String)] = {
 
-    val sourceName: String = specificationRecords.map(_.flusso).distinct.head
-    lazy val lookUpDataFrame: DataFrame = readFromJDBC(pcAuroraDBName, lookupTBLName)
-      .filter(col(ColumnName.FLUSSO.getName) === sourceName)
+    val lookUpTypesAndIds: Seq[(String, String)] = specificationRecords
+      .filter(_.flagLookup.nonEmpty)
+      .filter(_.flagLookup.get equalsIgnoreCase "y")
+      .map(x => (x.tipoLookup.get, x.lookupId.get))
+      .distinct
+
+    val lookUpDataFrameFilterConditionCol: Column = lookUpTypesAndIds
+      .map(x => lower(col(ColumnName.LOOKUP_TIPO.getName)) === x._1 && lower(col(ColumnName.LOOKUP_ID.getName)) === x._2)
+      .reduce(_ || _)
+
+    lazy val lookUpDataframe: DataFrame = readFromJDBC(pcAuroraDBName, lookupTBLName)
+      .filter(lookUpDataFrameFilterConditionCol)
       .persist()
 
-    val trustedColumnsFromRwColumns: Seq[(Int, Column, String)] = specificationRecords
+    val trustedColumnsDerivedFromRwColumns: Seq[(Int, Column, String)] = specificationRecords
       .filter(_.colonnaRd.nonEmpty)
       .map(specificationRecord => {
 
@@ -322,7 +332,6 @@ class SourceLoadEngine(val jobPropertiesFile: String)
         val rwColumn: Column = col(rwColumnName)
 
         logger.info(s"Analyzing specification for raw column '$rwColumnName'")
-
         val trustedColumnBeforeLK: Column = if (!specificationRecord.involvesATransformation) {
 
           // IF THE COLUMN DOES NOT IMPLY ANY TRANSFORMATION BUT NEEDS TO BE KEPT
@@ -346,10 +355,14 @@ class SourceLoadEngine(val jobPropertiesFile: String)
         // IF true, DEFINE A CASE-WHEN COLUMN ABLE TO CATCH PROVIDED CASES
         val trustedColumnAfterLK: Column = if (flagLookUp) {
 
-          val lookUpCaseRows: Seq[Row] = lookUpDataFrame
-            .filter(lower(col("nome_colonna")) === specificationRecord.colonnaTd.toLowerCase)
-            .select("valore_originale", "valore_sostituzione")
+          val tipoLookUp: String = specificationRecord.tipoLookup.get.toLowerCase
+          val lookupId: String = specificationRecord.lookupId.get.toLowerCase
+          val lookUpCaseRows: Seq[Row] = lookUpDataframe
+            .filter(lower(col(ColumnName.LOOKUP_TIPO.getName)) === tipoLookUp && lower(col(ColumnName.LOOKUP_ID.getName)) === lookupId)
+            .select(ColumnName.LOOKUP_VALORE_ORIGINALE.getName, ColumnName.LOOKUP_VALORE_SOSTITUZIONE.getName)
             .collect()
+
+          logger.info(s"Identified ${lookUpCaseRows.size} case(s) for lookup type '$tipoLookUp', id '$lookupId'")
 
           val firstLookUpCase: Row = lookUpCaseRows.head
           val foldLeftSeedCol: Column = when(trustedColumnBeforeLK === firstLookUpCase.get(0), firstLookUpCase.get(1))
@@ -369,7 +382,7 @@ class SourceLoadEngine(val jobPropertiesFile: String)
         (x.posizioneFinale, ConstantFunctionFactory(x.funzioneEtl.get), x.colonnaTd)
       })
 
-    (trustedColumnsFromRwColumns ++ newlyTrustedColumns)
+    (trustedColumnsDerivedFromRwColumns ++ newlyTrustedColumns)
       .sortBy(_._1)
       .map(x => (x._2, x._3))
   }
@@ -419,6 +432,7 @@ class SourceLoadEngine(val jobPropertiesFile: String)
   private def getErrorFilterConditionCol(specificationRecords: Seq[SpecificationRecord]): Column = {
 
     specificationRecords
+      .filter(_.colonnaRd.nonEmpty)
       .map(x => x.areSomeRwColumnsNull || x.isTrdColumnNullWhileRwColumnsAreNot)
       .reduce(_ || _)
   }

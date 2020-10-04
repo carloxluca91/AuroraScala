@@ -11,12 +11,14 @@ class SpecificationRecordTest extends FunSuite with BeforeAndAfterEach {
     specificationRecord = SpecificationRecord(flusso = "flusso",
       sorgenteRd = "sorgenteRd",
       tabellaTd = "tabellaTd",
-      colonnaRd = "colonnaRd",
-      tipoColonnaRd = "tipoColonnaRd",
-      posizioneIniziale = 1,
+      colonnaRd = Some("colonnaRd"),
+      tipoColonnaRd = Some("tipoColonnaRd"),
+      posizioneIniziale = Some(1),
       flagDiscard = None,
       funzioneEtl = Some("to_timestamp(lconcat_ws(@, col('data_movimento'), ' '), 'dd/MM/yyyy HH:mm:ss')"),
       flagLookup = None,
+      tipoLookup = None,
+      lookupId = None,
       colonnaTd = "colonnaTd",
       tipoColonnaTd = "tipoColonnatd",
       posizioneFinale = 1,
@@ -30,10 +32,5 @@ class SpecificationRecordTest extends FunSuite with BeforeAndAfterEach {
     assertResult(true)(t2.nonEmpty)
     assertResult(1)(t2.get.size)
     assertResult("data_movimento")(t2.get.head)
-  }
-
-  test("involvesCasting") {
-
-    assertResult(true)(specificationRecord.involvesCasting)
   }
 }

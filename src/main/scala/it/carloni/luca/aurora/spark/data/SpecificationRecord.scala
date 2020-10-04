@@ -8,11 +8,13 @@ case class SpecificationRecord(flusso: String,
                                sorgenteRd: String,
                                tabellaTd: String,
                                colonnaRd: Option[String],
-                               tipoColonnaRd: String,
-                               posizioneIniziale: Int,
+                               tipoColonnaRd: Option[String],
+                               posizioneIniziale: Option[Int],
                                flagDiscard: Option[String],
                                funzioneEtl: Option[String],
                                flagLookup: Option[String],
+                               tipoLookup: Option[String],
+                               lookupId: Option[String],
                                colonnaTd: String,
                                tipoColonnaTd: String,
                                posizioneFinale: Int,
@@ -45,8 +47,6 @@ case class SpecificationRecord(flusso: String,
   def hasToBeDiscarded: Boolean = flagDiscard.nonEmpty
 
   def involvesATransformation: Boolean = funzioneEtl.nonEmpty
-
-  def involvesCasting: Boolean = !(tipoColonnaRd equalsIgnoreCase tipoColonnaTd)
 
   def areSomeRwColumnsNull: Column = {
 
