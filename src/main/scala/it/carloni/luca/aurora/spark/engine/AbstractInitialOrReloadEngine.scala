@@ -2,6 +2,7 @@ package it.carloni.luca.aurora.spark.engine
 
 import java.io.{File, FileNotFoundException}
 
+import it.carloni.luca.aurora.utils.ColumnName
 import it.carloni.luca.aurora.utils.Utils.{getJavaSQLDateFromNow, getJavaSQLTimestampFromNow, resolveDataType}
 import org.apache.log4j.Logger
 import org.apache.spark.sql.DataFrame
@@ -32,8 +33,8 @@ abstract class AbstractInitialOrReloadEngine(val jobPropertiesFile: String)
       .option("header", tsvHeaderFlag)
       .schema(fromXMLToStructType(xMLSchemaFilePath))
       .load()
-      .withColumn("ts_inizio_validita", lit(getJavaSQLTimestampFromNow))
-      .withColumn("dt_inizio_validita", lit(getJavaSQLDateFromNow))
+      .withColumn(ColumnName.TS_INIZIO_VALIDITA.name(), lit(getJavaSQLTimestampFromNow))
+      .withColumn(ColumnName.DT_INIZIO_VALIDITA.getName, lit(getJavaSQLDateFromNow))
 
     logger.info(s"Successfully loaded .tsv file at $details")
     tsvFileDf

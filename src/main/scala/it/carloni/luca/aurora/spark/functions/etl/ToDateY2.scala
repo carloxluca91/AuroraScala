@@ -27,7 +27,7 @@ case class ToDateY2(functionToApply: String)
       }
     } match {
       case Failure(_) => None
-      case Success(value) => Some(value)
+      case Success(value) => Some(java.sql.Date.valueOf(value))
     }
   })
 

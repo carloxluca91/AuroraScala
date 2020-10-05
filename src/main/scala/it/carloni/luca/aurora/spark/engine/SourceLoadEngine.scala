@@ -61,7 +61,6 @@ class SourceLoadEngine(val jobPropertiesFile: String)
     val bancllName: String = sourceLoadConfig.bancllName
     val dtRiferimentoOpt: Option[String] = sourceLoadConfig.dtRiferimentoOpt
     val versionNumberOpt: Option[Double] = sourceLoadConfig.versionNumberOpt
-
     val createSourceLoadLogRecord = createLogRecord(Branch.SOURCE_LOAD.getName,
       Some(bancllName),
       dtRiferimentoOpt,
@@ -168,7 +167,7 @@ class SourceLoadEngine(val jobPropertiesFile: String)
     val mappingSpecificationFilterCol: Column = mappingSpecificationTBLNameAndFilterColumn._2
 
     val toSelect: Seq[String] = Seq("flusso", "sorgente_rd", "tabella_td", "colonna_rd", "tipo_colonna_rd", "flag_discard",
-      "posizione_iniziale", "funzione_etl", "flag_lookup", "flag_lookup", "tipo_lookup", "lookup_id", "colonna_td",
+      "posizione_iniziale", "funzione_etl", "flag_lookup", "tipo_lookup", "lookup_id", "colonna_td",
       "tipo_colonna_td", "posizione_finale", "flag_primary_key")
 
     val specificationDf: DataFrame = readFromJDBC(pcAuroraDBName, mappingSpecificationTableToRead)
@@ -313,11 +312,14 @@ class SourceLoadEngine(val jobPropertiesFile: String)
     val lookUpTypesAndIds: Seq[(String, String)] = specificationRecords
       .filter(_.flagLookup.nonEmpty)
       .filter(_.flagLookup.get equalsIgnoreCase "y")
-      .map(x => (x.tipoLookup.get, x.lookupId.get))
+      .map(x => (x.tipoLookup.get.toLowerCase, x.lookupId.get.toLowerCase))
       .distinct
 
+    logger.info(s"Identified ${lookUpTypesAndIds.size} lookup-related tuple(s) (${lookUpTypesAndIds.map(x => s"category = '${x._1}', id = '${x._2}'")})")
+
     val lookUpDataFrameFilterConditionCol: Column = lookUpTypesAndIds
-      .map(x => lower(col(ColumnName.LOOKUP_TIPO.getName)) === x._1 && lower(col(ColumnName.LOOKUP_ID.getName)) === x._2)
+      .map(x => lower(col(ColumnName.LOOKUP_TIPO.getName)) === x._1 &&
+        lower(col(ColumnName.LOOKUP_ID.getName)) === x._2)
       .reduce(_ || _)
 
     lazy val lookUpDataframe: DataFrame = readFromJDBC(pcAuroraDBName, lookupTBLName)
@@ -348,7 +350,7 @@ class SourceLoadEngine(val jobPropertiesFile: String)
         val flagLookUp: Boolean = if (!specificationRecord.involvesLookUp) false else {
 
           val flagLookUpStr: String = specificationRecord.flagLookup.get
-          logger.info(f"Lookup flag for column '${specificationRecord.colonnaRd}': '$flagLookUpStr''")
+          logger.info(f"Lookup flag for column '${specificationRecord.colonnaRd.get}': '$flagLookUpStr''")
           flagLookUpStr equalsIgnoreCase "y"
         }
 
@@ -392,7 +394,7 @@ class SourceLoadEngine(val jobPropertiesFile: String)
                          specificationRecordSortingOp: SpecificationRecord => Int,
                          specificationRecordToColumnOp: SpecificationRecord => Column): DataFrame = {
 
-    val tdErrorColumns: Seq[(String, Column)] = specifications
+    val tdErrorDescriptionColumns: Seq[(String, Column)] = specifications
       .filter(x => x.colonnaRd.nonEmpty)
       .map(x => {
 
@@ -418,14 +420,16 @@ class SourceLoadEngine(val jobPropertiesFile: String)
       col(ColumnName.ERROR_DESCRIPTION.getName),
       columnsToSelect.indexOf(col(ColumnName.TS_INSERIMENTO.getName)))
 
-    tdErrorColumns
+    tdErrorDescriptionColumns
       .foldLeft(rawDfPlusTrustedColumnsOpt.get
         .filter(getErrorFilterConditionCol(specifications)))((df, tuple2) => {
 
         df.withColumn(tuple2._1, tuple2._2)
       })
       .withColumn(ColumnName.ERROR_DESCRIPTION.getName,
-        createErrorDescriptionCol(array(specifications.map(x => col(x.colonnaTd + "_error")): _*)))
+        createErrorDescriptionCol(array(specifications
+          .filter(x => x.colonnaRd.nonEmpty)
+          .map(x => col(x.colonnaTd + "_error")): _*)))
       .select(columnsToSelectPlusErrorDescription: _*)
   }
 

@@ -40,8 +40,8 @@ class ReLoadEngine(applicationPropertiesFile: String)
       val getOldActualDf: String => DataFrame = actualTable => {
 
         readFromJDBC(pcAuroraDBName, actualTable)
-          .withColumn("ts_fine_validita", lit(getJavaSQLTimestampFromNow))
-          .withColumn("dt_fine_validita", lit(getJavaSQLDateFromNow))
+          .withColumn(ColumnName.TS_FINE_VALIDITA.getName, lit(getJavaSQLTimestampFromNow))
+          .withColumn(ColumnName.DT_FINE_VALIDITA.getName, lit(getJavaSQLDateFromNow))
       }
 
       // Function2[String, Double, DataFrame]

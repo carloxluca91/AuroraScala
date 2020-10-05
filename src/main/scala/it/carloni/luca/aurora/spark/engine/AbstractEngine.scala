@@ -129,13 +129,18 @@ abstract class AbstractEngine(private final val jobPropertiesFile: String) {
     val exceptionMsgOpt: Option[String] = Try {
 
       val dfToWrite: DataFrame = dfGenerationFunction(dfGenerationFunctionArg)
-      val timestampColumnsExceptTsInserimento: Seq[String] = dfToWrite.dtypes
-        .filter(_._2 equalsIgnoreCase "timestamptype")
-        .filterNot(_._1 equalsIgnoreCase ColumnName.TS_INSERIMENTO.getName)
-        .map(_._1)
+      val technicalTimestampTypeColumnNames: Seq[String] = Seq(ColumnName.TS_INSERIMENTO,
+        ColumnName.TS_INIZIO_VALIDITA,
+        ColumnName.TS_FINE_VALIDITA)
+        .map(_.getName)
+
+      val nonTechnicalTimestampTypeColumnNames: Seq[String] = dfToWrite.dtypes
+        .filter(x => x._2 equalsIgnoreCase "timestamptype")
+        .filterNot(x => technicalTimestampTypeColumnNames.map(x._1 equalsIgnoreCase).reduce(_ | _))
+        .map(x => x._1)
 
       /**
-       * If a dataframe column (different from "ts_inserimento") is a timestamp,
+       * If a non-technical column has timestamp type,
        * we must first create the table via JDBC connection in order to set "datetime" type for such column.
        * This is due to the limited timestamp range on MySQL.
        *
@@ -145,10 +150,10 @@ abstract class AbstractEngine(private final val jobPropertiesFile: String) {
        * The DATETIME data type has a range of '1000-01-01 00:00:00' to '9999-12-31 23:59:59'.
        */
 
-      if (timestampColumnsExceptTsInserimento.nonEmpty) {
+      if (nonTechnicalTimestampTypeColumnNames.nonEmpty) {
 
-        logger.info(s"Identified ${timestampColumnsExceptTsInserimento.size} timestamp column(s) different from " +
-          s"'${ColumnName.TS_INSERIMENTO.getName}': ${timestampColumnsExceptTsInserimento.map(x => s"'$x'").mkString(", ")}")
+        logger.info(s"Identified ${nonTechnicalTimestampTypeColumnNames.size} timestamp column(s) different from " +
+          s"'${ColumnName.TS_INSERIMENTO.getName}': ${nonTechnicalTimestampTypeColumnNames.map(x => s"'$x'").mkString(", ")}")
 
         val jdbcConnection: java.sql.Connection = getJDBCConnection
         val existsCurrentTable: Boolean = jdbcConnection.getMetaData
