@@ -215,19 +215,19 @@ class SourceLoadEngine(val jobPropertiesFile: String)
     val tablesToWrite: Map[(String, String), Seq[SpecificationRecord] => DataFrame] = Map(
 
       // RW_ERROR
-      (lakeCedacriDBName, rwActualTableName.concat("_error")) -> (getErrorDf(_,
+      (lakeCedacriDBName, rwActualTableName + "_error") -> (getErrorDf(_,
         Some({s => s.colonnaRd.nonEmpty}),
         s => s.posizioneIniziale.get,
         s => col(s.colonnaRd.get))),
 
       // TRD_ERROR
-      (pcAuroraDBName, trdActualTableName.concat("_error")) -> (getErrorDf(_,
+      (pcAuroraDBName, trdActualTableName + "_error") -> (getErrorDf(_,
         None,
         s => s.posizioneFinale,
         s => col(s.colonnaTd))),
 
       // TRD_DUPLICATED
-      (pcAuroraDBName, trdActualTableName.concat("_duplicated")) -> getDuplicatesRecordDf)
+      (pcAuroraDBName, trdActualTableName + "_duplicated") -> getDuplicatesRecordDf)
 
     // FOR EACH (k, v) PAIR
     tablesToWrite
@@ -282,7 +282,7 @@ class SourceLoadEngine(val jobPropertiesFile: String)
         .filter(specificationRecordFilterOp.get)
     }
 
-    // DEPENDING ON THE PROVIDED op, DEFINES SET OF RW OR TRUSTED COLUMNS TO SELECT
+    // DEPENDING ON THE PROVIDED op, DEFINE SET OF RW OR TRUSTED COLUMNS TO SELECT
     val columnsSorted: Seq[Column] = specificationRecordsMaybeFiltered
       .sortBy(specificationRecordSortingOp)
       .map(specificationRecordToColumnOp)

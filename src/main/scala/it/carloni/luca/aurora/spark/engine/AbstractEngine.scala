@@ -29,6 +29,11 @@ abstract class AbstractEngine(private final val jobPropertiesFile: String) {
     "useSSL" -> jobProperties.getString("jdbc.useSSL")
   )
 
+  private final val technicalTimestampTypeColumnNames: Seq[String] = Seq(ColumnName.TS_INSERIMENTO,
+    ColumnName.TS_INIZIO_VALIDITA,
+    ColumnName.TS_FINE_VALIDITA)
+    .map(_.getName)
+
   // DATABASES
   protected final val pcAuroraDBName: String = jobProperties.getString("database.pc_aurora")
   protected final val lakeCedacriDBName: String = jobProperties.getString("database.lake_cedacri")
@@ -116,7 +121,7 @@ abstract class AbstractEngine(private final val jobPropertiesFile: String) {
     }
   }
 
-  protected def writeToJDBCAndLog[T](db: String,
+  protected def writeToJDBCAndLog[T](database: String,
                                      table: String,
                                      saveMode: SaveMode,
                                      truncateFlag: Boolean,
@@ -129,14 +134,9 @@ abstract class AbstractEngine(private final val jobPropertiesFile: String) {
     val exceptionMsgOpt: Option[String] = Try {
 
       val dfToWrite: DataFrame = dfGenerationFunction(dfGenerationFunctionArg)
-      val technicalTimestampTypeColumnNames: Seq[String] = Seq(ColumnName.TS_INSERIMENTO,
-        ColumnName.TS_INIZIO_VALIDITA,
-        ColumnName.TS_FINE_VALIDITA)
-        .map(_.getName)
-
       val nonTechnicalTimestampTypeColumnNames: Seq[String] = dfToWrite.dtypes
         .filter(x => x._2 equalsIgnoreCase "timestamptype")
-        .filterNot(x => technicalTimestampTypeColumnNames.map(x._1 equalsIgnoreCase).reduce(_ | _))
+        .filterNot(x => technicalTimestampTypeColumnNames.exists(_ equalsIgnoreCase x._1))
         .map(x => x._1)
 
       /**
@@ -153,28 +153,30 @@ abstract class AbstractEngine(private final val jobPropertiesFile: String) {
       if (nonTechnicalTimestampTypeColumnNames.nonEmpty) {
 
         logger.info(s"Identified ${nonTechnicalTimestampTypeColumnNames.size} timestamp column(s) different from " +
-          s"'${ColumnName.TS_INSERIMENTO.getName}': ${nonTechnicalTimestampTypeColumnNames.map(x => s"'$x'").mkString(", ")}")
+          s"${technicalTimestampTypeColumnNames.map(x => s"'$x'").mkString(", ")}: " +
+          s"${nonTechnicalTimestampTypeColumnNames.map(x => s"'$x'").mkString(", ")}")
 
         val jdbcConnection: java.sql.Connection = getJDBCConnection
         val existsCurrentTable: Boolean = jdbcConnection.getMetaData
-          .getTables(db, null, table, null)
+          .getTables(database, null, table, null)
           .next()
 
         if (existsCurrentTable) {
 
-          logger.info(s"Table '$db'.'$table' has some timestamp columns but it exists already. Thus, not creating it again")
+          logger.info(s"Table '$database'.'$table' has some timestamp columns but it exists already. Thus, not creating it again")
         } else {
 
-          logger.warn(s"Table '$db'.'$table' has some timestamp columns but it does not exist yet. Thus, defining and creating it now")
+          logger.warn(s"Table '$database'.'$table' has some timestamp columns but it does not exist yet. Thus, defining and creating it now")
           val createTableStatement: java.sql.Statement = jdbcConnection.createStatement
-          createTableStatement.execute(getCreateTableStatementFromDfSchema(dfToWrite, db, table))
-          logger.info(s"Successfully created table '$db'.'$table'")
+          createTableStatement.execute(getCreateTableStatementFromDfSchema(dfToWrite, database, table))
+          logger.info(s"Successfully created table '$database'.'$table'")
         }
 
         jdbcConnection.close()
       }
 
-      writeToJDBC(dfToWrite, db,
+      writeToJDBC(dfToWrite,
+        database,
         table,
         saveMode,
         truncateFlag)
@@ -182,7 +184,7 @@ abstract class AbstractEngine(private final val jobPropertiesFile: String) {
     } match {
       case Failure(exception) =>
 
-        val details: String = s"'$db'.'$table' with savemode '$saveMode'"
+        val details: String = s"'$database'.'$table' with savemode '$saveMode'"
         logger.error(s"Caught exception while trying to save data into $details. Stack trace: ", exception)
         val firstNStackTraceStrings: String = exception.getStackTrace
           .toSeq
@@ -195,7 +197,7 @@ abstract class AbstractEngine(private final val jobPropertiesFile: String) {
       case Success(_) => None
     }
 
-    val logRecordDf: DataFrame = Seq(logRecordGenerationFunction(db, table, exceptionMsgOpt)).toDF
+    val logRecordDf: DataFrame = (logRecordGenerationFunction(database, table, exceptionMsgOpt) :: Nil).toDF
 
     writeToJDBC(logRecordDf,
       pcAuroraDBName,
@@ -219,7 +221,7 @@ abstract class AbstractEngine(private final val jobPropertiesFile: String) {
         case "doubletype" => "DOUBLE"
         case "longtype" => "BIGINT"
         case "datetype" => "DATE"
-        case "timestamptype" => if (columnName equalsIgnoreCase ColumnName.TS_INSERIMENTO.getName) "TIMESTAMP" else "DATETIME"
+        case "timestamptype" => if (technicalTimestampTypeColumnNames.exists(_ equalsIgnoreCase columnName)) "TIMESTAMP" else "DATETIME"
       }
     }
 
