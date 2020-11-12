@@ -4,7 +4,6 @@ import java.io.File
 import java.sql.{Connection, Date, DriverManager, Timestamp}
 import java.time.{Instant, LocalDate, ZoneId, ZonedDateTime}
 
-import it.carloni.luca.aurora.utils.DateFormat
 import it.luca.aurora.spark.data.LogRecord
 import it.luca.aurora.utils.{ColumnName, DateFormat}
 import org.apache.commons.configuration.PropertiesConfiguration
@@ -20,7 +19,7 @@ abstract class AbstractEngine(private final val jobPropertiesFile: String) {
   protected final val sparkSession: SparkSession = getOrCreateSparkSession
   protected final val jobProperties: PropertiesConfiguration = loadJobProperties(jobPropertiesFile)
 
-  // JDBC OPTIONS AND DATAFRAME READER
+  // JDBC options for Dataframe reader
   private final val jdbcOptions: Map[String, String] = Map(
 
     "url" -> jobProperties.getString("jdbc.url"),
@@ -30,21 +29,20 @@ abstract class AbstractEngine(private final val jobPropertiesFile: String) {
     "useSSL" -> jobProperties.getString("jdbc.useSSL")
   )
 
-  private final val technicalTimestampTypeColumnNames: Seq[String] = Seq(ColumnName.TS_INSERIMENTO,
-    ColumnName.TS_INIZIO_VALIDITA,
-    ColumnName.TS_FINE_VALIDITA)
-    .map(_.getName)
+  private final val technicalTimestampTypeColumnNames: Seq[String] =
+    (ColumnName.TsInserimento :: ColumnName.TsInizioValidita :: ColumnName.TsFineValidita :: Nil)
+    .map(_.name)
 
-  // DATABASES
+  // Databases
   protected final val pcAuroraDBName: String = jobProperties.getString("database.pc_aurora")
   protected final val lakeCedacriDBName: String = jobProperties.getString("database.lake_cedacri")
 
-  // TABLES
+  // Tables
   protected final val mappingSpecificationTBLName: String = jobProperties.getString("table.mapping_specification.name")
   protected final val dataLoadLogTBLName: String = jobProperties.getString("table.sourceload_log.name")
   protected final val lookupTBLName: String = jobProperties.getString("table.lookup.name")
 
-  // FUNCTION FOR GENERATING LOG RECORDS
+  // Factory function for LogRecords
   protected val createLogRecord: (String, Option[String], Option[String], String, String, Option[String]) => LogRecord =
     (branchName, bancllNameOpt, dtRiferimentoOpt, targetDatabase, targetTable, exceptionMsgOpt) => {
 
@@ -54,7 +52,7 @@ abstract class AbstractEngine(private final val jobPropertiesFile: String) {
 
         Some(Date.valueOf(
           LocalDate.parse(dtRiferimentoOpt.get,
-            DateFormat.DT_RIFERIMENTO.getFormatter)))
+            DateFormat.DtRiferimento.formatter)))
 
       } else None
 

@@ -2,16 +2,13 @@ package it.luca.aurora.spark.engine
 
 import java.time.LocalDate
 
-import it.luca.aurora.option.ScoptParser.SourceLoadConfig
-import it.carloni.luca.aurora.spark.data.SpecificationRecord
-import it.carloni.luca.aurora.spark.exception.MultipleSrcOrDstException
-import it.luca.aurora.utils.Utils._
-import it.carloni.luca.aurora.utils.DateFormat
 import it.luca.aurora.option.Branch
+import it.luca.aurora.option.ScoptParser.SourceLoadConfig
 import it.luca.aurora.spark.data.{LogRecord, SpecificationRecord}
 import it.luca.aurora.spark.exception.{MultipleSrcOrDstException, NoSpecificationException}
 import it.luca.aurora.spark.functions.constant.ConstantFunctionFactory
 import it.luca.aurora.spark.functions.etl.ETLFunctionFactory
+import it.luca.aurora.utils.Utils._
 import it.luca.aurora.utils.{ColumnName, DateFormat}
 import org.apache.log4j.Logger
 import org.apache.spark.sql.expressions.{UserDefinedFunction, Window}
@@ -63,8 +60,8 @@ class SourceLoadEngine(val jobPropertiesFile: String)
 
     val bancllName: String = sourceLoadConfig.bancllName
     val dtRiferimentoOpt: Option[String] = sourceLoadConfig.dtRiferimentoOpt
-    val versionNumberOpt: Option[Double] = sourceLoadConfig.versionNumberOpt
-    val createSourceLoadLogRecord = createLogRecord(Branch.SOURCE_LOAD.getName,
+    val versionNumberOpt: Option[String] = sourceLoadConfig.versionNumberOpt
+    val createSourceLoadLogRecord = createLogRecord(Branch.SourceLoad.name,
       Some(bancllName),
       dtRiferimentoOpt,
       _: String,
@@ -142,7 +139,7 @@ class SourceLoadEngine(val jobPropertiesFile: String)
     } else throw new NoSpecificationException(bancllName)
   }
 
-  private def getSpecificationRecords(bancllName: String, versionNumberOpt: Option[Double]): Seq[SpecificationRecord] = {
+  private def getSpecificationRecords(bancllName: String, versionNumberOpt: Option[String]): Seq[SpecificationRecord] = {
 
     import sparkSession.implicits._
 
@@ -151,18 +148,17 @@ class SourceLoadEngine(val jobPropertiesFile: String)
 
       // NO VERSION NUMBER PROVIDED => READ ACTUAL TABLE SPECIFICATION
       logger.info(s"No specification version number provided. Thus, reading specifications from '$pcAuroraDBName'.'$mappingSpecificationTBLName'")
-      (mappingSpecificationTBLName, col(ColumnName.FLUSSO.getName) === bancllName)
+      (mappingSpecificationTBLName, col(ColumnName.Flusso.name) === bancllName)
 
     } else {
 
       // VERSION NUMBER PROVIDED => READ HISTORICAL SPECIFICATION TABLE
-      val versionNumber: Double = versionNumberOpt.get
-      val versionNumberFormatted: String = f"$versionNumber%.1f"
-        .replace(',', '.')
-
+      val versionNumber: String = versionNumberOpt.get
       val mappingSpecificationHistTBLName: String = jobProperties.getString("table.mapping_specification_historical.name")
-      logger.info(s"Specification version number to be used: '$versionNumberFormatted'. Thus, reading specifications from '$pcAuroraDBName'.'$mappingSpecificationHistTBLName'")
-      (mappingSpecificationHistTBLName, col(ColumnName.FLUSSO.getName) === bancllName && col(ColumnName.VERSIONE.getName) === versionNumber)
+      logger.info(s"Specification version number to be used: '$versionNumber'. " +
+        s"Thus, reading specifications from '$pcAuroraDBName'.'$mappingSpecificationHistTBLName'")
+
+      (mappingSpecificationHistTBLName, col(ColumnName.Flusso.name) === bancllName && col(ColumnName.Versione.name) === versionNumber)
     }
 
     // RETRIEVE SPECIFICATIONS FOR GIVEN bancllName
@@ -198,9 +194,9 @@ class SourceLoadEngine(val jobPropertiesFile: String)
       val dtRiferimentoStr: String = dtRiferimentoOpt.get
       logger.info(s"Provided business date: '$dtRiferimentoStr'. Thus, reading raw data from '$rawHistoricalTableName'")
 
-      val dtRiferimentoSQLDate: java.sql.Date =  java.sql.Date.valueOf(LocalDate.parse(dtRiferimentoStr, DateFormat.DT_RIFERIMENTO.getFormatter))
+      val dtRiferimentoSQLDate: java.sql.Date =  java.sql.Date.valueOf(LocalDate.parse(dtRiferimentoStr, DateFormat.DtRiferimento.formatter))
       readFromJDBC(lakeCedacriDBName, rawHistoricalTableName)
-        .filter(col(ColumnName.DT_RIFERIMENTO.getName) === dtRiferimentoSQLDate)
+        .filter(col(ColumnName.DtRiferimento.name) === dtRiferimentoSQLDate)
 
     } else {
 
@@ -290,9 +286,9 @@ class SourceLoadEngine(val jobPropertiesFile: String)
       .sortBy(specificationRecordSortingOp)
       .map(specificationRecordToColumnOp)
 
-    (col(ColumnName.ROW_ID.getName) +: columnsSorted) ++ Seq(col(ColumnName.TS_INSERIMENTO.getName),
-      col(ColumnName.DT_INSERIMENTO.getName),
-      col(ColumnName.DT_RIFERIMENTO.getName))
+    (col(ColumnName.RowId.name) +: columnsSorted) ++ Seq(col(ColumnName.TsInserimento.name),
+      col(ColumnName.DtInserimento.name),
+      col(ColumnName.DtRiferimento.name))
   }
 
   private def persistRawDfPlusTrustedColumns(rawDf: DataFrame, specificationRecords: Seq[SpecificationRecord]): Unit = {
@@ -303,8 +299,8 @@ class SourceLoadEngine(val jobPropertiesFile: String)
       .foldLeft(rawDf)((df, tuple2) => df.withColumn(tuple2._2, tuple2._1))
 
       // TECHNICAL COLUMNS
-      .withColumn(ColumnName.TS_INSERIMENTO.getName, lit(getJavaSQLTimestampFromNow))
-      .withColumn(ColumnName.DT_INSERIMENTO.getName, lit(getJavaSQLDateFromNow))
+      .withColumn(ColumnName.TsInserimento.name, lit(getJavaSQLTimestampFromNow))
+      .withColumn(ColumnName.DtInserimento.name, lit(getJavaSQLDateFromNow))
       .persist()
 
     rawDfPlusTrustedColumnsOpt = Some(rawDfPlusTrustedColumns)
@@ -321,8 +317,8 @@ class SourceLoadEngine(val jobPropertiesFile: String)
     logger.info(s"Identified ${lookUpTypesAndIds.size} lookup-related tuple(s) (${lookUpTypesAndIds.map(x => s"category = '${x._1}', id = '${x._2}'")})")
 
     val lookUpDataFrameFilterConditionCol: Column = lookUpTypesAndIds
-      .map(x => lower(col(ColumnName.LOOKUP_TIPO.getName)) === x._1 &&
-        lower(col(ColumnName.LOOKUP_ID.getName)) === x._2)
+      .map(x => lower(col(ColumnName.LookupTipo.name)) === x._1 &&
+        lower(col(ColumnName.LookupId.name)) === x._2)
       .reduce(_ || _)
 
     lazy val lookUpDataframe: DataFrame = readFromJDBC(pcAuroraDBName, lookupTBLName)
@@ -363,8 +359,8 @@ class SourceLoadEngine(val jobPropertiesFile: String)
           val tipoLookUp: String = specificationRecord.tipoLookup.get.toLowerCase
           val lookupId: String = specificationRecord.lookupId.get.toLowerCase
           val lookUpCaseRows: Seq[Row] = lookUpDataframe
-            .filter(lower(col(ColumnName.LOOKUP_TIPO.getName)) === tipoLookUp && lower(col(ColumnName.LOOKUP_ID.getName)) === lookupId)
-            .select(ColumnName.LOOKUP_VALORE_ORIGINALE.getName, ColumnName.LOOKUP_VALORE_SOSTITUZIONE.getName)
+            .filter(lower(col(ColumnName.LookupTipo.name)) === tipoLookUp && lower(col(ColumnName.LookupId.name)) === lookupId)
+            .select(ColumnName.LookupValoreOriginale.name, ColumnName.LookupValoreSostituzione.name)
             .collect()
 
           logger.info(s"Identified ${lookUpCaseRows.size} case(s) for lookup type '$tipoLookUp', id '$lookupId'")
@@ -420,8 +416,8 @@ class SourceLoadEngine(val jobPropertiesFile: String)
       specificationRecordToColumnOp)
 
     val columnsToSelectPlusErrorDescription: Seq[Column] = insertElementAtIndex(columnsToSelect,
-      col(ColumnName.ERROR_DESCRIPTION.getName),
-      columnsToSelect.indexOf(col(ColumnName.TS_INSERIMENTO.getName)))
+      col(ColumnName.ErrorDescription.name),
+      columnsToSelect.indexOf(col(ColumnName.TsInserimento.name)))
 
     tdErrorDescriptionColumns
       .foldLeft(rawDfPlusTrustedColumnsOpt.get
@@ -429,7 +425,7 @@ class SourceLoadEngine(val jobPropertiesFile: String)
 
         df.withColumn(tuple2._1, tuple2._2)
       })
-      .withColumn(ColumnName.ERROR_DESCRIPTION.getName,
+      .withColumn(ColumnName.ErrorDescription.name,
         createErrorDescriptionCol(array(specifications
           .filter(x => x.colonnaRd.nonEmpty)
           .map(x => col(x.colonnaTd + "_error")): _*)))
@@ -460,12 +456,12 @@ class SourceLoadEngine(val jobPropertiesFile: String)
       .select(trdDfSelectCols: _*)
 
     val duplicatesDfSelectCols: Seq[Column] = insertElementAtIndex(trdDfSelectCols,
-      col(ColumnName.ROW_COUNT.getName),
-      trdDfSelectCols.indexOf(col(ColumnName.TS_INSERIMENTO.getName)))
+      col(ColumnName.RowCount.name),
+      trdDfSelectCols.indexOf(col(ColumnName.TsInserimento.name)))
 
     trustedCleanDf
-      .withColumn(ColumnName.ROW_COUNT.getName, count("*") over Window.partitionBy(primaryKeyColumns: _*))
-      .filter(col(ColumnName.ROW_COUNT.getName) > 1)
+      .withColumn(ColumnName.RowCount.name, count("*") over Window.partitionBy(primaryKeyColumns: _*))
+      .filter(col(ColumnName.RowCount.name) > 1)
       .select(duplicatesDfSelectCols: _*)
       .sort(primaryKeyColumns: _*)
   }

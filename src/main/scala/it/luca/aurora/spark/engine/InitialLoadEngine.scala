@@ -21,7 +21,7 @@ class InitialLoadEngine(applicationPropertiesFile: String)
 
   def run(): Unit = {
 
-    // CREATE DATABASE, IF IT DOES NOT EXIST
+    // Create database if it does not exists
     val jdbcConnection: Connection = getJDBCConnection
     createDatabaseIfNotExists(pcAuroraDBName, jdbcConnection)
     jdbcConnection.close()
@@ -51,33 +51,31 @@ class InitialLoadEngine(applicationPropertiesFile: String)
       })
   }
 
-  private def createDatabaseIfNotExists(databaseToCreate: String, connection: Connection): Unit = {
+  private def createDatabaseIfNotExists(dbToCreate: String, connection: Connection): Unit = {
 
-    // RESULT SET CONTAINING DATABASE NAMES
-    val resultSet: ResultSet = connection.getMetaData
+    // Result set containing db names
+    val resultSet: ResultSet = connection
+      .getMetaData
       .getCatalogs
 
-    // EXTRACT THOSE NAMES
+    // Extract those names
     val existingDatabases: Seq[String] = Iterator.continually((resultSet.next(), resultSet))
       .takeWhile(_._1)
       .map(_._2.getString("TABLE_CAT"))
       .map(_.toLowerCase)
       .toSeq
 
-    logger.info(s"Existing databases: ${existingDatabases
-      .map(x => s"'$x'")
-      .mkString(", ")}")
+    logger.info(s"Existing databases: ${existingDatabases.map(x => s"'$x'").mkString(", ")}")
+    val dbToCreateLower: String = dbToCreate.toLowerCase
+    if (existingDatabases.contains(dbToCreateLower)) {
 
-    val databaseToCreateLower: String = databaseToCreate.toLowerCase
-    if (existingDatabases.contains(databaseToCreateLower)) {
-
-      logger.info(s"Database '$databaseToCreateLower' already exists. So, not much to do ;)")
+      logger.info(s"Database '$dbToCreateLower' already exists. So, not much to do ;)")
 
     } else {
 
       val createDbStatement: Statement = connection.createStatement()
-      createDbStatement.executeUpdate(s"CREATE DATABASE IF NOT EXISTS $databaseToCreateLower")
-      logger.info(s"Successfully created database '$databaseToCreateLower'")
+      createDbStatement.executeUpdate(s"CREATE DATABASE IF NOT EXISTS $dbToCreateLower")
+      logger.info(s"Successfully created database '$dbToCreateLower'")
     }
   }
 }

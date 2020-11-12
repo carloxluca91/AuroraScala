@@ -11,7 +11,7 @@ object Main extends App {
 
   logger.info("Starting application main program")
 
-  // FIRST, PARSE ARGUMENTS IN ORDER TO DETECT BRANCH TO BE RUN
+  // First, parse arguments in order to detect vranch to be run
   ScoptParser.branchParser.parse(args, BranchConfig()) match {
 
     case None => logger.error("Error during parsing of first set of arguments (application branch)")
@@ -20,12 +20,12 @@ object Main extends App {
       logger.info("Successfully parsed first set of arguments (application branch)")
       logger.info(value)
 
-      // DETECT BRANCH TO BE RUN
       val branchesSet: Set[Branch.Value] = Branch.values
         .filter(_.name.equalsIgnoreCase(value.applicationBranch))
 
       if (branchesSet.nonEmpty) {
 
+        // Which branch ?
         branchesSet.head match {
 
           // [a] INITIAL_LOAD

@@ -9,74 +9,67 @@ import scala.util.Try
 
 object ScoptParser {
 
-  private def objectToString(tClass: Class[_], scoptOptionsMap: Map[ScoptOption.Value, Any]): String = {
+  abstract class BaseConfig {
 
-    val optionsWithValues: String = (scoptOptionsMap map { case (key, value) =>  s"\t-${key.shortOption}, " +
-      s"--${key.longOption} (${key.optionDescription}) = '$value'"})
-      .toSeq
-      .mkString("\n")
-
-    s"${tClass.getSimpleName}: \n"
-      .concat(optionsWithValues)
-      .concat("\n")
-  }
-
-  case class BranchConfig(applicationBranch: String = "") {
+    val scoptOptionMap: Map[ScoptOption.Value, Any]
 
     override def toString: String = {
 
-      val toStringMap: Map[ScoptOption.Value, Any] = Map(ScoptOption.ApplicationBranch -> applicationBranch)
-      objectToString(getClass, toStringMap)
+      val optionsWithValues: String = (scoptOptionMap map { case (key, value) => s"\t-${key.shortOption}, " +
+        s"--${key.longOption} (${key.optionDescription}) = '$value'"
+      })
+        .toSeq
+        .mkString("\n")
+
+      s"${getClass.getSimpleName}: \n"
+        .concat(optionsWithValues)
+        .concat("\n")
     }
   }
 
-  case class InitialLoadConfig(propertiesFile: String = "") {
+  abstract class EngineConfig(val propertiesFile: String) extends BaseConfig
 
-    override def toString: String = {
-
-      val toStringMap: Map[ScoptOption.Value, Any] = Map(ScoptOption.PropertiesFile -> propertiesFile)
-      objectToString(getClass, toStringMap)
-    }
+  case class BranchConfig(applicationBranch: String = "") extends BaseConfig {
+    val scoptOptionMap: Map[ScoptOption.Value, Any] = Map(ScoptOption.ApplicationBranch -> applicationBranch)
   }
 
-  case class SourceLoadConfig(propertiesFile: String = "",
+  case class InitialLoadConfig(override val propertiesFile: String = "") extends EngineConfig(propertiesFile) {
+
+    val scoptOptionMap: Map[ScoptOption.Value, Any] = Map(ScoptOption.PropertiesFile -> propertiesFile)
+  }
+
+  case class SourceLoadConfig(override val propertiesFile: String = "",
                               bancllName: String = "",
                               dtRiferimentoOpt: Option[String] = None,
-                              versionNumberOpt: Option[String] = None) {
+                              versionNumberOpt: Option[String] = None) extends EngineConfig(propertiesFile) {
 
-    override def toString: String = {
-
-      val toStringMap: Map[ScoptOption.Value, Any] = Map(ScoptOption.PropertiesFile -> propertiesFile,
+      val scoptOptionMap: Map[ScoptOption.Value, Any] = Map(ScoptOption.PropertiesFile -> propertiesFile,
         ScoptOption.Source -> bancllName,
         ScoptOption.DtRiferimento -> dtRiferimentoOpt.orNull,
         ScoptOption.VersionNumber -> versionNumberOpt.orNull)
-      objectToString(getClass, toStringMap)
-    }
   }
 
-  case class ReloadConfig(propertiesFile: String = "",
+  case class ReloadConfig(override val propertiesFile: String = "",
                           mappingSpecificationFlag: Boolean = false,
                           lookUpFlag: Boolean = false,
-                          completeOverwriteFlag: Boolean = false) {
+                          completeOverwriteFlag: Boolean = false) extends EngineConfig(propertiesFile) {
 
-    override def toString: String = {
-
-      val toStringMap: Map[ScoptOption.Value, Any] = Map(ScoptOption.PropertiesFile -> propertiesFile,
+      val scoptOptionMap: Map[ScoptOption.Value, Any] = Map(ScoptOption.PropertiesFile -> propertiesFile,
         ScoptOption.MappingSpecificationFlag -> mappingSpecificationFlag,
         ScoptOption.LookupSpecificationFlag -> lookUpFlag,
         ScoptOption.CompleteOverwriteFlag -> completeOverwriteFlag)
-      objectToString(getClass, toStringMap)
-    }
   }
 
-  private final val scoptProgramName: String = "scopt 3.3.0"
+  abstract class CustomParser[T] extends OptionParser[T]("scopt 3.3.0") {
 
-  val branchParser: OptionParser[BranchConfig] = new OptionParser[BranchConfig](scoptProgramName) {
-
-    // DO NOT FAIL ON UNKNOWN ARGUMENTS AND DO NOT SHOW WARNING
+    // Do not fail on unknown arguments and do not show warning
     override def errorOnUnknownArgument = false
 
     override def reportWarning(msg: String): Unit = {}
+
+  }
+
+  val branchParser: CustomParser[BranchConfig] = new CustomParser[BranchConfig] {
 
     opt[String](ScoptOption.ApplicationBranch.shortOption, ScoptOption.ApplicationBranch.longOption)
       .text(ScoptOption.ApplicationBranch.optionDescription)
@@ -84,12 +77,7 @@ object ScoptParser {
       .action((x, c) => c.copy(applicationBranch = x))
   }
 
-  val initialLoadOptionParser: OptionParser[InitialLoadConfig] = new OptionParser[InitialLoadConfig](scoptProgramName) {
-
-    // DO NOT FAIL ON UNKNOWN ARGUMENTS AND DO NOT SHOW WARNING
-    override def errorOnUnknownArgument = false
-
-    override def reportWarning(msg: String): Unit = {}
+  val initialLoadOptionParser: CustomParser[InitialLoadConfig] = new CustomParser[InitialLoadConfig] {
 
     opt[String](ScoptOption.PropertiesFile.shortOption, ScoptOption.PropertiesFile.longOption)
       .text(ScoptOption.PropertiesFile.optionDescription)
@@ -97,12 +85,7 @@ object ScoptParser {
       .action((x, c) => c.copy(propertiesFile = x))
   }
 
-  val sourceLoadOptionParser: OptionParser[SourceLoadConfig] = new OptionParser[SourceLoadConfig](scoptProgramName) {
-
-    // DO NOT FAIL ON UNKNOWN ARGUMENTS AND DO NOT SHOW WARNING
-    override def errorOnUnknownArgument = false
-
-    override def reportWarning(msg: String): Unit = {}
+  val sourceLoadOptionParser: CustomParser[SourceLoadConfig] = new CustomParser[SourceLoadConfig] {
 
     opt[String](ScoptOption.PropertiesFile.shortOption, ScoptOption.PropertiesFile.longOption)
       .text(ScoptOption.PropertiesFile.optionDescription)
@@ -129,12 +112,7 @@ object ScoptParser {
       .action((x, c) => c.copy(versionNumberOpt = Some(x)))
   }
 
-  val reloadOptionParser: OptionParser[ReloadConfig] = new OptionParser[ReloadConfig](scoptProgramName) {
-
-    // DO NOT FAIL ON UNKNOWN ARGUMENTS AND DO NOT SHOW WARNING
-    override def errorOnUnknownArgument = false
-
-    override def reportWarning(msg: String): Unit = {}
+  val reloadOptionParser: CustomParser[ReloadConfig] = new CustomParser[ReloadConfig] {
 
     opt[String](ScoptOption.PropertiesFile.shortOption, ScoptOption.PropertiesFile.longOption)
       .text(ScoptOption.PropertiesFile.optionDescription)
