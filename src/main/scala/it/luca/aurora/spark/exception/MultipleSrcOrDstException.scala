@@ -1,14 +1,18 @@
 package it.luca.aurora.spark.exception
 
-class MultipleSrcOrDstException(bancllName: String, sources: Seq[String], destinations: Seq[String])
-  extends Exception(MultipleSrcOrDstException.msg
-    .format(bancllName,
-      sources.size,
-      destinations.size,
-      sources.map(x => s"'$x'").mkString(", "),
-      destinations.map(x => s"'$x'").mkString(", ")))
+case class MultipleSrcOrDstException(exceptionMsg: String)
+  extends Exception(exceptionMsg)
 
 object MultipleSrcOrDstException {
 
-  private val msg: String = "Multiple sources (%s) or destinations (%s) specified for BANCLL '%s'. Sources : (%s), destinations: (%s)"
+  def apply(bancllName: String, sources: Seq[String], destinations: Seq[String]): MultipleSrcOrDstException = {
+
+    val srcStr = sources.map(x => s"'$x'").mkString(", ")
+    val dstStr = destinations.map(x => s"'$x'").mkString(", ")
+    val msg = s"Multiple sources (${sources.size}) or destinations (${destinations.size}) specified for BANCLL '$bancllName'. " +
+      s"Sources : ($srcStr), destinations: ($dstStr)"
+
+    MultipleSrcOrDstException(msg)
+
+  }
 }

@@ -12,12 +12,7 @@ class InitialLoadEngine(applicationPropertiesFile: String)
   extends AbstractInitialOrReloadEngine(applicationPropertiesFile) {
 
   private final val logger = Logger.getLogger(getClass)
-  private final val createInitialLoadLogRecord = createLogRecord(Branch.InitialLoad.name,
-    None,
-    None,
-    _: String,
-    _: String,
-    _: Option[String])
+  private final val createInitialLoadLogRecord = createLogRecord(Branch.InitialLoad.name, None, None, _: String, _: String, _: Option[String])
 
   def run(): Unit = {
 
@@ -27,38 +22,34 @@ class InitialLoadEngine(applicationPropertiesFile: String)
     jdbcConnection.close()
     logger.info("Successfully closed JDBC connection")
 
-    // Function1[String, DataFrame]
-    val readTSVAddingVersionNumber: String => DataFrame = tableId =>
+    val readTsvAsDataframeAddingVersionNumber: String => DataFrame = tableId =>
 
-      readTSVForTable(tableId)
-        .withColumn(ColumnName.Versione.name, lit("1.0"))
+      readTsvAsDataframe(tableId)
+        .withColumn(ColumnName.Versione.name, lit("0.1"))
 
-    // Map(String -> (String, String, Boolean, String))
-    Map(mappingSpecificationTBLName -> TableId.MappingSpecification.tableId,
-      lookupTBLName -> TableId.Lookup.tableId)
-      .foreach(x => {
+    // Write Mapping specification table
+    writeToJDBCAndLog[String](pcAuroraDBName,
+      mappingSpecificationTBLName,
+      SaveMode.Append,
+      truncateFlag = false,
+      createInitialLoadLogRecord,
+      readTsvAsDataframeAddingVersionNumber,
+      TableId.MappingSpecification.tableId)
 
-        val tableName: String = x._1
-        val tableId: String = x._2
-
-        writeToJDBCAndLog[String](pcAuroraDBName,
-          tableName,
-          SaveMode.Append,
-          truncateFlag = false,
-          createInitialLoadLogRecord,
-          readTSVAddingVersionNumber,
-          dfGenerationFunctionArg = tableId)
-      })
+    // Write Lookup table
+    writeToJDBCAndLog[String](pcAuroraDBName,
+      lookupTBLName,
+      SaveMode.Append,
+      truncateFlag = false,
+      createInitialLoadLogRecord,
+      readTsvAsDataframeAddingVersionNumber,
+      TableId.Lookup.tableId)
   }
 
   private def createDatabaseIfNotExists(dbToCreate: String, connection: Connection): Unit = {
 
-    // Result set containing db names
-    val resultSet: ResultSet = connection
-      .getMetaData
-      .getCatalogs
-
-    // Extract those names
+    // Extract names of existing databases
+    val resultSet: ResultSet = connection.getMetaData.getCatalogs
     val existingDatabases: Seq[String] = Iterator.continually((resultSet.next(), resultSet))
       .takeWhile(_._1)
       .map(_._2.getString("TABLE_CAT"))

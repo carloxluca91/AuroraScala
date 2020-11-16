@@ -2,10 +2,10 @@ package it.luca.aurora.spark.engine
 
 import java.io.File
 import java.sql.{Connection, Date, DriverManager, Timestamp}
-import java.time.{Instant, LocalDate, ZoneId, ZonedDateTime}
+import java.time.{Instant, LocalDate}
 
 import it.luca.aurora.spark.data.LogRecord
-import it.luca.aurora.utils.{ColumnName, DateFormat}
+import it.luca.aurora.utils.{ColumnName, DateFormat, Utils}
 import org.apache.commons.configuration.PropertiesConfiguration
 import org.apache.log4j.Logger
 import org.apache.spark.SparkContext
@@ -48,16 +48,16 @@ abstract class AbstractEngine(private final val jobPropertiesFile: String) {
 
       val applicationId: String = sparkSession.sparkContext.applicationId
       val applicationName: String = sparkSession.sparkContext.appName
-      val dtRiferimentoSQLDateOpt: Option[Date] = if (dtRiferimentoOpt.nonEmpty) {
 
-        Some(Date.valueOf(
-          LocalDate.parse(dtRiferimentoOpt.get,
-            DateFormat.DtRiferimento.formatter)))
-
-      } else None
+      val dtRiferimentoSQLDateOpt: Option[Date] = dtRiferimentoOpt match {
+        case None => None
+        case Some(x) => Some(Date.valueOf(LocalDate.parse(x, DateFormat.DtRiferimento.formatter)))
+      }
 
       val applicationStartTime: Timestamp = Timestamp.from(Instant.ofEpochMilli(sparkSession.sparkContext.startTime))
-      val applicationEndTime: Timestamp = Timestamp.from(ZonedDateTime.now(ZoneId.of("Europe/Rome")).toInstant)
+      val applicationStartDate: Date = new Date(sparkSession.sparkContext.startTime)
+      val applicationEndTime: Timestamp = Utils.getJavaSQLTimestampFromNow
+      val applicationEndDate: Date = new Date(System.currentTimeMillis())
       val applicationFinishCode: Int = if (exceptionMsgOpt.isEmpty) 0 else -1
       val applicationFinishStatus: String = if (exceptionMsgOpt.isEmpty) "successed" else "failed"
 
@@ -65,7 +65,9 @@ abstract class AbstractEngine(private final val jobPropertiesFile: String) {
         applicationName,
         branchName,
         applicationStartTime,
+        applicationStartDate,
         applicationEndTime,
+        applicationEndDate,
         bancllNameOpt,
         dtRiferimentoSQLDateOpt,
         targetDatabase,
@@ -124,19 +126,20 @@ abstract class AbstractEngine(private final val jobPropertiesFile: String) {
                                      table: String,
                                      saveMode: SaveMode,
                                      truncateFlag: Boolean,
-                                     logRecordGenerationFunction: (String, String, Option[String]) => LogRecord,
-                                     dfGenerationFunction: T => DataFrame,
-                                     dfGenerationFunctionArg: T): Unit = {
+                                     logRecordFunction: (String, String, Option[String]) => LogRecord,
+                                     dataframeFunction: T => DataFrame,
+                                     dataframeFunctionArg: T): Unit = {
 
     import sparkSession.implicits._
 
     val exceptionMsgOpt: Option[String] = Try {
 
-      val dfToWrite: DataFrame = dfGenerationFunction(dfGenerationFunctionArg)
-      val nonTechnicalTimestampTypeColumnNames: Seq[String] = dfToWrite.dtypes
-        .filter(x => x._2 equalsIgnoreCase "timestamptype")
-        .filterNot(x => technicalTimestampTypeColumnNames.exists(_ equalsIgnoreCase x._1))
-        .map(x => x._1)
+      val dfToWrite: DataFrame = dataframeFunction(dataframeFunctionArg)
+      val nonTechnicalTimestampTypeColumnNames: Seq[String] = dfToWrite
+        .dtypes
+        .filter(t => t._2 equalsIgnoreCase "timestamptype")
+        .filterNot(t => technicalTimestampTypeColumnNames.exists(_ equalsIgnoreCase t._1))
+        .map(t => t._1)
 
       /**
        * If a non-technical column has timestamp type,
@@ -196,8 +199,7 @@ abstract class AbstractEngine(private final val jobPropertiesFile: String) {
       case Success(_) => None
     }
 
-    val logRecordDf: DataFrame = (logRecordGenerationFunction(database, table, exceptionMsgOpt) :: Nil).toDF
-
+    val logRecordDf: DataFrame = (logRecordFunction(database, table, exceptionMsgOpt) :: Nil).toDF
     writeToJDBC(logRecordDf,
       pcAuroraDBName,
       dataLoadLogTBLName,

@@ -63,10 +63,6 @@ object ColumnExpressionParser {
           logger.info(s"Successfully resolved each sub expression")
           expression.getColumn(inputColumns: _*)
       }
-    } else {
-
-      throw UnmatchedFunctionException(stringExpression)
-
-    }
+    } else throw UnmatchedFunctionException(stringExpression)
   }
 }

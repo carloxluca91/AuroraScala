@@ -12,4 +12,5 @@ case class Cast(override val stringExpression: String)
   override def asString: String = s"${functionName.toUpperCase}($nestedFunction, DATA_TYPE = '$dataType')"
 
   override def getColumn(inputColumn: Column): Column = inputColumn.cast(Utils.resolveDataType(dataType))
+
 }

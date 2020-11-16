@@ -134,9 +134,9 @@ class SourceLoadEngine(val jobPropertiesFile: String)
         // WRITE OTHER RELATED TABLES
         writeErrorAndDuplicatedTables(specificationRecords, rwActualTableName, trdActualTableName, createSourceLoadLogRecord)
 
-      } else throw new MultipleSrcOrDstException(bancllName, srcTables, dstTables)
+      } else throw MultipleSrcOrDstException(bancllName, srcTables, dstTables)
 
-    } else throw new NoSpecificationException(bancllName)
+    } else throw NoSpecificationException(bancllName)
   }
 
   private def getSpecificationRecords(bancllName: String, versionNumberOpt: Option[String]): Seq[SpecificationRecord] = {

@@ -16,7 +16,7 @@ abstract class AbstractInitialOrReloadEngine(val jobPropertiesFile: String)
 
   private final val logger: Logger = Logger.getLogger(getClass)
 
-  protected def readTSVForTable(tableId: String): DataFrame = {
+  protected def readTsvAsDataframe(tableId: String): DataFrame = {
 
     val tsvFilePath: String = jobProperties.getString(s"table.$tableId.file.path")
     val tsvSep: String = jobProperties.getString(s"table.$tableId.file.sep")

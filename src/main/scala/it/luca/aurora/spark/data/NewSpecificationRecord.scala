@@ -1,5 +1,6 @@
 package it.luca.aurora.spark.data
 
+import it.luca.aurora.utils.ColumnName
 import org.apache.spark.sql.Column
 import org.apache.spark.sql.expressions.UserDefinedFunction
 import org.apache.spark.sql.functions.{array, col, lit, udf, when}
@@ -10,15 +11,11 @@ case class NewSpecificationRecord(flusso: String,
                                   colonnaTd: String,
                                   posizioneFinale: Int,
                                   flagPrimaryKey: Option[String],
-                                  colonneRd: Option[String],
-                                  valoreDefault: Option[String],
+                                  colonnaRd: Option[String],
                                   funzioneEtl: Option[String],
                                   flagLookup: Option[String],
                                   tipoLookup: Option[String],
-                                  lookupId: Option[String],
-                                  flagDescrizioneLookup: Option[String],
-                                  nomeDescrizioneLookup: Option[String],
-                                  posizioneDescrizioneLookup: Option[Int]) {
+                                  lookupId: Option[String]) {
 
   private final val writeNullableColumnNames: UserDefinedFunction =
     udf((columnNames: Seq[String], columnValues: Seq[Option[Any]]) => {
@@ -45,27 +42,51 @@ case class NewSpecificationRecord(flusso: String,
     }
   }
 
-  def isPrimaryKey: Boolean = isFlagTrue(flagPrimaryKey)
+  def isPrimaryKeyFlagOn: Boolean = isFlagTrue(flagPrimaryKey)
 
-  def doesIncludeLookupDescription: Boolean = isFlagTrue(flagDescrizioneLookup)
+  def isLookupFlagOn: Boolean = isFlagTrue(flagLookup)
 
-  def erroDescriptionColumn: Option[(String, Column)] = {
+  def isAnyRawColumnNullConditionCol: Option[Column] = {
+
+    inputRawColumns match {
+      case None => None
+      case Some(x) => Some(x
+        .map(col(_).isNull)
+        .reduce(_ || _))
+    }
+  }
+
+  def doesInputMismatchConditionCol: Option[Column] = {
+
+    inputRawColumns match {
+      case None => None
+      case Some(x) => Some(x
+        .map(col(_).isNotNull)
+        .reduce(_ && _) && col(colonnaTd).isNull)
+    }
+  }
+
+  def errorConditionCol: Option[Column] = {
+
+    inputRawColumns match {
+      case None => None
+      case Some(_) => Some(isAnyRawColumnNullConditionCol.get || doesInputMismatchConditionCol.get)
+    }
+  }
+
+  def erroDescriptionCol: Option[(String, Column)] = {
 
     inputRawColumns match {
       case None => None
       case Some(s) =>
 
         val rwColumns: Seq[Column] = s.map(col)
-        val isAnyRwColumnNull: Column = rwColumns
-          .map(_.isNull)
-          .reduce(_ || _)
+        val rwColumnNames: Seq[Column] = s.map(lit)
+        val firstErrorCondition: Column = isAnyRawColumnNullConditionCol.get
+        val secondErrorCondition: Column = doesInputMismatchConditionCol.get
 
-        val areAllRwColumnsNotNullButTrdColumnDoesNot: Column = rwColumns
-          .map(_.isNotNull)
-          .reduce(_ && _) && col(colonnaTd).isNull
-
-        val errorDescriptionColumn: Column = when(isAnyRwColumnNull, writeNullableColumnNames(array(s.map(lit): _*), array(rwColumns: _*)))
-          .when(areAllRwColumnsNotNullButTrdColumnDoesNot, writeAllRawColumnNamesAndValues(array(s.map(lit): _*), array(rwColumns: _*)))
+        val errorDescriptionColumn: Column = when(firstErrorCondition, writeNullableColumnNames(array(rwColumnNames: _*), array(rwColumns: _*)))
+          .when(secondErrorCondition, writeAllRawColumnNamesAndValues(array(rwColumnNames: _*), array(rwColumns: _*)))
 
         Some(s"${colonnaTd}_error", errorDescriptionColumn)
     }
@@ -73,10 +94,51 @@ case class NewSpecificationRecord(flusso: String,
 
   def inputRawColumns: Option[Seq[String]] = {
 
-    colonneRd match {
+    colonnaRd match {
       case None => None
       case Some(x) => Some(x.split(", ").toSeq)
     }
   }
+}
 
+object NewSpecificationRecord {
+
+  val columnsToSelect: Seq[String] = Seq("flusso",
+    "sorgente_rd",
+    "tabella_td",
+    "colonna_td",
+    "posizione_finale",
+    "flag_primary_key",
+    "colonne_rd",
+    "funzione_etl",
+    "flag_lookup",
+    "tipo_lookup",
+    "lookup_id" )
+
+  def reducedErrorCondition(specifications: Seq[NewSpecificationRecord]): Column = {
+
+    specifications
+      .map(_.errorConditionCol)
+      .filter(_.nonEmpty)
+      .map(_.get)
+      .reduce(_ || _)
+  }
+
+  private def getColumns(specificationRecords: Seq[NewSpecificationRecord], op: NewSpecificationRecord => Column): Seq[Column] = {
+
+    val rowIdCol = col(ColumnName.RowId.name)
+    val tsInserimentoCol = col(ColumnName.TsInserimento.name)
+    val dtInserimentoCol = col(ColumnName.DtInserimento.name)
+    val dtRiferimentoCol = col(ColumnName.DtRiferimento.name)
+    val specificationColumnSorted = specificationRecords
+      .sortBy(_.posizioneFinale)
+      .map(op)
+
+    (rowIdCol :: Nil) ++ specificationColumnSorted ++ (tsInserimentoCol :: dtInserimentoCol :: dtRiferimentoCol :: Nil)
+  }
+
+  def trustedDfColumns(specificationRecords: Seq[NewSpecificationRecord]): Seq[Column] = {
+
+    getColumns(specificationRecords, s => col(s.colonnaTd))
+  }
 }
