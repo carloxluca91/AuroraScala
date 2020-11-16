@@ -1,6 +1,6 @@
 package it.luca.aurora.spark.data
 
-import it.luca.aurora.spark.functions.etl.ETLSignatures
+import it.luca.aurora.spark.functions.etl.ColumnExpression
 import org.apache.spark.sql.Column
 import org.apache.spark.sql.functions.col
 
@@ -26,7 +26,7 @@ case class SpecificationRecord(flusso: String,
     if (involvesATransformation) {
 
       val funzioneEtlValue: String = funzioneEtl.get
-      val involvedColumnNames: Seq[String] = ETLSignatures.dfColOrLit
+      val involvedColumnNames: Seq[String] = ColumnExpression.Col
         .regex
         .findAllMatchIn(funzioneEtlValue)
         .filter(_.group(1) equalsIgnoreCase "col")

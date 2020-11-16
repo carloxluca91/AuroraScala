@@ -4,7 +4,7 @@ import org.apache.spark.sql.Column
 import org.apache.spark.sql.functions.{to_date, to_timestamp}
 
 case class ToDateOrTimestampFunction(functionToApply: String)
-  extends ETLFunction(functionToApply, ETLSignatures.toDateOrTimestamp.regex) {
+  extends ETLFunction(functionToApply, ColumnExpression.toDateOrTimestamp.regex) {
 
   private final val inputFormat: String = signatureMatch.group(4)
 

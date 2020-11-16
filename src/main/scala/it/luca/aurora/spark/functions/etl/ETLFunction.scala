@@ -35,7 +35,7 @@ abstract class ETLFunction(functionToApply: String, signature: Regex) {
   protected final def getColumnDefinitionAtGroup(n: Int): Column = {
 
     val nthArgument: String = signatureMatch.group(n)
-    val startingColumn: Column = ETLSignatures.dfColOrLit.regex.findFirstMatchIn(nthArgument) match {
+    val startingColumn: Column = ColumnExpression.Col.regex.findFirstMatchIn(nthArgument) match {
 
       case None => throw new UnmatchedFunctionException(nthArgument)
       case Some(x) =>

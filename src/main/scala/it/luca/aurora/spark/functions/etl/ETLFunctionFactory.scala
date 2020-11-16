@@ -10,8 +10,8 @@ object ETLFunctionFactory {
 
   def apply(functionToApply: String, inputColumn: Column): Column = {
 
-    val matchingSignatures: ETLSignatures.ValueSet = ETLSignatures.values
-      .filterNot(_ == ETLSignatures.dfColOrLit)
+    val matchingSignatures: ColumnExpression.ValueSet = ColumnExpression.values
+      .filterNot(_ == ColumnExpression.Col)
       .filter(_.regex
         .findFirstMatchIn(functionToApply)
         .nonEmpty)
@@ -22,12 +22,12 @@ object ETLFunctionFactory {
       // RETRIEVE IT
       val matchedFunction: ETLFunction = matchingSignatures.head match {
 
-        case ETLSignatures.dateFormat => DateFormatFunction(functionToApply)
-        case ETLSignatures.leftOrRightPad => LeftOrRightPadFunction(functionToApply)
-        case ETLSignatures.leftOrRightConcat => LeftOfRightConcatFunction(functionToApply)
-        case ETLSignatures.leftOrRightConcatWs => LeftOrRightConcatWsFunction(functionToApply)
-        case ETLSignatures.toDateOrTimestamp => ToDateOrTimestampFunction(functionToApply)
-        case ETLSignatures.toDateY2 => ToDateY2(functionToApply)
+        case ColumnExpression.dateFormat => DateFormatFunction(functionToApply)
+        case ColumnExpression.leftOrRightPad => LeftOrRightPadFunction(functionToApply)
+        case ColumnExpression.leftOrRightConcat => LeftOfRightConcatFunction(functionToApply)
+        case ColumnExpression.leftOrRightConcatWs => LeftOrRightConcatWsFunction(functionToApply)
+        case ColumnExpression.toDateOrTimestamp => ToDateOrTimestampFunction(functionToApply)
+        case ColumnExpression.toDateY2 => ToDateY2(functionToApply)
       }
 
       val columnToTransform: Column = if (matchedFunction.hasNestedFunction) {

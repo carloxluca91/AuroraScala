@@ -11,7 +11,7 @@ object Main extends App {
 
   logger.info("Starting application main program")
 
-  // First, parse arguments in order to detect vranch to be run
+  // First, parse arguments in order to detect branch to be run
   ScoptParser.branchParser.parse(args, BranchConfig()) match {
 
     case None => logger.error("Error during parsing of first set of arguments (application branch)")
@@ -28,7 +28,7 @@ object Main extends App {
         // Which branch ?
         branchesSet.head match {
 
-          // [a] INITIAL_LOAD
+          // [a] InitialLoad
           case Branch.InitialLoad =>
 
             logger.info(s"Matched branch '${Branch.InitialLoad.name}'")
@@ -43,7 +43,7 @@ object Main extends App {
                 logger.info(s"Successfully executed operations on branch '${Branch.InitialLoad.name}'")
             }
 
-          // [b] SOURCE_LOAD
+          // [b] SourceLoad
           case Branch.SourceLoad =>
 
             logger.info(s"Matched branch '${Branch.SourceLoad.name}'")
@@ -58,7 +58,7 @@ object Main extends App {
                 logger.info(s"Successfully executed operations on branch '${Branch.SourceLoad.name}'")
             }
 
-          // [c] RE_LOAD
+          // [c] ReLoad
           case Branch.Reload =>
 
             logger.info(s"Matched branch '${Branch.Reload.name}'")

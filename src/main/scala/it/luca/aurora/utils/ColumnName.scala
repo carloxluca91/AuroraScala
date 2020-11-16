@@ -2,8 +2,7 @@ package it.luca.aurora.utils
 
 object ColumnName extends Enumeration {
 
-  protected case class Val(name: String)
-    extends super.Val
+  protected case class Val(name: String) extends super.Val
 
   import scala.language.implicitConversions
   implicit def valueToColumnNameVal(x: Value): Val = x.asInstanceOf[Val]

@@ -30,6 +30,7 @@ object ScoptParser {
   abstract class EngineConfig(val propertiesFile: String) extends BaseConfig
 
   case class BranchConfig(applicationBranch: String = "") extends BaseConfig {
+
     val scoptOptionMap: Map[ScoptOption.Value, Any] = Map(ScoptOption.ApplicationBranch -> applicationBranch)
   }
 

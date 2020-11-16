@@ -4,8 +4,7 @@ import java.time.format.DateTimeFormatter
 
 object DateFormat extends Enumeration {
 
-  protected case class Val(format: String, formatter: DateTimeFormatter)
-    extends super.Val
+  protected case class Val(format: String, formatter: DateTimeFormatter) extends super.Val
 
   import scala.language.implicitConversions
   implicit def valueToDateFormatVal(x: Value): Val = x.asInstanceOf[Val]

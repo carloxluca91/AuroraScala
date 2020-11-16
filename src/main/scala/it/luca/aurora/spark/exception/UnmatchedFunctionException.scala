@@ -1,6 +1,6 @@
 package it.luca.aurora.spark.exception
 
-class UnmatchedFunctionException(unmatchedFunctionStr: String)
+case class UnmatchedFunctionException(unmatchedFunctionStr: String)
   extends Exception(UnmatchedFunctionException.msg.format(unmatchedFunctionStr))
 
 object UnmatchedFunctionException {

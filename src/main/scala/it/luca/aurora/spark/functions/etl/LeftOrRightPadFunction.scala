@@ -4,7 +4,7 @@ import org.apache.spark.sql.Column
 import org.apache.spark.sql.functions.{lpad, rpad}
 
 case class LeftOrRightPadFunction(functionToApply: String)
-  extends ETLFunction(functionToApply, ETLSignatures.leftOrRightPad.regex) {
+  extends ETLFunction(functionToApply, ColumnExpression.leftOrRightPad.regex) {
 
   private final val paddingLength: Int = signatureMatch.group(4).toInt
   private final val paddingString: String = signatureMatch.group(5)

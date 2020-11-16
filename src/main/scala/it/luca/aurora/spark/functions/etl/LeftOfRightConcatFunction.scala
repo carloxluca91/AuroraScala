@@ -4,7 +4,7 @@ import org.apache.spark.sql.Column
 import org.apache.spark.sql.functions.concat
 
 case class LeftOfRightConcatFunction(functionToApply: String)
-  extends ETLFunction(functionToApply, ETLSignatures.leftOrRightConcat.regex) {
+  extends ETLFunction(functionToApply, ColumnExpression.leftOrRightConcat.regex) {
 
   private final val concatColumn: Column = getColumnDefinitionAtGroup(4)
 

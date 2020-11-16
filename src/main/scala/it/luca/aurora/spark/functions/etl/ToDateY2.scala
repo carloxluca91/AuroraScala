@@ -10,7 +10,7 @@ import org.apache.spark.sql.functions.{lit, udf}
 import scala.util.{Failure, Success, Try}
 
 case class ToDateY2(functionToApply: String)
-  extends ETLFunction(functionToApply, ETLSignatures.toDateY2.regex) {
+  extends ETLFunction(functionToApply, ColumnExpression.toDateY2.regex) {
 
   private final val dateFormat: String = signatureMatch.group(4)
   private final val fromStringToDate: UserDefinedFunction = udf((date: String, dateFormat: String) => {
