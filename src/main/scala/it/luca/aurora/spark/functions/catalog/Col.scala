@@ -5,8 +5,8 @@ import it.luca.aurora.spark.functions.common.ColumnExpression
 import org.apache.spark.sql.Column
 import org.apache.spark.sql.functions.col
 
-case class ColExpression(override val string: String)
-  extends StaticColumnExpression(string, ColumnExpression.Col) {
+case class Col(override val stringExpression: String)
+  extends StaticColumnExpression(stringExpression, ColumnExpression.Col) {
 
   final val columnName: String = group(2)
 

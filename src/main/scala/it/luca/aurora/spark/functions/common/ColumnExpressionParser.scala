@@ -1,7 +1,7 @@
 package it.luca.aurora.spark.functions.common
 
 import it.luca.aurora.spark.exception.UnmatchedFunctionException
-import it.luca.aurora.spark.functions.catalog.{ColExpression, LitExpression}
+import it.luca.aurora.spark.functions.catalog._
 import org.apache.log4j.Logger
 import org.apache.spark.sql.Column
 
@@ -11,16 +11,23 @@ object ColumnExpressionParser {
 
   def apply(stringExpression: String): Column = {
 
+    // Detect the regex matching the provided expression
     val matchingExpressions: Seq[ColumnExpression.Value] = ColumnExpression.values
       .filter(_.regex.findFirstMatchIn(stringExpression).nonEmpty)
       .toSeq
 
+    // If one has been found
     if (matchingExpressions.nonEmpty) {
 
       val matchingExpression: AbstractExpression = matchingExpressions.head match {
 
-        case ColumnExpression.Col => ColExpression(stringExpression)
-        case ColumnExpression.Lit => LitExpression(stringExpression)
+        case ColumnExpression.Cast => Cast(stringExpression)
+        case ColumnExpression.Col => Col(stringExpression)
+        case ColumnExpression.LeftOrRightPad => LeftOrRightPad(stringExpression)
+        case ColumnExpression.Lit => Lit(stringExpression)
+        case ColumnExpression.Replace => Replace(stringExpression)
+        case ColumnExpression.ToDateOrTimestamp => ToDateOrTimestamp(stringExpression)
+        case ColumnExpression.Trim => Trim(stringExpression)
       }
 
       val matchingExpressionAsString: String = matchingExpression.asString
@@ -37,7 +44,7 @@ object ColumnExpressionParser {
 
           val nestedFunctionStr: String = expression.nestedFunction
           logger.info(s"Detected a static column expression: $matchingExpressionAsString with nested function '$nestedFunctionStr'. " +
-            s"Trying to resolve this latter it recursively")
+            s"Trying to resolve this latter recursively")
           expression.getColumn(ColumnExpressionParser(nestedFunctionStr))
 
         // Multiple column expression (i.e. ETL function accepting many columns)

@@ -5,8 +5,8 @@ import it.luca.aurora.spark.functions.common.ColumnExpression
 import org.apache.spark.sql.Column
 import org.apache.spark.sql.functions.lit
 
-case class LitExpression(override val string: String)
-  extends StaticColumnExpression(string, ColumnExpression.Lit) {
+case class Lit(override val stringExpression: String)
+  extends StaticColumnExpression(stringExpression, ColumnExpression.Lit) {
 
   final val litValue: String = group(2)
 
@@ -21,7 +21,7 @@ case class LitExpression(override val string: String)
 
     } else {
 
-      // Otherwise, if the literal value is a number, make it int or double depending on the precense of a dot
+      // Otherwise, if the literal value is a number, make it int or double depending on the presence of a dot
       if (litValue.contains(".")) litValue.toDouble else litValue.toInt
     }
 
