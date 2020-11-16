@@ -26,6 +26,21 @@ object ColumnExpressionParser {
       val matchingExpressionAsString: String = matchingExpression.asString
       matchingExpression match {
 
+        // Static column
+        case expression: StaticColumnExpression =>
+
+          logger.info(s"Detected a static column expression: $matchingExpressionAsString")
+          expression.getColumn
+
+        // Single column expression (i.e. standard ETL function)
+        case expression: SingleColumnExpression =>
+
+          val nestedFunctionStr: String = expression.nestedFunction
+          logger.info(s"Detected a static column expression: $matchingExpressionAsString with nested function '$nestedFunctionStr'. " +
+            s"Trying to resolve this latter it recursively")
+          expression.getColumn(ColumnExpressionParser(nestedFunctionStr))
+
+        // Multiple column expression (i.e. ETL function accepting many columns)
         case expression: MultipleColumnExpression =>
 
           val subExpressionJoinStr = expression.subExpressions
@@ -40,18 +55,6 @@ object ColumnExpressionParser {
 
           logger.info(s"Successfully resolved each sub expression")
           expression.getColumn(inputColumns: _*)
-
-        case expression: SingleColumnExpression =>
-
-          val nestedFunctionStr: String = expression.nestedFunction
-          logger.info(s"Detected a static column expression: $matchingExpressionAsString with nested function '$nestedFunctionStr'. " +
-            s"Trying to resolve this latter it recursively")
-          expression.getColumn(ColumnExpressionParser(nestedFunctionStr))
-
-        case expression: StaticColumnExpression =>
-
-          logger.info(s"Detected a static column expression: $matchingExpressionAsString")
-          expression.getColumn
       }
     } else {
 
