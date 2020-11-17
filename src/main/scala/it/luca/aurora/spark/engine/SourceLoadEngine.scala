@@ -61,7 +61,7 @@ class SourceLoadEngine(val jobPropertiesFile: String)
     val bancllName: String = sourceLoadConfig.bancllName
     val dtRiferimentoOpt: Option[String] = sourceLoadConfig.dtRiferimentoOpt
     val versionNumberOpt: Option[String] = sourceLoadConfig.versionNumberOpt
-    val createSourceLoadLogRecord = createLogRecord(Branch.SourceLoad.name,
+    val createSourceLoadLogRecord = LogRecord(sparkSession.sparkContext, Branch.SourceLoad.name,
       Some(bancllName),
       dtRiferimentoOpt,
       _: String,

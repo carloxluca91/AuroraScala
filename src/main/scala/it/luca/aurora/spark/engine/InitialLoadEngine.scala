@@ -3,6 +3,7 @@ package it.luca.aurora.spark.engine
 import java.sql._
 
 import it.luca.aurora.option.Branch
+import it.luca.aurora.spark.data.LogRecord
 import it.luca.aurora.utils.{ColumnName, TableId}
 import org.apache.log4j.Logger
 import org.apache.spark.sql.functions.lit
@@ -12,7 +13,8 @@ class InitialLoadEngine(applicationPropertiesFile: String)
   extends AbstractInitialOrReloadEngine(applicationPropertiesFile) {
 
   private final val logger = Logger.getLogger(getClass)
-  private final val createInitialLoadLogRecord = createLogRecord(Branch.InitialLoad.name, None, None, _: String, _: String, _: Option[String])
+  private final val createInitialLoadLogRecord = LogRecord(sparkSession.sparkContext, Branch.InitialLoad.name, None, None,
+    _: String, _: String, _: Option[String])
 
   def run(): Unit = {
 
@@ -22,28 +24,24 @@ class InitialLoadEngine(applicationPropertiesFile: String)
     jdbcConnection.close()
     logger.info("Successfully closed JDBC connection")
 
-    val readTsvAsDataframeAddingVersionNumber: String => DataFrame = tableId =>
-
-      readTsvAsDataframe(tableId)
+    val readTsvAsDataframeAddingVersionNumber: String => DataFrame =
+      tableId => readTsvAsDataframe(tableId)
         .withColumn(ColumnName.Versione.name, lit("0.1"))
 
-    // Write Mapping specification table
-    writeToJDBCAndLog[String](pcAuroraDBName,
-      mappingSpecificationTBLName,
-      SaveMode.Append,
-      truncateFlag = false,
-      createInitialLoadLogRecord,
-      readTsvAsDataframeAddingVersionNumber,
-      TableId.MappingSpecification.tableId)
+    Seq((mappingSpecificationTBLName, TableId.MappingSpecification.tableId),
+      (lookupTBLName, TableId.Lookup.tableId))
+      .foreach(t => {
 
-    // Write Lookup table
-    writeToJDBCAndLog[String](pcAuroraDBName,
-      lookupTBLName,
-      SaveMode.Append,
-      truncateFlag = false,
-      createInitialLoadLogRecord,
-      readTsvAsDataframeAddingVersionNumber,
-      TableId.Lookup.tableId)
+        val tableName = t._1
+        val tableId = t._2
+        writeToJDBCAndLog[String](pcAuroraDBName,
+          tableName,
+          SaveMode.Append,
+          truncateFlag = false,
+          createInitialLoadLogRecord,
+          readTsvAsDataframeAddingVersionNumber,
+          tableId)
+      })
   }
 
   private def createDatabaseIfNotExists(dbToCreate: String, connection: Connection): Unit = {

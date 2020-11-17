@@ -1,11 +1,10 @@
 package it.luca.aurora.spark.engine
 
 import java.io.File
-import java.sql.{Connection, Date, DriverManager, Timestamp}
-import java.time.{Instant, LocalDate}
+import java.sql.{Connection, DriverManager}
 
 import it.luca.aurora.spark.data.LogRecord
-import it.luca.aurora.utils.{ColumnName, DateFormat, Utils}
+import it.luca.aurora.utils.ColumnName
 import org.apache.commons.configuration.PropertiesConfiguration
 import org.apache.log4j.Logger
 import org.apache.spark.SparkContext
@@ -41,41 +40,6 @@ abstract class AbstractEngine(private final val jobPropertiesFile: String) {
   protected final val mappingSpecificationTBLName: String = jobProperties.getString("table.mapping_specification.name")
   protected final val dataLoadLogTBLName: String = jobProperties.getString("table.sourceload_log.name")
   protected final val lookupTBLName: String = jobProperties.getString("table.lookup.name")
-
-  // Factory function for LogRecords
-  protected val createLogRecord: (String, Option[String], Option[String], String, String, Option[String]) => LogRecord =
-    (branchName, bancllNameOpt, dtRiferimentoOpt, targetDatabase, targetTable, exceptionMsgOpt) => {
-
-      val applicationId: String = sparkSession.sparkContext.applicationId
-      val applicationName: String = sparkSession.sparkContext.appName
-
-      val dtRiferimentoSQLDateOpt: Option[Date] = dtRiferimentoOpt match {
-        case None => None
-        case Some(x) => Some(Date.valueOf(LocalDate.parse(x, DateFormat.DtRiferimento.formatter)))
-      }
-
-      val applicationStartTime: Timestamp = Timestamp.from(Instant.ofEpochMilli(sparkSession.sparkContext.startTime))
-      val applicationStartDate: Date = new Date(sparkSession.sparkContext.startTime)
-      val applicationEndTime: Timestamp = Utils.getJavaSQLTimestampFromNow
-      val applicationEndDate: Date = new Date(System.currentTimeMillis())
-      val applicationFinishCode: Int = if (exceptionMsgOpt.isEmpty) 0 else -1
-      val applicationFinishStatus: String = if (exceptionMsgOpt.isEmpty) "successed" else "failed"
-
-      LogRecord(applicationId,
-        applicationName,
-        branchName,
-        applicationStartTime,
-        applicationStartDate,
-        applicationEndTime,
-        applicationEndDate,
-        bancllNameOpt,
-        dtRiferimentoSQLDateOpt,
-        targetDatabase,
-        targetTable,
-        exceptionMsgOpt,
-        applicationFinishCode,
-        applicationFinishStatus)
-    }
 
   protected def getJDBCConnection: java.sql.Connection = {
 

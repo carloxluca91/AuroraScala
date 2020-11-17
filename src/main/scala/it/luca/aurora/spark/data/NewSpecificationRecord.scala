@@ -42,11 +42,7 @@ case class NewSpecificationRecord(flusso: String,
     }
   }
 
-  def isPrimaryKeyFlagOn: Boolean = isFlagTrue(flagPrimaryKey)
-
-  def isLookupFlagOn: Boolean = isFlagTrue(flagLookup)
-
-  def isAnyRawColumnNullConditionCol: Option[Column] = {
+  private def isAnyRawColumnNullCondition: Option[Column] = {
 
     inputRawColumns match {
       case None => None
@@ -56,7 +52,7 @@ case class NewSpecificationRecord(flusso: String,
     }
   }
 
-  def doesInputMismatchConditionCol: Option[Column] = {
+  private def doesInputMismatchCondition: Option[Column] = {
 
     inputRawColumns match {
       case None => None
@@ -66,15 +62,19 @@ case class NewSpecificationRecord(flusso: String,
     }
   }
 
-  def errorConditionCol: Option[Column] = {
+  def isPrimaryKeyFlagOn: Boolean = isFlagTrue(flagPrimaryKey)
+
+  def isLookupFlagOn: Boolean = isFlagTrue(flagLookup)
+
+  def errorCondition: Option[Column] = {
 
     inputRawColumns match {
       case None => None
-      case Some(_) => Some(isAnyRawColumnNullConditionCol.get || doesInputMismatchConditionCol.get)
+      case Some(_) => Some(isAnyRawColumnNullCondition.get || doesInputMismatchCondition.get)
     }
   }
 
-  def erroDescriptionCol: Option[(String, Column)] = {
+  def errorDescription: Option[(String, Column)] = {
 
     inputRawColumns match {
       case None => None
@@ -82,8 +82,8 @@ case class NewSpecificationRecord(flusso: String,
 
         val rwColumns: Seq[Column] = s.map(col)
         val rwColumnNames: Seq[Column] = s.map(lit)
-        val firstErrorCondition: Column = isAnyRawColumnNullConditionCol.get
-        val secondErrorCondition: Column = doesInputMismatchConditionCol.get
+        val firstErrorCondition: Column = isAnyRawColumnNullCondition.get
+        val secondErrorCondition: Column = doesInputMismatchCondition.get
 
         val errorDescriptionColumn: Column = when(firstErrorCondition, writeNullableColumnNames(array(rwColumnNames: _*), array(rwColumns: _*)))
           .when(secondErrorCondition, writeAllRawColumnNamesAndValues(array(rwColumnNames: _*), array(rwColumns: _*)))
@@ -118,7 +118,7 @@ object NewSpecificationRecord {
   def reducedErrorCondition(specifications: Seq[NewSpecificationRecord]): Column = {
 
     specifications
-      .map(_.errorConditionCol)
+      .map(_.errorCondition)
       .filter(_.nonEmpty)
       .map(_.get)
       .reduce(_ || _)

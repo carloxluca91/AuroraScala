@@ -2,6 +2,7 @@ package it.luca.aurora.spark.engine
 
 import it.luca.aurora.option.ScoptParser.ReloadConfig
 import it.luca.aurora.option.{Branch, ScoptOption}
+import it.luca.aurora.spark.data.LogRecord
 import it.luca.aurora.utils.Utils.{getJavaSQLDateFromNow, getJavaSQLTimestampFromNow}
 import it.luca.aurora.utils.{ColumnName, TableId}
 import org.apache.log4j.Logger
@@ -12,7 +13,8 @@ class ReLoadEngine(applicationPropertiesFile: String)
   extends AbstractInitialOrReloadEngine(applicationPropertiesFile) {
 
   private final val logger = Logger.getLogger(getClass)
-  private final val createReLoadLogRecord = createLogRecord(Branch.Reload.name, None, None, _: String, _: String, _: Option[String])
+  private final val createReLoadLogRecord = LogRecord(sparkSession.sparkContext, Branch.Reload.name, None, None,
+    _: String, _: String, _: Option[String])
 
   def run(reloadConfig: ReloadConfig): Unit = {
 

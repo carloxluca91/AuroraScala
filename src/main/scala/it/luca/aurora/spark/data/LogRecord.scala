@@ -1,6 +1,10 @@
 package it.luca.aurora.spark.data
 
 import java.sql.{Date, Timestamp}
+import java.time.{Instant, LocalDate}
+
+import it.luca.aurora.utils.{DateFormat, Utils}
+import org.apache.spark.SparkContext
 
 case class LogRecord(application_id: String,
                      application_name: String,
@@ -16,3 +20,40 @@ case class LogRecord(application_id: String,
                      exception_message: Option[String],
                      application_finish_code: Int,
                      application_finish_status: String)
+
+object LogRecord {
+
+  def apply(sparkContext: SparkContext, branchName: String, bancllNameOpt: Option[String], dtRiferimentoOpt: Option[String],
+            targetDatabase: String, targetTable: String, exceptionMsgOpt: Option[String]): LogRecord = {
+
+    val applicationId: String = sparkContext.applicationId
+    val applicationName: String = sparkContext.appName
+
+    val dtRiferimentoSQLDateOpt: Option[Date] = dtRiferimentoOpt match {
+      case None => None
+      case Some(x) => Some(Date.valueOf(LocalDate.parse(x, DateFormat.DtRiferimento.formatter)))
+    }
+
+    val applicationStartTime: Timestamp = Timestamp.from(Instant.ofEpochMilli(sparkContext.startTime))
+    val applicationStartDate: Date = new Date(sparkContext.startTime)
+    val applicationEndTime: Timestamp = Utils.getJavaSQLTimestampFromNow
+    val applicationEndDate: Date = new Date(System.currentTimeMillis())
+    val applicationFinishCode: Int = if (exceptionMsgOpt.isEmpty) 0 else -1
+    val applicationFinishStatus: String = if (exceptionMsgOpt.isEmpty) "successed" else "failed"
+
+    LogRecord(applicationId,
+      applicationName,
+      branchName,
+      applicationStartTime,
+      applicationStartDate,
+      applicationEndTime,
+      applicationEndDate,
+      bancllNameOpt,
+      dtRiferimentoSQLDateOpt,
+      targetDatabase,
+      targetTable,
+      exceptionMsgOpt,
+      applicationFinishCode,
+      applicationFinishStatus)
+  }
+}
