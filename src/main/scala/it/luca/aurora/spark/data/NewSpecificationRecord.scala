@@ -42,57 +42,52 @@ case class NewSpecificationRecord(flusso: String,
     }
   }
 
-  private def isAnyRawColumnNullCondition: Option[Column] = {
-
-    inputRawColumns match {
-      case None => None
-      case Some(x) => Some(x
-        .map(col(_).isNull)
-        .reduce(_ || _))
-    }
-  }
-
-  private def doesInputMismatchCondition: Option[Column] = {
-
-    inputRawColumns match {
-      case None => None
-      case Some(x) => Some(x
-        .map(col(_).isNotNull)
-        .reduce(_ && _) && col(colonnaTd).isNull)
-    }
-  }
-
   def isPrimaryKeyFlagOn: Boolean = isFlagTrue(flagPrimaryKey)
 
   def isLookupFlagOn: Boolean = isFlagTrue(flagLookup)
 
   def errorCondition: Option[Column] = {
 
-    inputRawColumns match {
+    inputRdColumns match {
       case None => None
-      case Some(_) => Some(isAnyRawColumnNullCondition.get || doesInputMismatchCondition.get)
+      case Some(s) =>
+
+        val isAnyRdColumnNull: Column = s
+          .map(col(_).isNull)
+          .reduce(_ || _)
+
+        val doesInputMismatch: Column = s
+          .map(col(_).isNotNull)
+          .reduce(_ && _) && col(colonnaTd).isNull
+
+        Some(isAnyRdColumnNull || doesInputMismatch)
     }
   }
 
   def errorDescription: Option[(String, Column)] = {
 
-    inputRawColumns match {
+    inputRdColumns match {
       case None => None
       case Some(s) =>
 
         val rwColumns: Seq[Column] = s.map(col)
         val rwColumnNames: Seq[Column] = s.map(lit)
-        val firstErrorCondition: Column = isAnyRawColumnNullCondition.get
-        val secondErrorCondition: Column = doesInputMismatchCondition.get
+        val isAnyRdColumnNull: Column = s
+        .map(col(_).isNull)
+        .reduce(_ || _)
 
-        val errorDescriptionColumn: Column = when(firstErrorCondition, writeNullableColumnNames(array(rwColumnNames: _*), array(rwColumns: _*)))
-          .when(secondErrorCondition, writeAllRawColumnNamesAndValues(array(rwColumnNames: _*), array(rwColumns: _*)))
+        val doesInputMismatch: Column = s
+          .map(col(_).isNotNull)
+          .reduce(_ && _) && col(colonnaTd).isNull
+
+        val errorDescriptionColumn: Column = when(isAnyRdColumnNull, writeNullableColumnNames(array(rwColumnNames: _*), array(rwColumns: _*)))
+          .when(doesInputMismatch, writeAllRawColumnNamesAndValues(array(rwColumnNames: _*), array(rwColumns: _*)))
 
         Some(s"${colonnaTd}_error", errorDescriptionColumn)
     }
   }
 
-  def inputRawColumns: Option[Seq[String]] = {
+  def inputRdColumns: Option[Seq[String]] = {
 
     colonnaRd match {
       case None => None

@@ -140,6 +140,32 @@ class NewSourceLoadEngine(private final val jobPropertiesFile: String)
       })
   }
 
+  private def writeErrorTables(logRecordFunction: (String, String, Option[String]) => LogRecord): Unit = {
+
+    if (rawDfPlusTrustedColumnsOpt.nonEmpty && specificationsOpt.nonEmpty) {
+
+      val rawDfPlusTrustedColumns: DataFrame = rawDfPlusTrustedColumnsOpt.get
+      val specifications: Specifications = specificationsOpt.get
+
+      val trdErrorActualTable: String = s"${specifications.trdActualTableName}_error"
+      val trdErrorHistoricalTable = s"${trdErrorActualTable}_h"
+
+      logger.info(s"Starting to populate trd error table ('$trdErrorActualTable', '$trdErrorHistoricalTable')")
+
+      // Retrieve definition of columns containing error description
+      val errorDescriptions: Seq[(String, Column)] = specifications.errorDescriptions
+      val errorDescriptionColumnNames: Seq[String] = errorDescriptions.map(_._1)
+      val rawDfPlusTrustedColumnsAndErrorDescriptions: DataFrame = errorDescriptions
+        .foldLeft(rawDfPlusTrustedColumns)((df, tuple) => {
+          df.withColumn(tuple._1, tuple._2)
+        })
+        .withColumn(ColumnName.ErrorDescription.name,
+          createErrorDescriptionCol(array(errorDescriptionColumnNames.head, errorDescriptionColumnNames.tail: _*)))
+
+    } else logger.warn(s"Skipping write operation for error tables (both trusted and raw)")
+
+  }
+
   private def getSpecifications(bancllName: String, versionNumberOpt: Option[String]): Specifications = {
 
     import sparkSession.implicits._

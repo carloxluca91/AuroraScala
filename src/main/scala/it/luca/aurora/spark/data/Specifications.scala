@@ -30,6 +30,14 @@ case class Specifications(private val specificationRecords: Seq[NewSpecification
       .reduce(_ || _)
   }
 
+  def errorDescriptions: Seq[(String, Column)] = {
+
+    specificationRecords
+      .filter(_.errorDescription.nonEmpty)
+      .sortBy(_.posizioneFinale)
+      .map(_.errorDescription.get)
+  }
+
   def nonEmpty: Boolean = specificationRecords.nonEmpty
 
   def length: Int = specificationRecords.length
@@ -69,8 +77,8 @@ case class Specifications(private val specificationRecords: Seq[NewSpecification
 
     val op: Seq[NewSpecificationRecord] => Seq[Column] =
       records => records
-        .filter(_.inputRawColumns.nonEmpty)
-        .flatMap(_.inputRawColumns.get)
+        .filter(_.inputRdColumns.nonEmpty)
+        .flatMap(_.inputRdColumns.get)
         .distinct
         .map(col)
 
