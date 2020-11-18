@@ -3,8 +3,8 @@ package it.luca.aurora.spark.engine
 import it.luca.aurora.option.ScoptParser.ReloadConfig
 import it.luca.aurora.option.{Branch, ScoptOption}
 import it.luca.aurora.spark.data.LogRecord
+import it.luca.aurora.utils.ColumnName
 import it.luca.aurora.utils.Utils.{getJavaSQLDateFromNow, getJavaSQLTimestampFromNow}
-import it.luca.aurora.utils.{ColumnName, TableId}
 import org.apache.log4j.Logger
 import org.apache.spark.sql.functions.lit
 import org.apache.spark.sql.{DataFrame, SaveMode}
@@ -33,19 +33,27 @@ class ReLoadEngine(applicationPropertiesFile: String)
 
     } else {
 
-      val getOldActualDf: String => DataFrame = actualTable => {
+      // Function for retrieving actual table
+      val getActualDf: String => DataFrame = actualTable => {
 
         readFromJDBC(pcAuroraDBName, actualTable)
           .withColumn(ColumnName.TsFineValidita.name, lit(getJavaSQLTimestampFromNow))
           .withColumn(ColumnName.DtFineValidita.name, lit(getJavaSQLDateFromNow))
       }
 
-      val readTSVAndUpdateVersionNumber: (String, String) => DataFrame = (tableId, oldVersionNumber) => {
+      // Function for reading new .tsv file as Dataframe with updated version number
+      val readTSVAndUpdateVersionNumber: String => DataFrame = actualTable => {
+
+        val oldVersionNumber: String = readFromJDBC(pcAuroraDBName, actualTable)
+          .selectExpr(ColumnName.Versione.name)
+          .distinct()
+          .collect()(0)
+          .getAs[String](0)
 
         val newSpecificationVersion: String = f"${oldVersionNumber.toDouble + 0.1}%.1f"
         logger.info(f"Old specification number: '$oldVersionNumber'. Overriding with version number '$newSpecificationVersion'")
 
-        readTsvAsDataframe(tableId)
+        readTsvAsDataframe(actualTable)
           .withColumn(ColumnName.Versione.name, lit(newSpecificationVersion))
       }
 
@@ -53,51 +61,36 @@ class ReLoadEngine(applicationPropertiesFile: String)
       // [a] insert data stored on actual table into historical table
       // [b] overwrite actual table
 
-      val seqOfTablesToReload: Seq[(Boolean, (String, String, String))] = Seq(
+      val reloadTables: Map[String, Boolean] = Map(
 
-        (mappingSpecificationFlag, (mappingSpecificationTBLName,
-          jobProperties.getString("table.mapping_specification_historical.name"),
-          TableId.MappingSpecification.tableId)),
-
-        (lookupFlag, (lookupTBLName,
-          jobProperties.getString("table.lookup_historical.name"),
-          TableId.Lookup.tableId))
+        mappingSpecificationTBLName -> mappingSpecificationFlag,
+        lookupTBLName -> lookupFlag
       )
 
-      seqOfTablesToReload
-        .filter(_._1)
+      reloadTables
+        .filter(t => t._2)
         .foreach(t => {
 
-          val actualTable: String = t._2._1
-          val historicalTable: String = t._2._2
-          val tableId: String = t._2._3
-
-          logger.info(s"Starting to override table '$pcAuroraDBName'.'$actualTable' " +
-            s"and save overwritten data into '$pcAuroraDBName'.'$historicalTable'")
+          val actualTable: String = t._1
+          val historicalTable = s"${actualTable}_h"
+          logger.info(s"Starting to insert old data on table '$pcAuroraDBName.$historicalTable' and overwrite table '$pcAuroraDBName.$actualTable'")
 
           // [a] insert data stored on actual table into historical table
           writeToJDBCAndLog[String](pcAuroraDBName,
             historicalTable,
             SaveMode.Append,
-            completeOverwriteFlag,
+            truncateFlag = false,
             createReLoadLogRecord,
-            getOldActualDf,
+            getActualDf,
             actualTable)
-
-          // [b] overwrite actual table
-          val oldVersionNumber: String = readFromJDBC(pcAuroraDBName, actualTable)
-            .selectExpr(ColumnName.Versione.name)
-            .distinct()
-            .collect()(0)
-            .getAs[String](0)
 
           writeToJDBCAndLog[String](pcAuroraDBName,
             actualTable,
             SaveMode.Overwrite,
             completeOverwriteFlag,
             createReLoadLogRecord,
-            readTSVAndUpdateVersionNumber(_, oldVersionNumber),
-            dataframeFunctionArg = tableId)
+            readTSVAndUpdateVersionNumber,
+            actualTable)
         })
     }
   }

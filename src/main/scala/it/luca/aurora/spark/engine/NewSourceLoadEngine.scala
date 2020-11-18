@@ -13,7 +13,7 @@ import org.apache.spark.sql.expressions.{UserDefinedFunction, Window}
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.{Column, DataFrame, SaveMode}
 
-class NewSourceLoadEngine(private final val jobPropertiesFile: String)
+case class NewSourceLoadEngine(private final val jobPropertiesFile: String)
   extends AbstractEngine(jobPropertiesFile) {
 
   private final val logger = Logger.getLogger(getClass)
@@ -36,7 +36,7 @@ class NewSourceLoadEngine(private final val jobPropertiesFile: String)
       specificationsOpt = Some(specifications)
 
       // Read data from actual table or from historical according to provided dtRferimento
-      val rawActualTable: String = specifications.rdActualTableName.toLowerCase
+      val rawActualTable: String = getRdActualTableName(bancllName)
       val rawHistoricalTable: String = s"${rawActualTable}_h"
       val rawDf: DataFrame = getRwdDataframe(rawActualTable, rawHistoricalTable, dtRiferimentoOpt)
 
@@ -78,17 +78,6 @@ class NewSourceLoadEngine(private final val jobPropertiesFile: String)
       }
   }
 
-  private final val getTrdCleanDataframe: (Specifications => Seq[Column]) => DataFrame = selectOperation => {
-
-    val specifications = specificationsOpt.get
-    val rawDfPlusTrustedColumns = rawDfPlusTrustedColumnsOpt.get
-
-    val cleanDataFilterCondition: Column = (!specifications.errorCondition) && col(ColumnName.RowCount.name) === 1
-    rawDfPlusTrustedColumns
-      .filter(cleanDataFilterCondition)
-      .select(selectOperation(specifications): _*)
-  }
-
   private final val createErrorDescriptionCol: UserDefinedFunction =
     udf((s: Seq[Option[String]]) => {
 
@@ -119,35 +108,17 @@ class NewSourceLoadEngine(private final val jobPropertiesFile: String)
   private def writeBothTrdActualAndHistorical(sourceLoadConfig: SourceLoadConfig,
                                               logRecordFunction: (String, String, Option[String]) => LogRecord): Unit = {
 
-    storeSpecificationsAndRawDfPlusTrustedColumns(sourceLoadConfig)
-    val trdActualTable: String = specificationsOpt.get.trdActualTableName
-    val trdHistoricalTable = s"${trdActualTable}_h"
-
-    Seq((trdActualTable, SaveMode.Overwrite),
-      (trdHistoricalTable, SaveMode.Append))
-      .foreach(t => {
-
-        val tableName = t._1
-        val saveMode = t._2
-
-        writeToJDBCAndLog[Specifications => Seq[Column]](pcAuroraDBName,
-          tableName,
-          saveMode,
-          truncateFlag = true,
-          logRecordFunction,
-          getTrdCleanDataframe,
-          s => s.trdDfColumnSet)
-      })
   }
 
   private def writeErrorTables(logRecordFunction: (String, String, Option[String]) => LogRecord): Unit = {
 
+    // Check if necessary options are present
     if (rawDfPlusTrustedColumnsOpt.nonEmpty && specificationsOpt.nonEmpty) {
 
       val rawDfPlusTrustedColumns: DataFrame = rawDfPlusTrustedColumnsOpt.get
       val specifications: Specifications = specificationsOpt.get
 
-      val trdErrorActualTable: String = s"${specifications.trdActualTableName}_error"
+      val trdErrorActualTable: String = s"${getTrdActualTableName("TODO")}_error"
       val trdErrorHistoricalTable = s"${trdErrorActualTable}_h"
 
       logger.info(s"Starting to populate trd error table ('$trdErrorActualTable', '$trdErrorHistoricalTable')")
@@ -160,7 +131,7 @@ class NewSourceLoadEngine(private final val jobPropertiesFile: String)
           df.withColumn(tuple._1, tuple._2)
         })
         .withColumn(ColumnName.ErrorDescription.name,
-          createErrorDescriptionCol(array(errorDescriptionColumnNames.head, errorDescriptionColumnNames.tail: _*)))
+          createErrorDescriptionCol(array(errorDescriptionColumnNames.map(col): _*)))
 
     } else logger.warn(s"Skipping write operation for error tables (both trusted and raw)")
 
@@ -179,7 +150,7 @@ class NewSourceLoadEngine(private final val jobPropertiesFile: String)
 
       case Some(versionNumber) =>
 
-        val mappingSpecificationHistTBLName: String = jobProperties.getString("table.mapping_specification_historical.name")
+        val mappingSpecificationHistTBLName: String = jobProperties.getString("jdbc.tale.mappingSpecification.historical")
         logger.info(s"Specification version number to be used: '$versionNumber'. " +
           s"Thus, reading specifications from '$pcAuroraDBName'.'$mappingSpecificationHistTBLName'")
         (mappingSpecificationHistTBLName, col(ColumnName.Flusso.name) === bancllName && col(ColumnName.Versione.name) === versionNumber)
@@ -205,6 +176,10 @@ class NewSourceLoadEngine(private final val jobPropertiesFile: String)
     logger.info(f"Successfully parsed dataframe as a set of elements of type ${NewSpecificationRecord.getClass.getSimpleName}")
     Specifications(specificationRecords)
   }
+
+  private def getRdActualTableName(bancllName: String): String = jobProperties.getString(s"jdbc.table.rd.${bancllName.toLowerCase}.actual")
+
+  private def getTrdActualTableName(bancllName: String): String = jobProperties.getString(s"jdbc.table.trd.${bancllName.toLowerCase}.actual")
 
   private def getTrdColumns(specifications: Specifications): Seq[(String, Column)] = {
 

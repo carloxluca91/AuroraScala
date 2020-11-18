@@ -1,11 +1,11 @@
 package it.luca.aurora.spark.data
 
-import it.luca.aurora.spark.exception.{MultipleDstException, MultipleSrcException, UnexistingLookupException}
+import it.luca.aurora.spark.exception.UnexistingLookupException
 import it.luca.aurora.spark.functions.common.ColumnExpressionParser
 import it.luca.aurora.utils.ColumnName
 import org.apache.log4j.Logger
-import org.apache.spark.sql.{Column, DataFrame, Row}
 import org.apache.spark.sql.functions.{col, lower, trim, when}
+import org.apache.spark.sql.{Column, DataFrame, Row}
 
 case class Specifications(private val specificationRecords: Seq[NewSpecificationRecord]) {
 
@@ -57,22 +57,6 @@ case class Specifications(private val specificationRecords: Seq[NewSpecification
       .map(x => col(x.colonnaTd))
   }
 
-  def rdActualTableName: String = {
-
-    val srcTables: Seq[String] = specificationRecords
-      .map(_.sorgenteRd)
-      .distinct
-
-    if (srcTables.length > 1) {
-
-      srcTables.head
-    } else {
-
-      val bancllName: String = specificationRecords.map(_.flusso).head
-      throw MultipleSrcException(bancllName, srcTables)
-    }
-  }
-
   def rdDfColumnSet: Seq[Column] = {
 
     val op: Seq[NewSpecificationRecord] => Seq[Column] =
@@ -83,22 +67,6 @@ case class Specifications(private val specificationRecords: Seq[NewSpecification
         .map(col)
 
     columnsFromSpecifications(op)
-  }
-
-  def trdActualTableName: String = {
-
-    val dstTables: Seq[String] = specificationRecords
-      .map(_.tabellaTd)
-      .distinct
-
-    if (dstTables.length > 1) {
-
-      dstTables.head
-    } else {
-
-      val bancllName: String = specificationRecords.map(_.flusso).head
-      throw MultipleDstException(bancllName, dstTables)
-    }
   }
 
   def trdColumns(lookupDf: DataFrame): Seq[(String, Column)] = {

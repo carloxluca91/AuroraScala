@@ -154,7 +154,7 @@ class SourceLoadEngine(val jobPropertiesFile: String)
 
       // VERSION NUMBER PROVIDED => READ HISTORICAL SPECIFICATION TABLE
       val versionNumber: String = versionNumberOpt.get
-      val mappingSpecificationHistTBLName: String = jobProperties.getString("table.mapping_specification_historical.name")
+      val mappingSpecificationHistTBLName: String = jobProperties.getString("jdbc.tale.mappingSpecification.historical")
       logger.info(s"Specification version number to be used: '$versionNumber'. " +
         s"Thus, reading specifications from '$pcAuroraDBName'.'$mappingSpecificationHistTBLName'")
 
