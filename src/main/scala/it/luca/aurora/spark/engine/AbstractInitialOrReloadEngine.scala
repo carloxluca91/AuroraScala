@@ -16,12 +16,25 @@ abstract class AbstractInitialOrReloadEngine(val jobPropertiesFile: String)
 
   private final val logger: Logger = Logger.getLogger(getClass)
 
-  protected def readTsvAsDataframe(tableId: String): DataFrame = {
+  protected final val tableLoadingOptionsMap: Map[String, (String, String, String, String)] = Map(
 
-    val tsvFilePath: String = jobProperties.getString(s"table.$tableId.file.path")
-    val tsvSep: String = jobProperties.getString(s"table.$tableId.file.sep")
-    val tsvHeaderFlag: Boolean = jobProperties.getBoolean(s"table.$tableId.file.header")
-    val xMLSchemaFilePath: String = jobProperties.getString(s"table.$tableId.xml.schema.path")
+    mappingSpecificationTBLName -> (jobProperties.getString("table.mappingSpecification.tsv.file"),
+      jobProperties.getString("table.mappingSpecification.tsv.sep"),
+      jobProperties.getString("table.mapping_specification.file.header"),
+      jobProperties.getString("table.mappingSpecification.schema.file")),
+
+    lookupTBLName -> (jobProperties.getString("table.lookup.tsv.file"),
+      jobProperties.getString("table.lookup.tsv.sep"),
+      jobProperties.getString("table.lookup.file.header"),
+      jobProperties.getString("table.lookup.schema.file")))
+
+  protected def readTsvAsDataframe(actualTableName: String): DataFrame = {
+
+    val tsvReadingOptions: (String, String, String, String) = tableLoadingOptionsMap(actualTableName)
+    val tsvFilePath: String = tsvReadingOptions._1
+    val tsvSep: String = tsvReadingOptions._2
+    val tsvHeaderFlag: Boolean = tsvReadingOptions._3.toBoolean
+    val xMLSchemaFilePath: String = tsvReadingOptions._4
 
     val details: String = s"path '$tsvFilePath' (separator: '$tsvSep', file header presence: '$tsvHeaderFlag')"
     logger.info(s"Attempting to load .tsv file at $details")

@@ -6,8 +6,6 @@ import org.apache.spark.sql.expressions.UserDefinedFunction
 import org.apache.spark.sql.functions.{array, col, lit, udf, when}
 
 case class NewSpecificationRecord(flusso: String,
-                                  sorgenteRd: String,
-                                  tabellaTd: String,
                                   colonnaTd: String,
                                   posizioneFinale: Int,
                                   flagPrimaryKey: Option[String],

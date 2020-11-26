@@ -4,7 +4,7 @@ import java.sql._
 
 import it.luca.aurora.option.Branch
 import it.luca.aurora.spark.data.LogRecord
-import it.luca.aurora.utils.{ColumnName, TableId}
+import it.luca.aurora.utils.ColumnName
 import org.apache.log4j.Logger
 import org.apache.spark.sql.functions.lit
 import org.apache.spark.sql.{DataFrame, SaveMode}
@@ -25,23 +25,20 @@ class InitialLoadEngine(applicationPropertiesFile: String)
     logger.info("Successfully closed JDBC connection")
 
     val readTsvAsDataframeAddingVersionNumber: String => DataFrame =
-      tableId => readTsvAsDataframe(tableId)
-        .withColumn(ColumnName.Versione.name, lit("0.1"))
+      actualTable => readTsvAsDataframe(actualTable)
+          .withColumn(ColumnName.Versione.name, lit("0.1"))
 
-    Seq((mappingSpecificationTBLName, TableId.MappingSpecification.tableId),
-      (lookupTBLName, TableId.Lookup.tableId))
-      .foreach(t => {
+    tableLoadingOptionsMap
+      .keys
+      .foreach(key =>
 
-        val tableName = t._1
-        val tableId = t._2
         writeToJDBCAndLog[String](pcAuroraDBName,
-          tableName,
+          key,
           SaveMode.Append,
           truncateFlag = false,
           createInitialLoadLogRecord,
           readTsvAsDataframeAddingVersionNumber,
-          tableId)
-      })
+          key))
   }
 
   private def createDatabaseIfNotExists(dbToCreate: String, connection: Connection): Unit = {
