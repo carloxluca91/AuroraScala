@@ -84,7 +84,7 @@ case class Specifications(private val specificationRecords: Seq[NewSpecification
 
     columnsFromSpecifications(op)
   }
-
+  
   def trdActualTableName: String = {
 
     val dstTables: Seq[String] = specificationRecords

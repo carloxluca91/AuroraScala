@@ -15,8 +15,8 @@ import scala.util.{Failure, Success, Try}
 abstract class AbstractEngine(private final val jobPropertiesFile: String) {
 
   private final val logger = Logger.getLogger(getClass)
-  protected final val sparkSession: SparkSession = getOrCreateSparkSession
-  protected final val jobProperties: PropertiesConfiguration = loadJobProperties(jobPropertiesFile)
+  protected final val sparkSession = getOrCreateSparkSession
+  protected final val jobProperties = new PropertiesConfiguration(jobPropertiesFile)
 
   // JDBC options for Dataframe reader
   private final val jdbcOptions: Map[String, String] = Map(
@@ -64,26 +64,14 @@ abstract class AbstractEngine(private final val jobPropertiesFile: String) {
   protected def readFromJDBC(databaseName: String, tableName: String): DataFrame = {
 
     logger.info(s"Starting to load table '$databaseName'.'$tableName'")
-    Try {
-
-      sparkSession.read
+    val jdbcDf: DataFrame = sparkSession.read
         .format("jdbc")
         .options(jdbcOptions)
         .option("dbtable", s"$databaseName.$tableName")
         .load()
 
-    } match {
-
-      case Failure(exception) =>
-
-        logger.error(s"Error while trying to read table '$databaseName'.'$tableName'. Stack trace: ", exception)
-        throw exception
-
-      case Success(value) =>
-
-        logger.info(s"Successfully loaded table '$databaseName'.'$tableName'")
-        value
-    }
+    logger.info(s"Successfully loaded table '$databaseName'.'$tableName'")
+    jdbcDf
   }
 
   protected def writeToJDBCAndLog[T](database: String,
@@ -99,53 +87,7 @@ abstract class AbstractEngine(private final val jobPropertiesFile: String) {
     val exceptionMsgOpt: Option[String] = Try {
 
       val dfToWrite: DataFrame = dataframeFunction(dataframeFunctionArg)
-      val nonTechnicalTimestampTypeColumnNames: Seq[String] = dfToWrite
-        .dtypes
-        .filter(t => t._2 equalsIgnoreCase "timestamptype")
-        .filterNot(t => technicalTimestampTypeColumnNames.exists(_ equalsIgnoreCase t._1))
-        .map(t => t._1)
-
-      /**
-       * If a non-technical column has timestamp type,
-       * we must first create the table via JDBC connection in order to set "datetime" type for such column.
-       * This is due to the limited timestamp range on MySQL.
-       *
-       * Indeed, from MySQL docs:
-       *
-       * The TIMESTAMP data type has a range of '1970-01-01 00:00:01' UTC to '2038-01-09 03:14:07' UTC
-       * The DATETIME data type has a range of '1000-01-01 00:00:00' to '9999-12-31 23:59:59'.
-       */
-
-      if (nonTechnicalTimestampTypeColumnNames.nonEmpty) {
-
-        logger.info(s"Identified ${nonTechnicalTimestampTypeColumnNames.size} timestamp column(s) different from " +
-          s"${technicalTimestampTypeColumnNames.map(x => s"'$x'").mkString(", ")}: " +
-          s"${nonTechnicalTimestampTypeColumnNames.map(x => s"'$x'").mkString(", ")}")
-
-        val jdbcConnection: java.sql.Connection = getJDBCConnection
-        val existsCurrentTable: Boolean = jdbcConnection.getMetaData
-          .getTables(database, null, table, null)
-          .next()
-
-        if (existsCurrentTable) {
-
-          logger.info(s"Table '$database.$table' has some timestamp columns but it exists already. Thus, not creating it again")
-        } else {
-
-          logger.warn(s"Table '$database.$table' has some timestamp columns but it does not exist yet. Thus, defining and creating it now")
-          val createTableStatement: java.sql.Statement = jdbcConnection.createStatement
-          createTableStatement.execute(getCreateTableStatementFromDfSchema(dfToWrite, database, table))
-          logger.info(s"Successfully created table '$database'.'$table'")
-        }
-
-        jdbcConnection.close()
-      }
-
-      writeToJDBC(dfToWrite,
-        database,
-        table,
-        saveMode,
-        truncateFlag)
+      writeToJDBC(dfToWrite, database, table, saveMode, truncateFlag)
 
     } match {
       case Failure(exception) =>
@@ -154,7 +96,7 @@ abstract class AbstractEngine(private final val jobPropertiesFile: String) {
         logger.error(s"Caught exception while trying to save data into $details. Stack trace: ", exception)
         val firstNStackTraceStrings: String = exception.getStackTrace
           .toSeq
-          .take(10)
+          .take(5)
           .map(_.toString)
           .mkString("\n")
 
@@ -197,18 +139,58 @@ abstract class AbstractEngine(private final val jobPropertiesFile: String) {
     createTableStateMent
   }
 
-  private def writeToJDBC(outputDataFrame: DataFrame, databaseName: String, tableName: String,
+  private def writeToJDBC(outputDataFrame: DataFrame, dbName: String, tableName: String,
                           saveMode: SaveMode, truncate: Boolean): Unit = {
 
+    val nonTechnicalTimestampTypeColumnNames: Seq[String] = outputDataFrame
+      .dtypes
+      .filter(t => t._2 equalsIgnoreCase "timestamptype")
+      .filterNot(t => technicalTimestampTypeColumnNames.exists(_ equalsIgnoreCase t._1))
+      .map(t => t._1)
+
+    /**
+     * If a non-technical column has timestamp type,
+     * we must first create the table via JDBC connection in order to set "datetime" type for such column.
+     * This is due to the limited timestamp range on MySQL.
+     *
+     * Indeed, from MySQL docs:
+     *
+     * The TIMESTAMP data type has a range of '1970-01-01 00:00:01' UTC to '2038-01-09 03:14:07' UTC
+     * The DATETIME data type has a range of '1000-01-01 00:00:00' to '9999-12-31 23:59:59'.
+     */
+
+    if (nonTechnicalTimestampTypeColumnNames.nonEmpty) {
+
+      logger.info(s"Identified ${nonTechnicalTimestampTypeColumnNames.size} timestamp column(s) different from " +
+        s"${technicalTimestampTypeColumnNames.map(x => s"'$x'").mkString(", ")}: " +
+        s"${nonTechnicalTimestampTypeColumnNames.map(x => s"'$x'").mkString(", ")}")
+
+      val jdbcConnection: java.sql.Connection = getJDBCConnection
+      val existsCurrentTable: Boolean = jdbcConnection.getMetaData
+        .getTables(dbName, null, tableName, null)
+        .next()
+
+      if (existsCurrentTable) {
+        logger.info(s"Table '$dbName.$tableName' has some timestamp columns but it exists already. Thus, not creating it again")
+      } else {
+
+        logger.warn(s"Table '$dbName.$tableName' has some timestamp columns but it does not exist yet. Thus, defining and creating it now")
+        val createTableStatement: java.sql.Statement = jdbcConnection.createStatement
+        createTableStatement.execute(getCreateTableStatementFromDfSchema(outputDataFrame, dbName, tableName))
+        logger.info(s"Successfully created table '$dbName.$tableName'")
+      }
+      jdbcConnection.close()
+    }
+
     val truncateOptionValue: String = if (truncate & (saveMode == SaveMode.Overwrite)) "true" else "false"
-    val savingDetails: String = s"table: '$databaseName'.'$tableName', savemode: '$saveMode', truncate: '$truncateOptionValue'"
+    val savingDetails: String = s"table: '$dbName'.'$tableName', savemode: '$saveMode', truncate: '$truncateOptionValue'"
     logger.info(s"Starting to save dataframe into $savingDetails")
     logger.info(f"Dataframe schema:\n\n${outputDataFrame.schema.treeString}")
 
     outputDataFrame.write
       .format("jdbc")
       .options(jdbcOptions)
-      .option("dbtable", s"$databaseName.$tableName")
+      .option("dbtable", s"$dbName.$tableName")
       .option("truncate", truncateOptionValue)
       .mode(saveMode)
       .save()

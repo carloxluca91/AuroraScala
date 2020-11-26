@@ -6,7 +6,7 @@ import it.luca.aurora.option.Branch
 import it.luca.aurora.option.ScoptParser.SourceLoadConfig
 import it.luca.aurora.spark.data.{LogRecord, NewSpecificationRecord, Specifications}
 import it.luca.aurora.spark.exception.NoSpecificationException
-import it.luca.aurora.utils.Utils.{getJavaSQLDateFromNow, getJavaSQLTimestampFromNow}
+import it.luca.aurora.utils.Utils.{getJavaSQLDateFromNow, getJavaSQLTimestampFromNow, insertElementAtIndex}
 import it.luca.aurora.utils.{ColumnName, DateFormat}
 import org.apache.log4j.Logger
 import org.apache.spark.sql.expressions.{UserDefinedFunction, Window}
@@ -39,7 +39,7 @@ class NewSourceLoadEngine(private final val jobPropertiesFile: String)
       // Read data from actual table or from historical according to provided dtRiferimento
       val rawActualTable: String = specifications.rdActualTableName.toLowerCase
       val rawHistoricalTable: String = s"${rawActualTable}_h"
-      val rawDf: DataFrame = getRwdDataframe(rawActualTable, rawHistoricalTable, dtRiferimentoOpt)
+      val rawDf: DataFrame = getDataToBeIngested(rawActualTable, rawHistoricalTable, dtRiferimentoOpt)
 
       val primaryKeyColumns: Seq[Column] = specifications.primaryKeyColumns
       val trustedColumns: Seq[(String, Column)] = getTrdColumns(specifications)
@@ -55,12 +55,12 @@ class NewSourceLoadEngine(private final val jobPropertiesFile: String)
       // Store the dataframe obtained so far (for next writing operations)
       logger.info(s"Successfully persisted original dataframe enriched with trusted layer columns")
       rawDfPlusTrustedColumnsOpt = Some(rawDfPlusTrustedColumns)
-      getTrdCleanDataframe(s => s.trdDfColumnSet)
+      getTrdCleanDf(s => s.trdDfColumnSet)
 
     } else throw NoSpecificationException(bancllName)
   }
 
-  private final val getRwdDataframe: (String, String, Option[String]) => DataFrame =
+  private final val getDataToBeIngested: (String, String, Option[String]) => DataFrame =
     (actualTable, historicalTable, dtRiferimentoOpt) => {
 
       dtRiferimentoOpt match {
@@ -80,7 +80,7 @@ class NewSourceLoadEngine(private final val jobPropertiesFile: String)
       }
   }
 
-  private final val getTrdCleanDataframe: (Specifications => Seq[Column]) => DataFrame = selectOperation => {
+  private final val getTrdCleanDf: (Specifications => Seq[Column]) => DataFrame = selectOperation => {
 
     val specifications = specificationsOpt.get
     val rawDfPlusTrustedColumns = rawDfPlusTrustedColumnsOpt.get
@@ -114,58 +114,75 @@ class NewSourceLoadEngine(private final val jobPropertiesFile: String)
     val createSourceLoadLogRecord = LogRecord(sparkSession.sparkContext, Branch.SourceLoad.name, Some(bancllName), dtRiferimentoOpt,
       _: String, _: String, _: Option[String])
 
-    //writeToJDBCAndLog[SourceLoadConfig](pcAuroraDBName, )
+    // Write actual trd table
+    writeToJDBCAndLog[SourceLoadConfig](pcAuroraDBName,
+      trdActualTableNameOpt.get,
+      SaveMode.Overwrite,
+      truncateFlag = true,
+      createSourceLoadLogRecord,
+      getTrdActualTable,
+      sourceLoadConfig)
 
-    // Write trusted actual data first
-    writeBothTrdActualAndHistorical(sourceLoadConfig, createSourceLoadLogRecord)
+    if ((specificationsOpt ::rawDfPlusTrustedColumnsOpt :: Nil).forall(_.nonEmpty)) {
+
+      // Write historical trd table
+      val specifications = specificationsOpt.get
+      val trdHistoricalTable = s"${specifications.trdActualTableName}_h"
+      writeToJDBCAndLog[Specifications => Seq[Column]](pcAuroraDBName,
+        trdHistoricalTable,
+        SaveMode.Append,
+        truncateFlag = true,
+        createSourceLoadLogRecord,
+        getTrdCleanDf,
+        s => s.trdDfColumnSet)
+
+      // Write rwd layer error table
+      val rwdErrorActualTable = s"${specifications.rdActualTableName}_error"
+      val rwdErrorHistoricalTable = s"${rwdErrorActualTable}_h"
+      logger.info(s"Starting to populate rwd error table ('$rwdErrorActualTable', '$rwdErrorHistoricalTable') on db $lakeCedacriDBName")
+
+      ((rwdErrorActualTable -> SaveMode.Overwrite) :: (rwdErrorHistoricalTable -> SaveMode.Append) :: Nil) foreach {
+        t => val (tableName, saveMode): (String, SaveMode) = t
+          writeToJDBCAndLog[Specifications](lakeCedacriDBName,
+            tableName,
+            saveMode,
+            truncateFlag = true,
+            createSourceLoadLogRecord,
+            getRwdErrorDf,
+            specifications)
+      }
+
+      // Write trd layer duplicates table
+      val trdDuplicatesActualTable = s"${specifications.trdActualTableName}_duplicated"
+      val trdDuplicatesHistoricalTable = s"${trdDuplicatesActualTable}_h"
+
+    } else {
+      logger.warn(s"Skippin writing of trd historical table")
+    }
   }
 
-  private def writeBothTrdActualAndHistorical(sourceLoadConfig: SourceLoadConfig,
-                                              logRecordFunction: (String, String, Option[String]) => LogRecord): Unit = {
+  private def getRwdErrorDf(specifications: Specifications): DataFrame = {
 
-    getTrdActualTable(sourceLoadConfig)
-    val trdActualTable: String = specificationsOpt.get.trdActualTableName
-    val trdHistoricalTable = s"${trdActualTable}_h"
+    val rawDfPlusTrustedColumns: DataFrame = rawDfPlusTrustedColumnsOpt.get
 
-    Seq((trdActualTable, SaveMode.Overwrite),
-      (trdHistoricalTable, SaveMode.Append))
-      .foreach(t => {
-
-        val (tableName, saveMode): (String, SaveMode) = t
-        writeToJDBCAndLog[Specifications => Seq[Column]](pcAuroraDBName,
-          tableName,
-          saveMode,
-          truncateFlag = true,
-          logRecordFunction,
-          getTrdCleanDataframe,
-          s => s.trdDfColumnSet)
+    // Retrieve definition of columns containing error description
+    val errorDescriptions: Seq[(String, Column)] = specifications.errorDescriptions
+    val errorDescriptionColumnNames: Seq[String] = errorDescriptions.map(_._1)
+    val rawDfPlusTrustedColumnsAndErrorDescriptions: DataFrame = errorDescriptions
+      .foldLeft(rawDfPlusTrustedColumns)((df, tuple) => {
+        df.withColumn(tuple._1, tuple._2)
       })
-  }
+      .withColumn(ColumnName.ErrorDescription.name,
+        createErrorDescriptionCol(array(errorDescriptionColumnNames.head, errorDescriptionColumnNames.tail: _*)))
 
-  private def writeErrorTables(logRecordFunction: (String, String, Option[String]) => LogRecord): Unit = {
+    logger.info(s"Successfully added error description columns")
+    val rwdDfColumns: Seq[Column] = specifications.rdDfColumnSet
+    val rwdDfColumnsPlusErrorDescription: Seq[Column] = insertElementAtIndex(specifications.rdDfColumnSet,
+      col(ColumnName.ErrorDescription.name), rwdDfColumns.indexOf(col(ColumnName.TsInserimento.name)))
 
-    if (rawDfPlusTrustedColumnsOpt.nonEmpty && specificationsOpt.nonEmpty) {
-
-      val rawDfPlusTrustedColumns: DataFrame = rawDfPlusTrustedColumnsOpt.get
-      val specifications: Specifications = specificationsOpt.get
-
-      val trdErrorActualTable: String = s"${specifications.trdActualTableName}_error"
-      val trdErrorHistoricalTable = s"${trdErrorActualTable}_h"
-
-      logger.info(s"Starting to populate trd error table ('$trdErrorActualTable', '$trdErrorHistoricalTable')")
-
-      // Retrieve definition of columns containing error description
-      val errorDescriptions: Seq[(String, Column)] = specifications.errorDescriptions
-      val errorDescriptionColumnNames: Seq[String] = errorDescriptions.map(_._1)
-      val rawDfPlusTrustedColumnsAndErrorDescriptions: DataFrame = errorDescriptions
-        .foldLeft(rawDfPlusTrustedColumns)((df, tuple) => {
-          df.withColumn(tuple._1, tuple._2)
-        })
-        .withColumn(ColumnName.ErrorDescription.name,
-          createErrorDescriptionCol(array(errorDescriptionColumnNames.head, errorDescriptionColumnNames.tail: _*)))
-
-    } else logger.warn(s"Skipping write operation for error tables (both trusted and raw)")
-
+    rawDfPlusTrustedColumnsAndErrorDescriptions
+      .filter(specifications.errorCondition)
+      .select(rwdDfColumnsPlusErrorDescription: _*)
   }
 
   private def getSpecifications(bancllName: String, versionNumberOpt: Option[String]): Specifications = {
@@ -188,8 +205,7 @@ class NewSourceLoadEngine(private final val jobPropertiesFile: String)
     }
 
     // Retrieve information for given bancllName
-    val tableName: String = tableNameAndFilterColumn._1
-    val filterConditionCol: Column = tableNameAndFilterColumn._2
+    val (tableName, filterConditionCol): (String, Column) = tableNameAndFilterColumn
     val columnsToSelect: Seq[String] = NewSpecificationRecord.columnsToSelect
     val specificationDf: DataFrame = readFromJDBC(pcAuroraDBName, tableName)
       .filter(filterConditionCol)
@@ -204,7 +220,7 @@ class NewSourceLoadEngine(private final val jobPropertiesFile: String)
       .collect()
       .toSeq
 
-    logger.info(f"Successfully parsed dataframe as a set of elements of type ${NewSpecificationRecord.getClass.getSimpleName}")
+    logger.info(f"Successfully parsed dataframe as a set of elements of type ${classOf[NewSpecificationRecord].getSimpleName}")
     Specifications(specificationRecords)
   }
 

@@ -3,14 +3,10 @@ package it.luca.aurora.utils
 import java.sql.{Date, Timestamp}
 import java.time.{ZoneId, ZonedDateTime}
 
-import it.luca.aurora.spark.data.NewSpecificationRecord
 import it.luca.aurora.spark.functions.etl.ColumnExpression
-import org.apache.spark.sql.Column
 import org.apache.spark.sql.types.{DataType, DataTypes}
 
 object Utils {
-
-
 
   def getJavaSQLTimestampFromNow: Timestamp =  {
 
