@@ -129,10 +129,10 @@ abstract class AbstractEngine(private final val jobPropertiesFile: String) {
 
         if (existsCurrentTable) {
 
-          logger.info(s"Table '$database'.'$table' has some timestamp columns but it exists already. Thus, not creating it again")
+          logger.info(s"Table '$database.$table' has some timestamp columns but it exists already. Thus, not creating it again")
         } else {
 
-          logger.warn(s"Table '$database'.'$table' has some timestamp columns but it does not exist yet. Thus, defining and creating it now")
+          logger.warn(s"Table '$database.$table' has some timestamp columns but it does not exist yet. Thus, defining and creating it now")
           val createTableStatement: java.sql.Statement = jdbcConnection.createStatement
           createTableStatement.execute(getCreateTableStatementFromDfSchema(dfToWrite, database, table))
           logger.info(s"Successfully created table '$database'.'$table'")
@@ -150,7 +150,7 @@ abstract class AbstractEngine(private final val jobPropertiesFile: String) {
     } match {
       case Failure(exception) =>
 
-        val details: String = s"'$database'.'$table' with savemode '$saveMode'"
+        val details: String = s"'$database.$table' with savemode '$saveMode'"
         logger.error(s"Caught exception while trying to save data into $details. Stack trace: ", exception)
         val firstNStackTraceStrings: String = exception.getStackTrace
           .toSeq

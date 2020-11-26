@@ -17,11 +17,11 @@ class NewSourceLoadEngine(private final val jobPropertiesFile: String)
   extends AbstractEngine(jobPropertiesFile) {
 
   private final val logger = Logger.getLogger(getClass)
-
   private final var specificationsOpt: Option[Specifications] = None
+  private final var trdActualTableNameOpt: Option[String] = None
   private final var rawDfPlusTrustedColumnsOpt: Option[DataFrame] = None
 
-  private final val storeSpecificationsAndRawDfPlusTrustedColumns: SourceLoadConfig => Unit = sourceLoadConfig => {
+  private final val getTrdActualTable: SourceLoadConfig => DataFrame = sourceLoadConfig => {
 
     val bancllName: String = sourceLoadConfig.bancllName
     val dtRiferimentoOpt: Option[String] = sourceLoadConfig.dtRiferimentoOpt
@@ -34,8 +34,9 @@ class NewSourceLoadEngine(private final val jobPropertiesFile: String)
       // Store retrieved specifications (for next writing operations)
       logger.info(s"Identified ${specifications.length} row(s) related to BANCLL '$bancllName'")
       specificationsOpt = Some(specifications)
+      trdActualTableNameOpt = Some(specifications.trdActualTableName.toLowerCase)
 
-      // Read data from actual table or from historical according to provided dtRferimento
+      // Read data from actual table or from historical according to provided dtRiferimento
       val rawActualTable: String = specifications.rdActualTableName.toLowerCase
       val rawHistoricalTable: String = s"${rawActualTable}_h"
       val rawDf: DataFrame = getRwdDataframe(rawActualTable, rawHistoricalTable, dtRiferimentoOpt)
@@ -54,6 +55,7 @@ class NewSourceLoadEngine(private final val jobPropertiesFile: String)
       // Store the dataframe obtained so far (for next writing operations)
       logger.info(s"Successfully persisted original dataframe enriched with trusted layer columns")
       rawDfPlusTrustedColumnsOpt = Some(rawDfPlusTrustedColumns)
+      getTrdCleanDataframe(s => s.trdDfColumnSet)
 
     } else throw NoSpecificationException(bancllName)
   }
@@ -112,6 +114,8 @@ class NewSourceLoadEngine(private final val jobPropertiesFile: String)
     val createSourceLoadLogRecord = LogRecord(sparkSession.sparkContext, Branch.SourceLoad.name, Some(bancllName), dtRiferimentoOpt,
       _: String, _: String, _: Option[String])
 
+    //writeToJDBCAndLog[SourceLoadConfig](pcAuroraDBName, )
+
     // Write trusted actual data first
     writeBothTrdActualAndHistorical(sourceLoadConfig, createSourceLoadLogRecord)
   }
@@ -119,7 +123,7 @@ class NewSourceLoadEngine(private final val jobPropertiesFile: String)
   private def writeBothTrdActualAndHistorical(sourceLoadConfig: SourceLoadConfig,
                                               logRecordFunction: (String, String, Option[String]) => LogRecord): Unit = {
 
-    storeSpecificationsAndRawDfPlusTrustedColumns(sourceLoadConfig)
+    getTrdActualTable(sourceLoadConfig)
     val trdActualTable: String = specificationsOpt.get.trdActualTableName
     val trdHistoricalTable = s"${trdActualTable}_h"
 
@@ -127,9 +131,7 @@ class NewSourceLoadEngine(private final val jobPropertiesFile: String)
       (trdHistoricalTable, SaveMode.Append))
       .foreach(t => {
 
-        val tableName = t._1
-        val saveMode = t._2
-
+        val (tableName, saveMode): (String, SaveMode) = t
         writeToJDBCAndLog[Specifications => Seq[Column]](pcAuroraDBName,
           tableName,
           saveMode,
