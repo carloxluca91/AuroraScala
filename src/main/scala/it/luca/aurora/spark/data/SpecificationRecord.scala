@@ -4,17 +4,17 @@ import org.apache.spark.sql.Column
 import org.apache.spark.sql.expressions.UserDefinedFunction
 import org.apache.spark.sql.functions._
 
-case class NewSpecificationRecord(flusso: String,
-                                  sorgenteRd: String,
-                                  tabellaTd: String,
-                                  colonnaTd: String,
-                                  posizioneFinale: Int,
-                                  flagPrimaryKey: Option[String],
-                                  colonnaRd: Option[String],
-                                  funzioneEtl: Option[String],
-                                  flagLookup: Option[String],
-                                  tipoLookup: Option[String],
-                                  lookupId: Option[String]) {
+case class SpecificationRecord(flusso: String,
+                               sorgenteRd: String,
+                               tabellaTd: String,
+                               colonnaTd: String,
+                               posizioneFinale: Int,
+                               flagPrimaryKey: Option[String],
+                               colonnaRd: Option[String],
+                               funzioneEtl: Option[String],
+                               flagLookup: Option[String],
+                               tipoLookup: Option[String],
+                               lookupId: Option[String]) {
 
   private final val writeNullableColumnNames: UserDefinedFunction =
     udf((columnNames: Seq[String], columnValues: Seq[Option[Any]]) => {
@@ -95,7 +95,7 @@ case class NewSpecificationRecord(flusso: String,
   }
 }
 
-object NewSpecificationRecord {
+object SpecificationRecord {
 
   val columnsToSelect: Seq[String] = Seq("flusso",
     "sorgente_rd",

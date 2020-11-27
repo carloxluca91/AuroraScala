@@ -16,6 +16,11 @@ case class InitialLoadEngine(override val jobPropertiesFile: String)
   private final val createInitialLoadLogRecord = LogRecord(sparkSession.sparkContext, Branch.InitialLoad.name, None, None,
     _: String, _: String, _: Option[String])
 
+  private final val readTsvAsDataframeAddingVersionNumber: String => DataFrame =
+    actualTable =>
+      readTsvAsDataframe(actualTable)
+        .withColumn(ColumnName.Versione.name, lit("0.1"))
+
   def run(): Unit = {
 
     // Create database if it does not exists
@@ -24,13 +29,7 @@ case class InitialLoadEngine(override val jobPropertiesFile: String)
     jdbcConnection.close()
     logger.info("Successfully closed JDBC connection")
 
-    val readTsvAsDataframeAddingVersionNumber: String => DataFrame =
-      actualTable => readTsvAsDataframe(actualTable)
-          .withColumn(ColumnName.Versione.name, lit("0.1"))
-
-    tableLoadingOptionsMap
-      .keys
-      .foreach(key =>
+    tableLoadingOptionsMap.keys foreach { key =>
 
         writeToJDBCAndLog[String](pcAuroraDBName,
           key,
@@ -38,7 +37,8 @@ case class InitialLoadEngine(override val jobPropertiesFile: String)
           truncateFlag = false,
           createInitialLoadLogRecord,
           readTsvAsDataframeAddingVersionNumber,
-          key))
+          key)
+    }
   }
 
   private def createDatabaseIfNotExists(dbToCreate: String, connection: Connection): Unit = {

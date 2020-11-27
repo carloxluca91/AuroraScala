@@ -4,7 +4,7 @@ import java.time.LocalDate
 
 import it.luca.aurora.option.Branch
 import it.luca.aurora.option.ScoptParser.SourceLoadConfig
-import it.luca.aurora.spark.data.{LogRecord, NewSpecificationRecord, Specifications}
+import it.luca.aurora.spark.data.{LogRecord, SpecificationRecord, Specifications}
 import it.luca.aurora.exception.NoSpecificationException
 import it.luca.aurora.utils.Utils.{getJavaSQLDateFromNow, getJavaSQLTimestampFromNow, insertElementAtIndex}
 import it.luca.aurora.utils.{ColumnName, DateFormat}
@@ -169,11 +169,11 @@ case class SourceLoadEngine(override val jobPropertiesFile: String)
             specifications)
       }
 
-      logger.info(s"Successfullt populated trd layer duplicated records tables ('$trdDuplicatesActualTable', '$trdDuplicatesHistoricalTable') " +
+      logger.info(s"Successfully populated trd layer duplicated records tables ('$trdDuplicatesActualTable', '$trdDuplicatesHistoricalTable') " +
         s"on db $pcAuroraDBName")
 
     } else {
-      logger.warn(s"Skippin writing of trd historical table")
+      logger.warn(s"Skippin writing of trd layer historical table, both rwd layer error tables and trd layer duplicated record tables")
     }
   }
 
@@ -230,21 +230,21 @@ case class SourceLoadEngine(override val jobPropertiesFile: String)
 
     // Retrieve information for given bancllName
     val (tableName, filterConditionCol): (String, Column) = tableNameAndFilterColumn
-    val columnsToSelect: Seq[String] = NewSpecificationRecord.columnsToSelect
+    val columnsToSelect: Seq[String] = SpecificationRecord.columnsToSelect
     val specificationDf: DataFrame = readFromJDBC(pcAuroraDBName, tableName)
       .filter(filterConditionCol)
       .selectExpr(columnsToSelect: _*)
 
     // Rename each column such that, e.g. sorgente_rd => sorgenteRd, tabella_td => tabellaTd, and so on
     val regex = "_([a-z]|[A-Z])".r
-    val specificationRecords: Seq[NewSpecificationRecord] = columnsToSelect
+    val specificationRecords: Seq[SpecificationRecord] = columnsToSelect
       .map(x => (x, regex.replaceAllIn(x, m => m.group(1).toUpperCase)))
       .foldLeft(specificationDf)((df, tuple2) => df.withColumnRenamed(tuple2._1, tuple2._2))
-      .as[NewSpecificationRecord]
+      .as[SpecificationRecord]
       .collect()
       .toSeq
 
-    logger.info(f"Successfully parsed dataframe as a set of elements of type ${classOf[NewSpecificationRecord].getSimpleName}")
+    logger.info(f"Successfully parsed dataframe as a set of elements of type ${classOf[SpecificationRecord].getSimpleName}")
     Specifications(specificationRecords)
   }
 

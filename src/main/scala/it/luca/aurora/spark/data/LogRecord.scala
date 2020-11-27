@@ -11,8 +11,8 @@ case class LogRecord(application_id: String,
                      application_branch: String,
                      application_start_time: Timestamp,
                      application_start_date: Date,
-                     application_end_time: Timestamp,
-                     application_end_date: Date,
+                     step_finish_time: Timestamp,
+                     step_finish_date: Date,
                      bancll_name: Option[String],
                      dt_riferimento: Option[Date],
                      target_database: String,
@@ -37,9 +37,9 @@ object LogRecord {
     val applicationStartTime: Timestamp = Timestamp.from(Instant.ofEpochMilli(sparkContext.startTime))
     val applicationStartDate: Date = new Date(sparkContext.startTime)
     val applicationEndTime: Timestamp = Utils.getJavaSQLTimestampFromNow
-    val applicationEndDate: Date = new Date(System.currentTimeMillis())
+    val applicationEndDate: Date = Utils.getJavaSQLDateFromNow
     val applicationFinishCode: Int = if (exceptionMsgOpt.isEmpty) 0 else -1
-    val applicationFinishStatus: String = if (exceptionMsgOpt.isEmpty) "successed" else "failed"
+    val applicationFinishStatus: String = if (exceptionMsgOpt.isEmpty) "OK" else "KO"
 
     LogRecord(applicationId,
       applicationName,

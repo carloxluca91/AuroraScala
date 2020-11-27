@@ -67,9 +67,9 @@ abstract class AbstractInitialOrReloadEngine(override val jobPropertiesFile: Str
 
       StructType(columnSpecifications.map(tuple3 => {
 
-        val columnName: String = tuple3._1
-        val columnType: DataType = resolveDataType(tuple3._2.toLowerCase)
-        val nullable: Boolean = tuple3._3.toLowerCase == "true"
+        val (columnName, columnTypeStr, nullableStr): (String, String, String) = tuple3
+        val columnType: DataType = resolveDataType(columnTypeStr.toLowerCase)
+        val nullable: Boolean = nullableStr.toLowerCase == "true"
 
         logger.info(s"Defining column with name '$columnName', type '$columnType', nullable '$nullable'")
         StructField(columnName, columnType, nullable)

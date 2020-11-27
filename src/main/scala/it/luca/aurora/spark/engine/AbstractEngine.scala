@@ -27,18 +27,18 @@ abstract class AbstractEngine(val jobPropertiesFile: String) {
     "useSSL" -> jobProperties.getString("jdbc.useSSL")
   )
 
-  private final val technicalTimestampTypeColumnNames: Seq[String] =
+  private final val technicalTimestampTypeColumns: Seq[String] =
     (ColumnName.TsInserimento :: ColumnName.TsInizioValidita :: ColumnName.TsFineValidita :: Nil)
     .map(_.name)
 
   // Databases
-  protected final val pcAuroraDBName: String = jobProperties.getString("database.pc_aurora")
-  protected final val lakeCedacriDBName: String = jobProperties.getString("database.lake_cedacri")
+  protected final val pcAuroraDBName: String = jobProperties.getString("jdbc.database.pcAuroraAnalysis")
+  protected final val lakeCedacriDBName: String = jobProperties.getString("jdbc.database.lakeCedacri")
 
   // Tables
-  protected final val mappingSpecificationTBLName: String = jobProperties.getString("table.mapping_specification.name")
-  protected final val dataLoadLogTBLName: String = jobProperties.getString("table.sourceload_log.name")
-  protected final val lookupTBLName: String = jobProperties.getString("table.lookup.name")
+  protected final val mappingSpecificationTBLName: String = jobProperties.getString("jdbc.table.mappingSpecification.actual")
+  protected final val dataLoadLogTBLName: String = jobProperties.getString("jdbc.table.dataloadLog")
+  protected final val lookupTBLName: String = jobProperties.getString("jdbc.table.lookup.actual")
 
   protected def getJDBCConnection: java.sql.Connection = {
 
@@ -73,8 +73,8 @@ abstract class AbstractEngine(val jobPropertiesFile: String) {
     jdbcDf
   }
 
-  protected def writeToJDBCAndLog[T](database: String,
-                                     table: String,
+  protected def writeToJDBCAndLog[T](dbName: String,
+                                     tableName: String,
                                      saveMode: SaveMode,
                                      truncateFlag: Boolean,
                                      logRecordFunction: (String, String, Option[String]) => LogRecord,
@@ -86,12 +86,13 @@ abstract class AbstractEngine(val jobPropertiesFile: String) {
     val exceptionMsgOpt: Option[String] = Try {
 
       val dfToWrite: DataFrame = dataframeFunction(dataframeFunctionArg)
-      writeToJDBC(dfToWrite, database, table, saveMode, truncateFlag)
+      executeCreateTableIfDfContainsTimestamps(dbName, tableName, dfToWrite)
+      writeToJDBC(dfToWrite, dbName, tableName, saveMode, truncateFlag)
 
     } match {
       case Failure(exception) =>
 
-        val details: String = s"'$database.$table' with savemode '$saveMode'"
+        val details: String = s"'$dbName.$tableName' with savemode '$saveMode'"
         logger.error(s"Caught exception while trying to save data into $details. Stack trace: ", exception)
         val firstNStackTraceStrings: String = exception.getStackTrace
           .toSeq
@@ -104,7 +105,7 @@ abstract class AbstractEngine(val jobPropertiesFile: String) {
       case Success(_) => None
     }
 
-    val logRecordDf: DataFrame = (logRecordFunction(database, table, exceptionMsgOpt) :: Nil).toDF
+    val logRecordDf: DataFrame = (logRecordFunction(dbName, tableName, exceptionMsgOpt) :: Nil).toDF
     writeToJDBC(logRecordDf,
       pcAuroraDBName,
       dataLoadLogTBLName,
@@ -114,37 +115,15 @@ abstract class AbstractEngine(val jobPropertiesFile: String) {
 
   /* PRIVATE AREA */
 
-  private def getCreateTableStatementFromDfSchema(df: DataFrame, database: String, table: String): String = {
+  private final val executeCreateTableIfDfContainsTimestamps: (String, String, DataFrame) => Unit =
+    (dbName, tableName, df) => {
 
-    val fromSparkTypeToMySQLType: ((String, String)) => String = tuple2 => {
+    val nonTechnicalTimestampTypeColumns: Seq[String] = df.dtypes
+      .filter(t => {
 
-      val columnName: String = tuple2._1
-      val columnType: String = tuple2._2.toLowerCase
-      columnType match {
-
-        case "stringtype" => s"TEXT"
-        case "integertype" => "INT"
-        case "doubletype" => "DOUBLE"
-        case "longtype" => "BIGINT"
-        case "datetype" => "DATE"
-        case "timestamptype" => if (technicalTimestampTypeColumnNames.exists(_ equalsIgnoreCase columnName)) "TIMESTAMP" else "DATETIME"
-      }
-    }
-
-    val createTableStateMent: String = s" CREATE TABLE IF NOT EXISTS $database.$table (\n" +
-      df.dtypes.map(x => s"    ${x._1} ${fromSparkTypeToMySQLType(x)}").mkString(",\n") + " )\n"
-
-    logger.info(s"Create table statement for table '$database'.'$table': \n\n $createTableStateMent")
-    createTableStateMent
-  }
-
-  private def writeToJDBC(outputDataFrame: DataFrame, dbName: String, tableName: String,
-                          saveMode: SaveMode, truncate: Boolean): Unit = {
-
-    val nonTechnicalTimestampTypeColumnNames: Seq[String] = outputDataFrame
-      .dtypes
-      .filter(t => t._2 equalsIgnoreCase "timestamptype")
-      .filterNot(t => technicalTimestampTypeColumnNames.exists(_ equalsIgnoreCase t._1))
+        val (columnName, columnType): (String, String) = t
+        (columnType equalsIgnoreCase "timestamptype") && (!technicalTimestampTypeColumns.contains(columnName))
+      })
       .map(t => t._1)
 
     /**
@@ -158,11 +137,11 @@ abstract class AbstractEngine(val jobPropertiesFile: String) {
      * The DATETIME data type has a range of '1000-01-01 00:00:00' to '9999-12-31 23:59:59'.
      */
 
-    if (nonTechnicalTimestampTypeColumnNames.nonEmpty) {
+    if (nonTechnicalTimestampTypeColumns.nonEmpty) {
 
-      logger.info(s"Identified ${nonTechnicalTimestampTypeColumnNames.size} timestamp column(s) different from " +
-        s"${technicalTimestampTypeColumnNames.map(x => s"'$x'").mkString(", ")}: " +
-        s"${nonTechnicalTimestampTypeColumnNames.map(x => s"'$x'").mkString(", ")}")
+      logger.info(s"Identified ${nonTechnicalTimestampTypeColumns.size} timestamp column(s) different from " +
+        s"${technicalTimestampTypeColumns.map(x => s"'$x'").mkString(", ")}: " +
+        s"${nonTechnicalTimestampTypeColumns.map(x => s"'$x'").mkString(", ")}")
 
       val jdbcConnection: java.sql.Connection = getJDBCConnection
       val existsCurrentTable: Boolean = jdbcConnection.getMetaData
@@ -175,14 +154,41 @@ abstract class AbstractEngine(val jobPropertiesFile: String) {
 
         logger.warn(s"Table '$dbName.$tableName' has some timestamp columns but it does not exist yet. Thus, defining and creating it now")
         val createTableStatement: java.sql.Statement = jdbcConnection.createStatement
-        createTableStatement.execute(getCreateTableStatementFromDfSchema(outputDataFrame, dbName, tableName))
+        createTableStatement.execute(getCreateTableStatementFromDfSchema(df, dbName, tableName))
         logger.info(s"Successfully created table '$dbName.$tableName'")
       }
       jdbcConnection.close()
     }
+  }
+
+  private final val getCreateTableStatementFromDfSchema: (DataFrame, String, String) => String =
+    (df, dbName, tableName) => {
+      val fromSparkTypeToMySQLType: ((String, String)) => String = tuple2 => {
+
+        val (columnName, columnType): (String, String) = tuple2
+        columnType.toLowerCase match {
+
+          case "stringtype" => s"TEXT"
+          case "integertype" => "INT"
+          case "doubletype" => "DOUBLE"
+          case "longtype" => "BIGINT"
+          case "datetype" => "DATE"
+          case "timestamptype" => if (technicalTimestampTypeColumns.contains(columnName)) "TIMESTAMP" else "DATETIME"
+        }
+      }
+
+      val createTableStateMent: String = s" CREATE TABLE IF NOT EXISTS $dbName.$tableName (\n" +
+        df.dtypes.map(x => s"    ${x._1} ${fromSparkTypeToMySQLType(x)}").mkString(",\n") + " )\n"
+
+      logger.info(s"Create table statement for table '$dbName'.'$tableName': \n\n $createTableStateMent")
+      createTableStateMent
+    }
+
+  private def writeToJDBC(outputDataFrame: DataFrame, dbName: String, tableName: String,
+                          saveMode: SaveMode, truncate: Boolean): Unit = {
 
     val truncateOptionValue: String = if (truncate & (saveMode == SaveMode.Overwrite)) "true" else "false"
-    val savingDetails: String = s"table: '$dbName'.'$tableName', savemode: '$saveMode', truncate: '$truncateOptionValue'"
+    val savingDetails: String = s"table: '$dbName.$tableName', savemode: '$saveMode', truncate: '$truncateOptionValue'"
     logger.info(s"Starting to save dataframe into $savingDetails")
     logger.info(f"Dataframe schema:\n\n${outputDataFrame.schema.treeString}")
 

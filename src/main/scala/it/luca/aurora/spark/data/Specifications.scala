@@ -7,10 +7,10 @@ import org.apache.log4j.Logger
 import org.apache.spark.sql.{Column, DataFrame, Row}
 import org.apache.spark.sql.functions.{col, lower, trim, when}
 
-case class Specifications(private val specificationRecords: Seq[NewSpecificationRecord]) {
+case class Specifications(private val specificationRecords: Seq[SpecificationRecord]) {
 
   private final val logger = Logger.getLogger(getClass)
-  private final val columnsFromSpecifications: (Seq[NewSpecificationRecord] => Seq[Column]) => Seq[Column] =
+  private final val columnsFromSpecifications: (Seq[SpecificationRecord] => Seq[Column]) => Seq[Column] =
     op => {
 
     val rowIdCol = col(ColumnName.RowId.name)
@@ -75,7 +75,7 @@ case class Specifications(private val specificationRecords: Seq[NewSpecification
 
   def rdDfColumnSet: Seq[Column] = {
 
-    val op: Seq[NewSpecificationRecord] => Seq[Column] =
+    val op: Seq[SpecificationRecord] => Seq[Column] =
       records => records
         .filter(_.inputRdColumns.nonEmpty)
         .flatMap(_.inputRdColumns.get)
@@ -160,7 +160,7 @@ case class Specifications(private val specificationRecords: Seq[NewSpecification
 
   def trdDfColumnSet: Seq[Column] = {
 
-    val op: Seq[NewSpecificationRecord] => Seq[Column] =
+    val op: Seq[SpecificationRecord] => Seq[Column] =
       records => records
         .sortBy(_.posizioneFinale)
         .map(x => col(x.colonnaTd))
