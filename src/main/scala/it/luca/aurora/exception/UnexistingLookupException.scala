@@ -1,9 +1,9 @@
-package it.luca.aurora.spark.exception
+package it.luca.aurora.exception
 
 import it.luca.aurora.utils.ColumnName
 
 case class UnexistingLookupException(exceptionMsg: String)
-extends Exception(exceptionMsg)
+extends Throwable(exceptionMsg)
 
 object UnexistingLookupException {
 

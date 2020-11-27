@@ -1,6 +1,5 @@
 package it.luca.aurora.spark.engine
 
-import java.io.File
 import java.sql.{Connection, DriverManager}
 
 import it.luca.aurora.spark.data.LogRecord
@@ -12,7 +11,7 @@ import org.apache.spark.sql.{DataFrame, SaveMode, SparkSession}
 
 import scala.util.{Failure, Success, Try}
 
-abstract class AbstractEngine(private final val jobPropertiesFile: String) {
+abstract class AbstractEngine(val jobPropertiesFile: String) {
 
   private final val logger = Logger.getLogger(getClass)
   protected final val sparkSession = getOrCreateSparkSession
@@ -210,26 +209,5 @@ abstract class AbstractEngine(private final val jobPropertiesFile: String) {
     logger.info(s"Successfully created SparkSession for application '${sparkContext.appName}'. " +
       s"Application Id: '${sparkContext.applicationId}', UI url: ${sparkContext.uiWebUrl.get}")
     sparkSession
-  }
-
-  private def loadJobProperties(propertiesFile: String): PropertiesConfiguration = {
-
-    val propertiesConfiguration: PropertiesConfiguration = new PropertiesConfiguration
-    Try {
-
-      propertiesConfiguration.load(new File(propertiesFile))
-
-    } match {
-
-      case Failure(exception) =>
-
-        logger.error("Exception occurred while loading properties file. Stack trace: ", exception)
-        throw exception
-
-      case Success(_) =>
-
-        logger.info("Successfully loaded properties file")
-        propertiesConfiguration
-    }
   }
 }

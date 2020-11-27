@@ -1,6 +1,6 @@
 package it.luca.aurora.spark.data
 
-import it.luca.aurora.spark.exception.{MultipleDstException, MultipleSrcException, UnexistingLookupException}
+import it.luca.aurora.exception.{MultipleDstException, MultipleSrcException, UnexistingLookupException}
 import it.luca.aurora.spark.functions.common.ColumnExpressionParser
 import it.luca.aurora.utils.ColumnName
 import org.apache.log4j.Logger
@@ -10,8 +10,8 @@ import org.apache.spark.sql.functions.{col, lower, trim, when}
 case class Specifications(private val specificationRecords: Seq[NewSpecificationRecord]) {
 
   private final val logger = Logger.getLogger(getClass)
-
-  private def columnsFromSpecifications(op: Seq[NewSpecificationRecord] => Seq[Column]): Seq[Column] = {
+  private final val columnsFromSpecifications: (Seq[NewSpecificationRecord] => Seq[Column]) => Seq[Column] =
+    op => {
 
     val rowIdCol = col(ColumnName.RowId.name)
     val tsInserimentoCol = col(ColumnName.TsInserimento.name)

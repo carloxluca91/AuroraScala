@@ -11,7 +11,7 @@ import org.apache.spark.sql.types.{DataType, StructField, StructType}
 
 import scala.xml.{Elem, XML}
 
-abstract class AbstractInitialOrReloadEngine(val jobPropertiesFile: String)
+abstract class AbstractInitialOrReloadEngine(override val jobPropertiesFile: String)
   extends AbstractEngine(jobPropertiesFile) {
 
   private final val logger: Logger = Logger.getLogger(getClass)

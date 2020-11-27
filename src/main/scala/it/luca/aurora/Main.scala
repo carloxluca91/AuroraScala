@@ -39,7 +39,7 @@ object Main extends App {
 
                 logger.info(value)
                 logger.info("Successfully parsed second set of arguments (branch arguments)")
-                new InitialLoadEngine(value.propertiesFile).run()
+                InitialLoadEngine(value.propertiesFile).run()
                 logger.info(s"Successfully executed operations on branch '${Branch.InitialLoad.name}'")
             }
 
@@ -54,7 +54,7 @@ object Main extends App {
 
                 logger.info(value)
                 logger.info("Successfully parsed second set of arguments (branch arguments)")
-                new SourceLoadEngine(value.propertiesFile).run(value)
+                SourceLoadEngine(value.propertiesFile).run(value)
                 logger.info(s"Successfully executed operations on branch '${Branch.SourceLoad.name}'")
             }
 
@@ -69,7 +69,7 @@ object Main extends App {
 
                 logger.info(value)
                 logger.info("Successfully parsed second set of arguments (branch arguments)")
-                new ReLoadEngine(value.propertiesFile).run(value)
+                ReLoadEngine(value.propertiesFile).run(value)
                 logger.info(s"Successfully executed operations on branch '${Branch.Reload.name}'")
             }
         }

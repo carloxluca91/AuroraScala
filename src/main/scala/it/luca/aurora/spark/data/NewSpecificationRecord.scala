@@ -1,11 +1,12 @@
 package it.luca.aurora.spark.data
 
-import it.luca.aurora.utils.ColumnName
 import org.apache.spark.sql.Column
 import org.apache.spark.sql.expressions.UserDefinedFunction
-import org.apache.spark.sql.functions.{array, col, lit, udf, when}
+import org.apache.spark.sql.functions._
 
 case class NewSpecificationRecord(flusso: String,
+                                  sorgenteRd: String,
+                                  tabellaTd: String,
                                   colonnaTd: String,
                                   posizioneFinale: Int,
                                   flagPrimaryKey: Option[String],
@@ -107,31 +108,4 @@ object NewSpecificationRecord {
     "flag_lookup",
     "tipo_lookup",
     "lookup_id" )
-
-  def reducedErrorCondition(specifications: Seq[NewSpecificationRecord]): Column = {
-
-    specifications
-      .map(_.errorCondition)
-      .filter(_.nonEmpty)
-      .map(_.get)
-      .reduce(_ || _)
-  }
-
-  private def getColumns(specificationRecords: Seq[NewSpecificationRecord], op: NewSpecificationRecord => Column): Seq[Column] = {
-
-    val rowIdCol = col(ColumnName.RowId.name)
-    val tsInserimentoCol = col(ColumnName.TsInserimento.name)
-    val dtInserimentoCol = col(ColumnName.DtInserimento.name)
-    val dtRiferimentoCol = col(ColumnName.DtRiferimento.name)
-    val specificationColumnSorted = specificationRecords
-      .sortBy(_.posizioneFinale)
-      .map(op)
-
-    (rowIdCol :: Nil) ++ specificationColumnSorted ++ (tsInserimentoCol :: dtInserimentoCol :: dtRiferimentoCol :: Nil)
-  }
-
-  def trustedDfColumns(specificationRecords: Seq[NewSpecificationRecord]): Seq[Column] = {
-
-    getColumns(specificationRecords, s => col(s.colonnaTd))
-  }
 }

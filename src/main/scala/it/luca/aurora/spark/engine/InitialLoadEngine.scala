@@ -9,8 +9,8 @@ import org.apache.log4j.Logger
 import org.apache.spark.sql.functions.lit
 import org.apache.spark.sql.{DataFrame, SaveMode}
 
-class InitialLoadEngine(applicationPropertiesFile: String)
-  extends AbstractInitialOrReloadEngine(applicationPropertiesFile) {
+case class InitialLoadEngine(override val jobPropertiesFile: String)
+  extends AbstractInitialOrReloadEngine(jobPropertiesFile) {
 
   private final val logger = Logger.getLogger(getClass)
   private final val createInitialLoadLogRecord = LogRecord(sparkSession.sparkContext, Branch.InitialLoad.name, None, None,

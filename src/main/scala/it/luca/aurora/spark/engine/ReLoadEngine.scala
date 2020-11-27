@@ -9,12 +9,35 @@ import org.apache.log4j.Logger
 import org.apache.spark.sql.functions.lit
 import org.apache.spark.sql.{DataFrame, SaveMode}
 
-class ReLoadEngine(applicationPropertiesFile: String)
-  extends AbstractInitialOrReloadEngine(applicationPropertiesFile) {
+case class ReLoadEngine(override val jobPropertiesFile: String)
+  extends AbstractInitialOrReloadEngine(jobPropertiesFile) {
 
   private final val logger = Logger.getLogger(getClass)
   private final val createReLoadLogRecord = LogRecord(sparkSession.sparkContext, Branch.Reload.name, None, None,
     _: String, _: String, _: Option[String])
+
+  private final val getActualDfPlusFineValidita: String => DataFrame = actualTable => {
+
+    readFromJDBC(pcAuroraDBName, actualTable)
+      .withColumn(ColumnName.TsFineValidita.name, lit(getJavaSQLTimestampFromNow))
+      .withColumn(ColumnName.DtFineValidita.name, lit(getJavaSQLDateFromNow))
+  }
+
+  // Function for reading new .tsv file as Dataframe with updated version number
+  private final val readTSVAndUpdateVersionNumber: String => DataFrame = actualTable => {
+
+    val oldVersionNumber: String = readFromJDBC(pcAuroraDBName, actualTable)
+      .selectExpr(ColumnName.Versione.name)
+      .distinct()
+      .collect()(0)
+      .getAs[String](0)
+
+    val newSpecificationVersion: String = f"${oldVersionNumber.toDouble + 0.1}%.1f"
+    logger.info(f"Old specification number: '$oldVersionNumber'. Overriding with version number '$newSpecificationVersion'")
+
+    readTsvAsDataframe(actualTable)
+      .withColumn(ColumnName.Versione.name, lit(newSpecificationVersion))
+  }
 
   def run(reloadConfig: ReloadConfig): Unit = {
 
@@ -33,45 +56,19 @@ class ReLoadEngine(applicationPropertiesFile: String)
 
     } else {
 
-      // Function for retrieving actual table
-      val getActualDf: String => DataFrame = actualTable => {
-
-        readFromJDBC(pcAuroraDBName, actualTable)
-          .withColumn(ColumnName.TsFineValidita.name, lit(getJavaSQLTimestampFromNow))
-          .withColumn(ColumnName.DtFineValidita.name, lit(getJavaSQLDateFromNow))
-      }
-
-      // Function for reading new .tsv file as Dataframe with updated version number
-      val readTSVAndUpdateVersionNumber: String => DataFrame = actualTable => {
-
-        val oldVersionNumber: String = readFromJDBC(pcAuroraDBName, actualTable)
-          .selectExpr(ColumnName.Versione.name)
-          .distinct()
-          .collect()(0)
-          .getAs[String](0)
-
-        val newSpecificationVersion: String = f"${oldVersionNumber.toDouble + 0.1}%.1f"
-        logger.info(f"Old specification number: '$oldVersionNumber'. Overriding with version number '$newSpecificationVersion'")
-
-        readTsvAsDataframe(actualTable)
-          .withColumn(ColumnName.Versione.name, lit(newSpecificationVersion))
-      }
-
       // Execute following operations according to selected flags
       // [a] insert data stored on actual table into historical table
       // [b] overwrite actual table
 
       val reloadTables: Map[String, Boolean] = Map(
-
         mappingSpecificationTBLName -> mappingSpecificationFlag,
-        lookupTBLName -> lookupFlag
-      )
+        lookupTBLName -> lookupFlag)
 
       reloadTables
         .filter(t => t._2)
         .foreach(t => {
 
-          val actualTable: String = t._1
+          val (actualTable, _): (String, Boolean) = t
           val historicalTable = s"${actualTable}_h"
           logger.info(s"Starting to insert old data on table '$pcAuroraDBName.$historicalTable' and overwrite table '$pcAuroraDBName.$actualTable'")
 
@@ -81,7 +78,7 @@ class ReLoadEngine(applicationPropertiesFile: String)
             SaveMode.Append,
             truncateFlag = false,
             createReLoadLogRecord,
-            getActualDf,
+            getActualDfPlusFineValidita,
             actualTable)
 
           writeToJDBCAndLog[String](pcAuroraDBName,
