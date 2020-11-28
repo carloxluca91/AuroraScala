@@ -37,7 +37,7 @@ case class SourceLoadEngine(override val jobPropertiesFile: String)
       trdActualTableNameOpt = Some(specifications.trdActualTableName.toLowerCase)
 
       // Read data from actual table or from historical according to provided dtRiferimento
-      val rawActualTable: String = specifications.rdActualTableName.toLowerCase
+      val rawActualTable: String = specifications.rwdActualTableName.toLowerCase
       val rawHistoricalTable: String = s"${rawActualTable}_h"
       val rawDf: DataFrame = getDfToBeIngested(rawActualTable, rawHistoricalTable, dtRiferimentoOpt)
 
@@ -55,7 +55,7 @@ case class SourceLoadEngine(override val jobPropertiesFile: String)
       // Store the dataframe obtained so far (for next writing operations)
       logger.info(s"Successfully persisted original dataframe enriched with trusted layer columns")
       rawDfPlusTrustedColumnsOpt = Some(rawDfPlusTrustedColumns)
-      getTrdCleanDf(s => s.trdDfColumnSet)
+      getTrdCleanDataDf(s => s.trdDfColumnSet)
 
     } else throw NoSpecificationException(bancllName)
   }
@@ -80,7 +80,7 @@ case class SourceLoadEngine(override val jobPropertiesFile: String)
       }
   }
 
-  private final val getTrdCleanDf: (Specifications => Seq[Column]) => DataFrame = selectOperation => {
+  private final val getTrdCleanDataDf: (Specifications => Seq[Column]) => DataFrame = selectOperation => {
 
     val specifications = specificationsOpt.get
     val rawDfPlusTrustedColumns = rawDfPlusTrustedColumnsOpt.get
@@ -133,13 +133,13 @@ case class SourceLoadEngine(override val jobPropertiesFile: String)
         SaveMode.Append,
         truncateFlag = true,
         createSourceLoadLogRecord,
-        getTrdCleanDf,
+        getTrdCleanDataDf,
         s => s.trdDfColumnSet)
 
-      // Write rwd layer error table
-      val rwdErrorActualTable = s"${specifications.rdActualTableName}_error"
+      // Write rwd layer error table(s)
+      val rwdErrorActualTable = s"${specifications.rwdActualTableName}_error"
       val rwdErrorHistoricalTable = s"${rwdErrorActualTable}_h"
-      logger.info(s"Starting to populate rwd layer error tables ('$rwdErrorActualTable', '$rwdErrorHistoricalTable') on db $lakeCedacriDBName")
+      logger.info(s"Starting to populate rwd layer error tables ($rwdErrorActualTable, $rwdErrorHistoricalTable) on db $lakeCedacriDBName")
       ((rwdErrorActualTable -> SaveMode.Overwrite) :: (rwdErrorHistoricalTable -> SaveMode.Append) :: Nil) foreach {
         t => val (tableName, saveMode): (String, SaveMode) = t
           writeToJDBCAndLog[Specifications](lakeCedacriDBName,
@@ -151,12 +151,12 @@ case class SourceLoadEngine(override val jobPropertiesFile: String)
             specifications)
       }
 
-      logger.info(s"Successfully populated rwd layer error tables ('$rwdErrorActualTable', '$rwdErrorHistoricalTable') on db $lakeCedacriDBName")
+      logger.info(s"Successfully populated rwd layer error tables ($rwdErrorActualTable, $rwdErrorHistoricalTable) on db $lakeCedacriDBName")
 
       // Write trd layer duplicates table
       val trdDuplicatesActualTable = s"${specifications.trdActualTableName}_duplicated"
       val trdDuplicatesHistoricalTable = s"${trdDuplicatesActualTable}_h"
-      logger.info(s"Starting to populate trd layer duplicated records tables ('$trdDuplicatesActualTable', '$trdDuplicatesHistoricalTable') " +
+      logger.info(s"Starting to populate trd layer duplicated records tables ($trdDuplicatesActualTable, $trdDuplicatesHistoricalTable) " +
         s"on db $pcAuroraDBName")
       ((trdDuplicatesActualTable -> SaveMode.Overwrite) :: (trdDuplicatesHistoricalTable -> SaveMode.Append) :: Nil) foreach {
         t => val (tableName, saveMode): (String, SaveMode) = t
@@ -169,11 +169,11 @@ case class SourceLoadEngine(override val jobPropertiesFile: String)
             specifications)
       }
 
-      logger.info(s"Successfully populated trd layer duplicated records tables ('$trdDuplicatesActualTable', '$trdDuplicatesHistoricalTable') " +
+      logger.info(s"Successfully populated trd layer duplicated records tables ($trdDuplicatesActualTable, $trdDuplicatesHistoricalTable) " +
         s"on db $pcAuroraDBName")
 
     } else {
-      logger.warn(s"Skippin writing of trd layer historical table, both rwd layer error tables and trd layer duplicated record tables")
+      logger.warn(s"Skipping writing of next tables due to some error on previous step")
     }
   }
 
@@ -192,8 +192,8 @@ case class SourceLoadEngine(override val jobPropertiesFile: String)
         createErrorDescriptionCol(array(errorDescriptionColumnNames.head, errorDescriptionColumnNames.tail: _*)))
 
     logger.info(s"Successfully added error description columns")
-    val rwdDfColumns: Seq[Column] = specifications.rdDfColumnSet
-    val rwdDfColumnsPlusErrorDescription: Seq[Column] = insertElementAtIndex(specifications.rdDfColumnSet,
+    val rwdDfColumns: Seq[Column] = specifications.rwdDfColumnSet
+    val rwdDfColumnsPlusErrorDescription: Seq[Column] = insertElementAtIndex(specifications.rwdDfColumnSet,
       col(ColumnName.ErrorDescription.name), rwdDfColumns.indexOf(col(ColumnName.TsInserimento.name)))
 
     rawDfPlusTrustedColumnsAndErrorDescriptions

@@ -57,14 +57,13 @@ case class Specifications(private val specificationRecords: Seq[SpecificationRec
       .map(x => col(x.colonnaTd))
   }
 
-  def rdActualTableName: String = {
+  def rwdActualTableName: String = {
 
     val srcTables: Seq[String] = specificationRecords
       .map(_.sorgenteRd)
       .distinct
 
-    if (srcTables.length > 1) {
-
+    if (srcTables.length == 1) {
       srcTables.head
     } else {
 
@@ -73,11 +72,12 @@ case class Specifications(private val specificationRecords: Seq[SpecificationRec
     }
   }
 
-  def rdDfColumnSet: Seq[Column] = {
+  def rwdDfColumnSet: Seq[Column] = {
 
     val op: Seq[SpecificationRecord] => Seq[Column] =
       records => records
         .filter(_.inputRdColumns.nonEmpty)
+        .sortBy(_.posizioneFinale)
         .flatMap(_.inputRdColumns.get)
         .distinct
         .map(col)
@@ -91,8 +91,7 @@ case class Specifications(private val specificationRecords: Seq[SpecificationRec
       .map(_.tabellaTd)
       .distinct
 
-    if (dstTables.length > 1) {
-
+    if (dstTables.length == 1) {
       dstTables.head
     } else {
 

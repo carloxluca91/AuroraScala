@@ -1,5 +1,5 @@
 val sparkVersion = "2.2.3"
-val scalaTestVersion = "3.0.0"
+val scalaTestVersion = "3.2.0"
 val scoptVersion = "3.3.0"
 val mySqlConnectorVersion = "5.1.45"
 
@@ -11,7 +11,9 @@ lazy val auroraScala = (project in file("."))
     scalaVersion := "2.11.8",
     scalacOptions ++= Seq(
 
-      "-encoding", "UTF-8"),
+      "-encoding", "UTF-8",
+      "-target:jvm-1.8"
+    ),
 
     libraryDependencies ++= Seq(
 

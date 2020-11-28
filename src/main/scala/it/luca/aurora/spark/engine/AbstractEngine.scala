@@ -106,11 +106,7 @@ abstract class AbstractEngine(val jobPropertiesFile: String) {
     }
 
     val logRecordDf: DataFrame = (logRecordFunction(dbName, tableName, exceptionMsgOpt) :: Nil).toDF
-    writeToJDBC(logRecordDf,
-      pcAuroraDBName,
-      dataLoadLogTBLName,
-      SaveMode.Append,
-      truncate = false)
+    writeToJDBC(logRecordDf, pcAuroraDBName, dataLoadLogTBLName, SaveMode.Append, truncate = false)
   }
 
   /* PRIVATE AREA */
@@ -163,11 +159,10 @@ abstract class AbstractEngine(val jobPropertiesFile: String) {
 
   private final val getCreateTableStatementFromDfSchema: (DataFrame, String, String) => String =
     (df, dbName, tableName) => {
-      val fromSparkTypeToMySQLType: ((String, String)) => String = tuple2 => {
 
+      val fromSparkTypeToMySQLType: ((String, String)) => String = tuple2 => {
         val (columnName, columnType): (String, String) = tuple2
         columnType.toLowerCase match {
-
           case "stringtype" => s"TEXT"
           case "integertype" => "INT"
           case "doubletype" => "DOUBLE"
