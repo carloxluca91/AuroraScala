@@ -244,7 +244,8 @@ case class SourceLoadEngine(override val jobPropertiesFile: String)
       .collect()
       .toSeq
 
-    logger.info(f"Successfully parsed dataframe as a set of elements of type ${classOf[SpecificationRecord].getSimpleName}")
+    logger.info(f"Successfully turned dataframe into a set of ${specificationRecords.size} elements " +
+      f"of type ${classOf[SpecificationRecord].getSimpleName}")
     Specifications(specificationRecords)
   }
 
