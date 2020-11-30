@@ -31,8 +31,10 @@ case class ReLoadEngine(override val jobPropertiesFile: String)
       .distinct()
       .collect()(0)
       .getAs[String](0)
+      .replace(",", ".")
 
     val newSpecificationVersion: String = f"${oldVersionNumber.toDouble + 0.1}%.1f"
+      .replace(",", ".")
     logger.info(f"Old specification number: '$oldVersionNumber'. Overriding with version number '$newSpecificationVersion'")
 
     readTsvAsDataframe(actualTable)

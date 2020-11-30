@@ -13,7 +13,7 @@ case class Specifications(private val specificationRecords: Seq[SpecificationRec
   private final val columnsFromSpecifications: (Seq[SpecificationRecord] => Seq[Column]) => Seq[Column] =
     op => {
 
-    val rowIdCol = col(ColumnName.RowId.name)
+    val rowIdCol = col(ColumnName.RowIndex.name)
     val tsInserimentoCol = col(ColumnName.TsInserimento.name)
     val dtInserimentoCol = col(ColumnName.DtInserimento.name)
     val dtRiferimentoCol = col(ColumnName.DtRiferimento.name)
@@ -111,8 +111,8 @@ case class Specifications(private val specificationRecords: Seq[SpecificationRec
           case None =>
 
             // If an ETL expression has not been defined, get simple raw column
-            logger.info(s"No ETL function to apply to input column '${s.colonnaRd.get}'")
-            col(s.colonnaRd.get)
+            logger.info(s"No ETL function to apply to input column '${s.colonneRd.get}'")
+            col(s.colonneRd.get)
 
           case Some(etlFunction) =>
 
@@ -129,7 +129,7 @@ case class Specifications(private val specificationRecords: Seq[SpecificationRec
 
           // Try to retrieve related cases
           val lookupType = s.tipoLookup.get.toLowerCase()
-          val lookupId = s.tipoLookup.get.toLowerCase
+          val lookupId = s.lookupId.get.toLowerCase
           val lookupDfFilterCondition: Column = trim(lower(col(ColumnName.LookupTipo.name))) === lookupType &&
             trim(lower(col(ColumnName.LookupId.name))) === lookupId
 

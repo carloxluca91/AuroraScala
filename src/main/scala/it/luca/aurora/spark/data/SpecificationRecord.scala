@@ -10,13 +10,13 @@ case class SpecificationRecord(flusso: String,
                                colonnaTd: String,
                                posizioneFinale: Int,
                                flagPrimaryKey: Option[String],
-                               colonnaRd: Option[String],
+                               colonneRd: Option[String],
                                funzioneEtl: Option[String],
                                flagLookup: Option[String],
                                tipoLookup: Option[String],
                                lookupId: Option[String]) {
 
-  private final val writeNullableColumnNames: UserDefinedFunction =
+  private val writeNullableColumnNames: UserDefinedFunction =
     udf((columnNames: Seq[String], columnValues: Seq[Option[Any]]) => {
 
       columnNames.zip(columnValues)
@@ -25,7 +25,7 @@ case class SpecificationRecord(flusso: String,
         .mkString(", ")
     })
 
-  private final val writeAllRawColumnNamesAndValues: UserDefinedFunction =
+  private val writeAllRawColumnNamesAndValues: UserDefinedFunction =
     udf((columnNames: Seq[String], columnValues: Seq[Option[Any]]) => {
 
       columnNames.zip(columnValues)
@@ -55,11 +55,16 @@ case class SpecificationRecord(flusso: String,
           .map(col(_).isNull)
           .reduce(_ || _)
 
-        val doesInputMismatch: Column = s
-          .map(col(_).isNotNull)
-          .reduce(_ && _) && col(colonnaTd).isNull
+        if (funzioneEtl.isEmpty && flagLookup.isEmpty) {
+          Some(isAnyRdColumnNull)
+        } else {
 
-        Some(isAnyRdColumnNull || doesInputMismatch)
+          val doesInputMismatch: Column = s
+            .map(col(_).isNotNull)
+            .reduce(_ && _) && col(colonnaTd).isNull
+
+            Some(isAnyRdColumnNull || doesInputMismatch)
+        }
     }
   }
 
@@ -88,7 +93,7 @@ case class SpecificationRecord(flusso: String,
 
   def inputRdColumns: Option[Seq[String]] = {
 
-    colonnaRd match {
+    colonneRd match {
       case None => None
       case Some(x) => Some(x.split(", ").toSeq)
     }

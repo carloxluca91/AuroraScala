@@ -7,7 +7,7 @@ object ColumnName extends Enumeration {
   import scala.language.implicitConversions
   implicit def valueToColumnNameVal(x: Value): Val = x.asInstanceOf[Val]
 
-  // SPECIFICATION
+  // Mapping Specification and raw layer data
   val Flusso: Val = Val("flusso")
   val Versione: Val = Val("versione")
   val DtFineValidita: Val = Val("dt_fine_validita")
@@ -16,12 +16,12 @@ object ColumnName extends Enumeration {
   val DtRiferimento: Val = Val("dt_riferimento")
   val ErrorDescription: Val = Val("descrizione_errore")
   val RowCount: Val = Val("row_count")
-  val RowId: Val = Val("row_id")
+  val RowIndex: Val = Val("row_index")
   val TsInizioValidita: Val = Val("ts_inizio_validita")
   val TsInserimento: Val = Val("ts_inserimento")
   val TsFineValidita: Val = Val("ts_fine_validita")
 
-  // LOOKUP
+  // Lookup
   val LookupTipo: Val = Val("tipo_lookup")
   val LookupId: Val = Val("lookup_id")
   val LookupValoreOriginale: Val = Val("valore_originale")

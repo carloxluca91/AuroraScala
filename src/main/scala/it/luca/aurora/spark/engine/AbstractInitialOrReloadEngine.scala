@@ -31,11 +31,7 @@ abstract class AbstractInitialOrReloadEngine(override val jobPropertiesFile: Str
   protected def readTsvAsDataframe(actualTableName: String): DataFrame = {
 
     val tsvReadingOptions: (String, String, String, String) = tableLoadingOptionsMap(actualTableName)
-    val tsvFilePath: String = tsvReadingOptions._1
-    val tsvSep: String = tsvReadingOptions._2
-    val tsvHeaderFlag: Boolean = tsvReadingOptions._3.toBoolean
-    val xMLSchemaFilePath: String = tsvReadingOptions._4
-
+    val (tsvFilePath, tsvSep, tsvHeaderFlag, xMLSchemaFilePath) = tsvReadingOptions
     val details: String = s"path '$tsvFilePath' (separator: '$tsvSep', file header presence: '$tsvHeaderFlag')"
     logger.info(s"Attempting to load .tsv file at $details")
 

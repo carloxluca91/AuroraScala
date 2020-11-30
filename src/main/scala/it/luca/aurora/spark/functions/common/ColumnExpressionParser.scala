@@ -43,7 +43,7 @@ object ColumnExpressionParser {
         case expression: SingleColumnExpression =>
 
           val nestedFunctionStr: String = expression.nestedFunction
-          logger.info(s"Detected a static column expression: $matchingExpressionAsString with nested function '$nestedFunctionStr'. " +
+          logger.info(s"Detected a single column expression: $matchingExpressionAsString with nested function '$nestedFunctionStr'. " +
             s"Trying to resolve this latter recursively")
           expression.getColumn(ColumnExpressionParser(nestedFunctionStr))
 

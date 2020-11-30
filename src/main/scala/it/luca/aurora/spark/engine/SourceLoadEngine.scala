@@ -2,10 +2,10 @@ package it.luca.aurora.spark.engine
 
 import java.time.LocalDate
 
+import it.luca.aurora.exception.NoSpecificationException
 import it.luca.aurora.option.Branch
 import it.luca.aurora.option.ScoptParser.SourceLoadConfig
 import it.luca.aurora.spark.data.{LogRecord, SpecificationRecord, Specifications}
-import it.luca.aurora.exception.NoSpecificationException
 import it.luca.aurora.utils.Utils.{getJavaSQLDateFromNow, getJavaSQLTimestampFromNow, insertElementAtIndex}
 import it.luca.aurora.utils.{ColumnName, DateFormat}
 import org.apache.log4j.Logger
@@ -21,43 +21,39 @@ case class SourceLoadEngine(override val jobPropertiesFile: String)
   private final var trdActualTableNameOpt: Option[String] = None
   private final var rawDfPlusTrustedColumnsOpt: Option[DataFrame] = None
 
-  private final val getTrdActualTable: SourceLoadConfig => DataFrame = sourceLoadConfig => {
+  private final val getTrdActualTable: ((Specifications, String, Option[String])) => DataFrame =
+    tuple3 => {
 
-    val bancllName: String = sourceLoadConfig.bancllName
-    val dtRiferimentoOpt: Option[String] = sourceLoadConfig.dtRiferimentoOpt
-    val versionNumberOpt: Option[String] = sourceLoadConfig.versionNumberOpt
+      val (specifications, bancllName, dtRiferimentoOpt) = tuple3
+      if (specifications.nonEmpty) {
 
-    // Check if provided bancllName is defined
-    val specifications: Specifications = getSpecifications(bancllName, versionNumberOpt)
-    if (specifications.nonEmpty) {
+        // Store retrieved specifications (for next writing operations)
+        logger.info(s"Identified ${specifications.length} row(s) related to BANCLL '$bancllName'")
+        specificationsOpt = Some(specifications)
+        trdActualTableNameOpt = Some(specifications.trdActualTableName.toLowerCase)
 
-      // Store retrieved specifications (for next writing operations)
-      logger.info(s"Identified ${specifications.length} row(s) related to BANCLL '$bancllName'")
-      specificationsOpt = Some(specifications)
-      trdActualTableNameOpt = Some(specifications.trdActualTableName.toLowerCase)
+        // Read data from actual table or from historical according to provided dtRiferimento
+        val rawActualTable: String = specifications.rwdActualTableName.toLowerCase
+        val rawHistoricalTable: String = s"${rawActualTable}_h"
+        val rawDf: DataFrame = getDfToBeIngested(rawActualTable, rawHistoricalTable, dtRiferimentoOpt)
 
-      // Read data from actual table or from historical according to provided dtRiferimento
-      val rawActualTable: String = specifications.rwdActualTableName.toLowerCase
-      val rawHistoricalTable: String = s"${rawActualTable}_h"
-      val rawDf: DataFrame = getDfToBeIngested(rawActualTable, rawHistoricalTable, dtRiferimentoOpt)
+        val primaryKeyColumns: Seq[Column] = specifications.primaryKeyColumns
+        val trustedColumns: Seq[(String, Column)] = getTrdColumns(specifications)
 
-      val primaryKeyColumns: Seq[Column] = specifications.primaryKeyColumns
-      val trustedColumns: Seq[(String, Column)] = getTrdColumns(specifications)
+        // Added retrieved trusted columns plus a triple of technical ones
+        val rawDfPlusTrustedColumns: DataFrame = trustedColumns
+          .foldLeft(rawDf)((df, tuple2) => df.withColumn(tuple2._1, tuple2._2))
+          .withColumn(ColumnName.RowCount.name, count("*") over Window.partitionBy(primaryKeyColumns: _*))
+          .withColumn(ColumnName.TsInserimento.name, lit(getJavaSQLTimestampFromNow))
+          .withColumn(ColumnName.DtInserimento.name, lit(getJavaSQLDateFromNow))
+          .persist()
 
-      // Added retrieved trusted columns plus a triple of technical ones
-      val rawDfPlusTrustedColumns: DataFrame = trustedColumns
-        .foldLeft(rawDf)((df, tuple2) => df.withColumn(tuple2._1, tuple2._2))
-        .withColumn(ColumnName.RowCount.name, count("*") over Window.partitionBy(primaryKeyColumns: _*))
-        .withColumn(ColumnName.TsInserimento.name, lit(getJavaSQLTimestampFromNow))
-        .withColumn(ColumnName.DtInserimento.name, lit(getJavaSQLDateFromNow))
-        .persist()
+        // Store the dataframe obtained so far (for next writing operations)
+        logger.info(s"Successfully persisted original dataframe enriched with trusted layer columns")
+        rawDfPlusTrustedColumnsOpt = Some(rawDfPlusTrustedColumns)
+        getTrdCleanDataDf(specifications)
 
-      // Store the dataframe obtained so far (for next writing operations)
-      logger.info(s"Successfully persisted original dataframe enriched with trusted layer columns")
-      rawDfPlusTrustedColumnsOpt = Some(rawDfPlusTrustedColumns)
-      getTrdCleanDataDf(s => s.trdDfColumnSet)
-
-    } else throw NoSpecificationException(bancllName)
+      } else throw NoSpecificationException(bancllName)
   }
 
   private final val getDfToBeIngested: (String, String, Option[String]) => DataFrame =
@@ -80,15 +76,13 @@ case class SourceLoadEngine(override val jobPropertiesFile: String)
       }
   }
 
-  private final val getTrdCleanDataDf: (Specifications => Seq[Column]) => DataFrame = selectOperation => {
+  private final val getTrdCleanDataDf: Specifications => DataFrame = specifications => {
 
-    val specifications = specificationsOpt.get
     val rawDfPlusTrustedColumns = rawDfPlusTrustedColumnsOpt.get
-
     val cleanDataFilterCondition: Column = (!specifications.errorCondition) && col(ColumnName.RowCount.name) === 1
     rawDfPlusTrustedColumns
       .filter(cleanDataFilterCondition)
-      .select(selectOperation(specifications): _*)
+      .select(specifications.trdDfColumnSet: _*)
   }
 
   private final val createErrorDescriptionCol: UserDefinedFunction =
@@ -111,30 +105,34 @@ case class SourceLoadEngine(override val jobPropertiesFile: String)
 
     val bancllName: String = sourceLoadConfig.bancllName
     val dtRiferimentoOpt: Option[String] = sourceLoadConfig.dtRiferimentoOpt
+    val versionNumberOpt: Option[String] = sourceLoadConfig.versionNumberOpt
     val createSourceLoadLogRecord = LogRecord(sparkSession.sparkContext, Branch.SourceLoad.name, Some(bancllName), dtRiferimentoOpt,
       _: String, _: String, _: Option[String])
 
+    // Check if provided bancllName is defined
+    val specifications: Specifications = getSpecifications(bancllName, versionNumberOpt)
+    val trdActualTableName: String = specifications.trdActualTableName
+    val trdHistoricalTableName = s"${trdActualTableName}_h"
+
     // Write actual trd table
-    writeToJDBCAndLog[SourceLoadConfig](pcAuroraDBName,
-      trdActualTableNameOpt.get,
+    writeToJDBCAndLog[(Specifications, String, Option[String])](pcAuroraDBName,
+      trdActualTableName,
       SaveMode.Overwrite,
       truncateFlag = true,
       createSourceLoadLogRecord,
       getTrdActualTable,
-      sourceLoadConfig)
+      (specifications, bancllName, dtRiferimentoOpt))
 
-    if ((specificationsOpt :: rawDfPlusTrustedColumnsOpt :: Nil).forall(_.nonEmpty)) {
+    if (rawDfPlusTrustedColumnsOpt.nonEmpty) {
 
       // Write historical trd table
-      val specifications = specificationsOpt.get
-      val trdHistoricalTable = s"${specifications.trdActualTableName}_h"
-      writeToJDBCAndLog[Specifications => Seq[Column]](pcAuroraDBName,
-        trdHistoricalTable,
+      writeToJDBCAndLog[Specifications](pcAuroraDBName,
+        trdHistoricalTableName,
         SaveMode.Append,
         truncateFlag = true,
         createSourceLoadLogRecord,
         getTrdCleanDataDf,
-        s => s.trdDfColumnSet)
+        specifications)
 
       // Write rwd layer error table(s)
       val rwdErrorActualTable = s"${specifications.rwdActualTableName}_error"
