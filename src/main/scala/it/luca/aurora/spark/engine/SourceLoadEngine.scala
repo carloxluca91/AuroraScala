@@ -86,11 +86,10 @@ case class SourceLoadEngine(override val jobPropertiesFile: String)
   }
 
   private final val createErrorDescriptionCol: UserDefinedFunction =
-    udf((s: Seq[Option[String]]) => {
+    udf((s: Seq[String]) => {
 
       val distinctSeq: Seq[String] = s
-        .filter(_.nonEmpty)
-        .map(_.get)
+        .filterNot(_ == null)
         .map(_.split(", "))
         .flatMap(_.toList)
         .distinct
@@ -180,14 +179,14 @@ case class SourceLoadEngine(override val jobPropertiesFile: String)
     val rawDfPlusTrustedColumns: DataFrame = rawDfPlusTrustedColumnsOpt.get
 
     // Retrieve definition of columns containing error description
-    val errorDescriptions: Seq[(String, Column)] = specifications.errorDescriptions
-    val errorDescriptionColumnNames: Seq[String] = errorDescriptions.map(_._1)
-    val rawDfPlusTrustedColumnsAndErrorDescriptions: DataFrame = errorDescriptions
+    val errorDescriptionTuples: Seq[(String, Column)] = specifications.errorDescriptions
+    val errorDescriptionColumns: Seq[Column] = errorDescriptionTuples.map(t => col(t._1))
+    val rawDfPlusTrustedColumnsAndErrorDescriptions: DataFrame = errorDescriptionTuples
       .foldLeft(rawDfPlusTrustedColumns)((df, tuple) => {
         df.withColumn(tuple._1, tuple._2)
       })
       .withColumn(ColumnName.ErrorDescription.name,
-        createErrorDescriptionCol(array(errorDescriptionColumnNames.head, errorDescriptionColumnNames.tail: _*)))
+        createErrorDescriptionCol(array(errorDescriptionColumns: _*)))
 
     logger.info(s"Successfully added error description columns")
     val rwdDfColumns: Seq[Column] = specifications.rwdDfColumnSet
@@ -203,7 +202,7 @@ case class SourceLoadEngine(override val jobPropertiesFile: String)
 
     val rawDfPlusTrustedColumns: DataFrame = rawDfPlusTrustedColumnsOpt.get
     rawDfPlusTrustedColumns
-      .filter(specifications.errorCondition && col(ColumnName.RowCount.name) =!= 1)
+      .filter(!specifications.errorCondition && col(ColumnName.RowCount.name) =!= 1)
       .select(specifications.trdDfColumnSet: _*)
   }
 

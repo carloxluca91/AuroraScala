@@ -8,9 +8,12 @@ class SpecificationRecordSpec extends AbstractSpec {
 
   private final val (flusso, sorgenteRd, tabellaTd, colonnaTd, posizioneFinale) = ("flusso", "sorgenteRd", "tabellaTd", "trdCol1", 1)
 
-  private final val specificationRecordPartialApply:
-    (Option[String], Option[String], Option[String], Option[String], Option[String], Option[String]) => SpecificationRecord =
-    (flagPrimaryKey, colonnaRd, funzioneEtl, flagLookup, tipoLookup, lookupId) => {
+  private def specificationRecordPartialApply(flagPrimaryKey: Option[String],
+                                              colonnaRd: Option[String],
+                                              funzioneEtl: Option[String],
+                                              flagLookup: Option[String],
+                                              tipoLookup: Option[String],
+                                              lookupId: Option[String]): SpecificationRecord = {
 
       SpecificationRecord(flusso, sorgenteRd, tabellaTd, colonnaTd, posizioneFinale,
         flagPrimaryKey, colonnaRd, funzioneEtl, flagLookup, tipoLookup, lookupId)
@@ -37,15 +40,15 @@ class SpecificationRecordSpec extends AbstractSpec {
   it should "detect specified raw input columns and compute a proper error condition" in {
 
     val (rwdCol1, rwdCol2) = ("rwdCol1", "rwdCol2")
-    val testSeq: Seq[(Option[String], Int, Column)] =
-      (Some(rwdCol1), 1, col(rwdCol1).isNull || (col(rwdCol1).isNotNull && col(colonnaTd).isNull)) ::
-        (Some(s"$rwdCol1, $rwdCol2"), 2, (col(rwdCol1).isNull || col(rwdCol2).isNull) ||
-          (col(rwdCol1).isNotNull && col(rwdCol2).isNotNull && col(colonnaTd).isNull)) :: Nil
+    val testSeq: Seq[(Option[String], Int, Option[String], Column)] =
+      (Some(rwdCol1), 1, None, col(rwdCol1).isNull) ::
+        (Some(s"$rwdCol1, $rwdCol2"), 2, None, col(rwdCol1).isNull || col(rwdCol2).isNull) ::
+        (Some(rwdCol1), 1, Some("a"), col(rwdCol1).isNull || (col(rwdCol1).isNotNull && col(colonnaTd).isNull)) :: Nil
 
     testSeq foreach { t =>
 
-      val (rwColumnsOpt, expectedSize, expectedErrorConditionColumn) = t
-      val recordWithSingleRwColumn = specificationRecordPartialApply(None, rwColumnsOpt, None, None, None, None)
+      val (rwColumnsOpt, expectedSize, funzioneEtlOpt, expectedErrorConditionColumn) = t
+      val recordWithSingleRwColumn = specificationRecordPartialApply(None, rwColumnsOpt, funzioneEtlOpt, None, None, None)
       val inputRdColumnsOpt: Option[Seq[String]] = recordWithSingleRwColumn.inputRdColumns
       val errorConditionOpt: Option[Column] = recordWithSingleRwColumn.errorCondition
       assert(inputRdColumnsOpt.nonEmpty)

@@ -66,15 +66,10 @@ class SpecificationsSpec extends AbstractSpec {
       .map(x => {
         val (colonnaTd, colonnaRdOpt) = (x.colonnaTd, x.colonnaRdOpt)
         val colonneRd: Seq[String] = colonnaRdOpt.get.split(", ")
-        val firstErrorCondition = colonneRd
+        colonneRd
           .map(col(_).isNull)
           .reduce(_ || _)
 
-        val secondErrorCondition = colonneRd
-          .map(col(_).isNotNull)
-          .reduce(_ && _) && col(colonnaTd).isNull
-
-        firstErrorCondition || secondErrorCondition
       }).reduce(_ || _)
 
     assert(specifications.errorCondition == expectedErrorConditionCol)

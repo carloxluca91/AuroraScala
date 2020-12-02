@@ -9,8 +9,8 @@ import org.apache.spark.sql.functions.{col, lower, trim, when}
 
 case class Specifications(private val specificationRecords: Seq[SpecificationRecord]) {
 
-  private final val logger = Logger.getLogger(getClass)
-  private final val columnsFromSpecifications: (Seq[SpecificationRecord] => Seq[Column]) => Seq[Column] =
+  private val logger = Logger.getLogger(getClass)
+  private val columnsFromSpecifications: (Seq[SpecificationRecord] => Seq[Column]) => Seq[Column] =
     op => {
 
     val rowIdCol = col(ColumnName.RowIndex.name)
@@ -64,7 +64,7 @@ case class Specifications(private val specificationRecords: Seq[SpecificationRec
       .distinct
 
     if (srcTables.length == 1) {
-      srcTables.head
+      srcTables.head.toLowerCase
     } else {
 
       val bancllName: String = specificationRecords.map(_.flusso).head
@@ -92,7 +92,7 @@ case class Specifications(private val specificationRecords: Seq[SpecificationRec
       .distinct
 
     if (dstTables.length == 1) {
-      dstTables.head
+      dstTables.head.toLowerCase
     } else {
 
       val bancllName: String = specificationRecords.map(_.flusso).head
@@ -153,7 +153,7 @@ case class Specifications(private val specificationRecords: Seq[SpecificationRec
           // Otherwise, get simple column expression after ETL
         } else trustedColumnBeforeLookup
 
-        (s.colonnaTd, trustedColumnAfterLookup)
+        (s.intermediateColumnName, trustedColumnAfterLookup)
       })
   }
 
@@ -162,7 +162,11 @@ case class Specifications(private val specificationRecords: Seq[SpecificationRec
     val op: Seq[SpecificationRecord] => Seq[Column] =
       records => records
         .sortBy(_.posizioneFinale)
-        .map(x => col(x.colonnaTd))
+        .map(x => if (x.colonnaTd equalsIgnoreCase x.intermediateColumnName) {
+          col(x.colonnaTd)
+        } else {
+          col(x.intermediateColumnName).alias(x.colonnaTd)
+        })
 
     columnsFromSpecifications(op)
   }

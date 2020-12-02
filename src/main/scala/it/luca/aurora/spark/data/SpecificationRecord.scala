@@ -17,16 +17,16 @@ case class SpecificationRecord(flusso: String,
                                lookupId: Option[String]) {
 
   private val writeNullableColumnNames: UserDefinedFunction =
-    udf((columnNames: Seq[String], columnValues: Seq[Option[Any]]) => {
+    udf((columnNames: Seq[String], columnValues: Seq[Any]) => {
 
       columnNames.zip(columnValues)
-        .filter(t => t._2.isEmpty)
+        .filter(t => t._2 == null)
         .map(t => s"${t._1} (null)")
         .mkString(", ")
     })
 
   private val writeAllRawColumnNamesAndValues: UserDefinedFunction =
-    udf((columnNames: Seq[String], columnValues: Seq[Option[Any]]) => {
+    udf((columnNames: Seq[String], columnValues: Seq[Any]) => {
 
       columnNames.zip(columnValues)
         .map(t => s"${t._1} (${t._2})")
@@ -38,6 +38,16 @@ case class SpecificationRecord(flusso: String,
     opt match {
       case None => false
       case Some(x) => x equalsIgnoreCase "y"
+    }
+  }
+
+  def intermediateColumnName: String = {
+
+    inputRdColumns match {
+      case None => colonnaTd
+      case Some(value) => if (value.map(_.toLowerCase).contains(colonnaTd.toLowerCase))
+        s"$colonnaTd${SpecificationRecord.temporarySuffix}"
+      else colonnaTd
     }
   }
 
@@ -56,12 +66,15 @@ case class SpecificationRecord(flusso: String,
           .reduce(_ || _)
 
         if (funzioneEtl.isEmpty && flagLookup.isEmpty) {
+
+          // No transformation, no lookup --> error only if input rwd columns are null
           Some(isAnyRdColumnNull)
         } else {
 
+          // Transformation or lookup --> error if input rwd columns are null or they are not null while output column does
           val doesInputMismatch: Column = s
             .map(col(_).isNotNull)
-            .reduce(_ && _) && col(colonnaTd).isNull
+            .reduce(_ && _) && col(intermediateColumnName).isNull
 
             Some(isAnyRdColumnNull || doesInputMismatch)
         }
@@ -80,12 +93,20 @@ case class SpecificationRecord(flusso: String,
         .map(col(_).isNull)
         .reduce(_ || _)
 
-        val doesInputMismatch: Column = s
-          .map(col(_).isNotNull)
-          .reduce(_ && _) && col(colonnaTd).isNull
+        val errorDescriptionColumn: Column = if (funzioneEtl.isEmpty && flagLookup.isEmpty) {
 
-        val errorDescriptionColumn: Column = when(isAnyRdColumnNull, writeNullableColumnNames(array(rwColumnNames: _*), array(rwColumns: _*)))
-          .when(doesInputMismatch, writeAllRawColumnNamesAndValues(array(rwColumnNames: _*), array(rwColumns: _*)))
+          // No transformation, no lookup --> error only if input rwd columns are null
+          when(isAnyRdColumnNull, writeNullableColumnNames(array(rwColumnNames: _*), array(rwColumns: _*)))
+        } else {
+
+          // Transformation or lookup --> error if input rwd columns are null or they are not null while output column does
+          val doesInputMismatch: Column = s
+            .map(col(_).isNotNull)
+            .reduce(_ && _) && col(intermediateColumnName).isNull
+
+          when(isAnyRdColumnNull, writeNullableColumnNames(array(rwColumnNames: _*), array(rwColumns: _*)))
+            .when(doesInputMismatch, writeAllRawColumnNamesAndValues(array(rwColumnNames: _*), array(rwColumns: _*)))
+        }
 
         Some(s"${colonnaTd}_error", errorDescriptionColumn)
     }
@@ -102,6 +123,7 @@ case class SpecificationRecord(flusso: String,
 
 object SpecificationRecord {
 
+  private val temporarySuffix = "_temporary"
   val columnsToSelect: Seq[String] = Seq("flusso",
     "sorgente_rd",
     "tabella_td",
