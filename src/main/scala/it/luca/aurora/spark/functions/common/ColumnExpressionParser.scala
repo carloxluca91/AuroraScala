@@ -25,7 +25,10 @@ object ColumnExpressionParser {
         case ColumnExpression.Col => Col(stringExpression)
         case ColumnExpression.LeftOrRightPad => LeftOrRightPad(stringExpression)
         case ColumnExpression.Lit => Lit(stringExpression)
+        case ColumnExpression.LowerOrUpper => LowerOrUpper(stringExpression)
+        case ColumnExpression.OrElse => OrElse(stringExpression)
         case ColumnExpression.Replace => Replace(stringExpression)
+        case ColumnExpression.Substring => Substring(stringExpression)
         case ColumnExpression.ToDateOrTimestamp => ToDateOrTimestamp(stringExpression)
         case ColumnExpression.Trim => Trim(stringExpression)
       }
