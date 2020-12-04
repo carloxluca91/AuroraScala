@@ -201,9 +201,13 @@ case class SourceLoadEngine(override val jobPropertiesFile: String)
   private def getTrdDuplicatedDf(specifications: Specifications): DataFrame = {
 
     val rawDfPlusTrustedColumns: DataFrame = rawDfPlusTrustedColumnsOpt.get
+    val duplicatedColumns: Seq[Column] = insertElementAtIndex(specifications.trdDfColumnSet,
+      col(ColumnName.RowCount.name),
+      specifications.trdDfColumnSet.indexOf(col(ColumnName.TsInserimento.name)))
+
     rawDfPlusTrustedColumns
       .filter(!specifications.errorCondition && col(ColumnName.RowCount.name) =!= 1)
-      .select(specifications.trdDfColumnSet: _*)
+      .select(duplicatedColumns: _*)
   }
 
   private def getSpecifications(bancllName: String, versionNumberOpt: Option[String]): Specifications = {
