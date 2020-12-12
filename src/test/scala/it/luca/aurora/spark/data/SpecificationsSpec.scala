@@ -84,13 +84,13 @@ class SpecificationsSpec extends AbstractSpec {
     assert(specifications.primaryKeyColumns == expectedPrimaryKeyColumns)
   }
 
-  it should s"return columns ${ColumnName.RowIndex.name}, " +
+  it should s"return columns ${ColumnName.RowId.name}, " +
     s"<each trdColumn sorted by its position>, " +
     s"${Seq(ColumnName.TsInserimento, ColumnName.DtInserimento, ColumnName.DtRiferimento)
       .map(_.name)
       .mkString(", ")} for trusted layer dataframes" in {
 
-    val expectedTrdDfColumnSet: Seq[Column] = (col(ColumnName.RowIndex.name) :: Nil) ++
+    val expectedTrdDfColumnSet: Seq[Column] = (col(ColumnName.RowId.name) :: Nil) ++
       partialSpecificationRecords
         .sortBy(_.posizioneFinale)
         .map(x => col(x.colonnaTd)) ++
@@ -99,13 +99,13 @@ class SpecificationsSpec extends AbstractSpec {
     assert(specifications.trdDfColumnSet == expectedTrdDfColumnSet)
   }
 
-  it should s"return columns ${ColumnName.RowIndex.name}, " +
+  it should s"return columns ${ColumnName.RowId.name}, " +
     s"<each rwdColumn sorted by its position>, " +
     s"${Seq(ColumnName.TsInserimento, ColumnName.DtInserimento, ColumnName.DtRiferimento)
       .map(_.name)
       .mkString(", ")} for raw layer dataframes" in {
 
-    val expectedRwdDfColumnSet: Seq[Column] = (col(ColumnName.RowIndex.name) :: Nil) ++
+    val expectedRwdDfColumnSet: Seq[Column] = (col(ColumnName.RowId.name) :: Nil) ++
       partialSpecificationRecords
         .filter(_.colonnaRdOpt.nonEmpty)
         .sortBy(_.posizioneFinale)

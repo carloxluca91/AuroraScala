@@ -16,7 +16,7 @@ object ColumnName extends Enumeration {
   val DtRiferimento: Val = Val("dt_riferimento")
   val ErrorDescription: Val = Val("descrizione_errore")
   val RowCount: Val = Val("row_count")
-  val RowIndex: Val = Val("row_index")
+  val RowId: Val = Val("row_id")
   val TsInizioValidita: Val = Val("ts_inizio_validita")
   val TsInserimento: Val = Val("ts_inserimento")
   val TsFineValidita: Val = Val("ts_fine_validita")

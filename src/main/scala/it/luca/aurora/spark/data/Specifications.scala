@@ -13,7 +13,7 @@ case class Specifications(private val specificationRecords: Seq[SpecificationRec
   private val columnsFromSpecifications: (Seq[SpecificationRecord] => Seq[Column]) => Seq[Column] =
     op => {
 
-    val rowIdCol = col(ColumnName.RowIndex.name)
+    val rowIdCol = col(ColumnName.RowId.name)
     val tsInserimentoCol = col(ColumnName.TsInserimento.name)
     val dtInserimentoCol = col(ColumnName.DtInserimento.name)
     val dtRiferimentoCol = col(ColumnName.DtRiferimento.name)
