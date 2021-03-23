@@ -1,34 +1,35 @@
-val sparkVersion = "2.2.3"
+val sparkVersion = "1.6.0-cdh5.13.0"
 val scalaTestVersion = "3.2.0"
 val scoptVersion = "3.3.0"
-val mySqlConnectorVersion = "5.1.45"
+val clouderaRepoUrl = "https://repository.cloudera.com/artifactory/cloudera-repos/"
 
-lazy val auroraScala = (project in file("."))
+lazy val commonSettings = Seq(
+
+  scalaVersion := "2.10.5",
+  scalacOptions ++= "-encoding" :: "UTF-8" :: "-target:jvm-1.7" :: Nil,
+  resolvers += "ClouderaRepo" at clouderaRepoUrl,
+
+  // Dependencies
+  libraryDependencies ++= "org.apache.spark" %% "spark-core" % sparkVersion % "provided" ::
+    "org.apache.spark" %% "spark-sql" % sparkVersion % "provided" ::
+    "org.scalactic" %% "scalactic" % scalaTestVersion ::
+    "org.scalatest" %% "scalatest" % scalaTestVersion % "test" :: Nil
+)
+
+lazy val auroraDataload = (project in file("."))
   .settings(
 
-    name := "aurora_scala",
+    commonSettings,
+    name := "aurora-dataload",
     version := "0.0.2",
-    scalaVersion := "2.11.8",
-    scalacOptions ++= Seq(
+    libraryDependencies ++= "com.github.scopt" %% "scopt" % scoptVersion :: Nil,
 
-      "-encoding", "UTF-8",
-      "-target:jvm-1.8"
-    ),
+    // Exclude .properties file from packaging
+    (unmanagedResources in Compile) := (unmanagedResources in Compile)
+      .value.filterNot(_.getName.endsWith(".properties")),
 
-    libraryDependencies ++= Seq(
-
-      "org.apache.spark" %% "spark-core" % sparkVersion % "provided",
-      "org.apache.spark" %% "spark-sql" % sparkVersion % "provided",
-      "com.github.scopt" %% "scopt" % scoptVersion,
-      "org.scalactic" %% "scalactic" % scalaTestVersion,
-      "org.scalatest" %% "scalatest" % scalaTestVersion % "test",
-      "mysql" % "mysql-connector-java" % mySqlConnectorVersion % "provided"),
-
-      (unmanagedResources in Compile) := (unmanagedResources in Compile)
-      .value
-      .filterNot(_.getName.endsWith(".properties")),
-
-    assemblyJarName in assembly := s"${name.value}_${version.value}.jar",
+    // Output .jar name
+    assemblyJarName in assembly := s"${name.value}-${version.value}.jar",
     assemblyMergeStrategy in assembly := {
       case PathList("META-INF", _*) => MergeStrategy.discard
       case x =>
