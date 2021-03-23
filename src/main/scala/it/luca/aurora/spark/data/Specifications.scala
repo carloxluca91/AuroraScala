@@ -1,7 +1,7 @@
 package it.luca.aurora.spark.data
 
 import it.luca.aurora.exception.{MultipleDstException, MultipleSrcException, UnexistingLookupException}
-import it.luca.aurora.spark.functions.common.ColumnExpressionParser
+import it.luca.aurora.spark.sql.functions.common.ColumnExpressionParser
 import it.luca.aurora.utils.ColumnName
 import org.apache.log4j.Logger
 import org.apache.spark.sql.{Column, DataFrame, Row}

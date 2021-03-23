@@ -1,4 +1,4 @@
-package it.luca.aurora.spark.functions.common
+package it.luca.aurora.spark.sql.functions.common
 
 abstract class AbstractExpression(val stringExpression: String, val columnExpression: ColumnExpression.Value) {
 

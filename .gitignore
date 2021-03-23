@@ -1,2 +1,5 @@
 .idea/*
-target/
+target/*
+project/target/*
+project/project/target/*
+sql-parser/target/*

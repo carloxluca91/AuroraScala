@@ -1,4 +1,4 @@
-package it.luca.aurora.spark.functions.common
+package it.luca.aurora.spark.sql.functions.common
 
 import scala.util.matching.Regex
 

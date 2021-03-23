@@ -1,6 +1,6 @@
-package it.luca.aurora.spark.functions.catalog
+package it.luca.aurora.spark.sql.functions.catalog
 
-import it.luca.aurora.spark.functions.common.{ColumnExpression, SingleColumnExpression}
+import it.luca.aurora.spark.sql.functions.common.{ColumnExpression, SingleColumnExpression}
 import it.luca.aurora.utils.Utils
 import org.apache.spark.sql.Column
 

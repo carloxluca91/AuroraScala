@@ -1,7 +1,7 @@
-package it.luca.aurora.spark.functions.common
+package it.luca.aurora.spark.sql.functions.common
 
 import it.luca.aurora.exception.UnmatchedFunctionException
-import it.luca.aurora.spark.functions.catalog._
+import it.luca.aurora.spark.sql.functions.catalog._
 import org.apache.log4j.Logger
 import org.apache.spark.sql.Column
 

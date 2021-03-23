@@ -1,4 +1,4 @@
-package it.luca.aurora.spark.functions.common
+package it.luca.aurora.spark.sql.functions.common
 
 import org.apache.spark.sql.Column
 
