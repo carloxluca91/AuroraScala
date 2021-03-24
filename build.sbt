@@ -4,6 +4,7 @@ val scalaTestVersion = "3.2.0"
 val scoptVersion = "3.3.0"
 val jsqlParserVersion = "4.0"
 val grizzledVersion = "1.3.0"
+val poiVersion = "3.17"
 
 // Additional repositories
 val clouderaRepoUrl = "https://repository.cloudera.com/artifactory/cloudera-repos/"
@@ -28,9 +29,9 @@ lazy val auroraDataload = (project in file("."))
 
     commonSettings,
     name := "aurora-dataload",
-    version := "0.0.2",
-    libraryDependencies ++= "com.github.scopt" %% "scopt" % scoptVersion ::
-      "org.apache.spark" %% "spark-hive" % sparkVersion % "provided" :: Nil,
+    version := "0.3.0",
+    libraryDependencies ++= "org.apache.spark" %% "spark-hive" % sparkVersion % "provided" ::
+      "com.github.scopt" %% "scopt" % scoptVersion :: Nil,
 
     // Exclude .properties file from packaging
     (unmanagedResources in Compile) := (unmanagedResources in Compile)
@@ -44,6 +45,7 @@ lazy val auroraDataload = (project in file("."))
         val oldStrategy = (assemblyMergeStrategy in assembly).value
         oldStrategy(x) }
   )
+  .dependsOn(sqlParser)
 
 lazy val sqlParser = (project in file("sql-parser"))
   .settings(
@@ -51,4 +53,13 @@ lazy val sqlParser = (project in file("sql-parser"))
     commonSettings,
     name := "sql-parser",
     libraryDependencies ++= "com.github.jsqlparser" % "jsqlparser" % jsqlParserVersion :: Nil
+  )
+
+lazy val excelParser = (project in file("excel-parser"))
+  .settings(
+
+    commonSettings,
+    name := "excel-parser",
+    libraryDependencies ++= "org.apache.poi" % "poi" % poiVersion ::
+      "org.apache.poi" % "poi-ooxml" % poiVersion :: Nil
   )

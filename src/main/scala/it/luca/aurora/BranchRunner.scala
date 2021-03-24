@@ -7,47 +7,40 @@ import it.luca.aurora.spark.engine.{InitialLoadEngine, ReLoadEngine, SourceLoadE
 import org.apache.spark.sql.hive.HiveContext
 import org.apache.spark.{SparkConf, SparkContext}
 
-import scala.util.{Failure, Success, Try}
-
 object BranchRunner extends Logging {
 
   def apply(branchConfig: BranchConfig, args: Seq[String]): Unit = {
 
     val branchId: String = branchConfig.applicationBranch
     val propertiesFile: String = branchConfig.propertiesFile
-    Try {
 
-      val sparkConf: SparkConf = new SparkConf()
-      sparkConf.set("hive.exec.dynamic.partition", "true")
-      sparkConf.set("hive.exec.dynamic.partition.mode", "nonstrict")
-      val sparkContext: SparkContext = new SparkContext(sparkConf)
-      val sqlContext: HiveContext = new HiveContext(sparkContext)
-      info(s"""Initialized both ${classOf[SparkContext].getSimpleName} and ${classOf[HiveContext].getSimpleName}
-           |
-           |    appName = ${sparkContext.appName},
-           |    appId = ${sparkContext.applicationId}
-           |""".stripMargin)
+    val sparkConf = new SparkConf()
+    sparkConf.set("hive.exec.dynamic.partition", "true")
+    sparkConf.set("hive.exec.dynamic.partition.mode", "nonstrict")
+    val sparkContext = new SparkContext(sparkConf)
+    val sqlContext = new HiveContext(sparkContext)
+    info(s"""Initialized both ${classOf[SparkContext].getSimpleName} and ${classOf[HiveContext].getSimpleName}
+         |
+         |    appName = ${sparkContext.appName},
+         |    appId = ${sparkContext.applicationId}
+         |""".stripMargin)
 
-      Branch.withId(branchId) match {
-        case Branch.InitialLoad => InitialLoadEngine(propertiesFile).runSteps()
-        case Branch.Reload =>
+    Branch.withId(branchId) match {
+      case Branch.InitialLoad => InitialLoadEngine(sqlContext, propertiesFile).run()
+      case Branch.Reload =>
 
-          ScoptParser.reloadOptionParser.parse(args, ReloadConfig())
-            .foreach { x =>
-              info(s"Successfully parsed second set of arguments $x")
-              ReLoadEngine(propertiesFile).run(x) }
+        ScoptParser.reloadOptionParser.parse(args, ReloadConfig())
+          .foreach { x =>
+            info(s"Parsed second set of arguments $x")
+            ReLoadEngine(sqlContext, propertiesFile).run(x) }
 
-        case Branch.SourceLoad =>
+      case Branch.SourceLoad =>
 
-          ScoptParser.sourceLoadOptionParser.parse(args, SourceLoadConfig())
-            .foreach {x =>
-              info(s"Successfully parsed second set of arguments $x")
-              SourceLoadEngine(propertiesFile).run(x)
-            }
-        }
-    } match {
-      case Success(_) => info(s"Successfully executed whole branch $branchId")
-      case Failure(exception) => error(s"Unable to fully execute branch $branchId. Stack trace: ", exception)
-    }
+        ScoptParser.sourceLoadOptionParser.parse(args, SourceLoadConfig())
+          .foreach {x =>
+            info(s"Parsed second set of arguments $x")
+            SourceLoadEngine(sqlContext, propertiesFile).run(x)
+          }
+      }
   }
 }

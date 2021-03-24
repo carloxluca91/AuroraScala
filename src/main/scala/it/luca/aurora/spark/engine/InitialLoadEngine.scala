@@ -15,8 +15,6 @@ case class InitialLoadEngine(override protected val sqlContext: SQLContext,
   override protected val dtBusinessDate: Option[String] = None
   override protected val specificationVersion: Option[String] = None
 
-  private val dbName: String = jobProperties.getString("hive.db.name")
-
   override protected val steps: Seq[(AbstractStep[_, _], _)] = (CreateDbStep(sqlContext), dbName) :: Nil
 }
 

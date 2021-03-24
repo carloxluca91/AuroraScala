@@ -3,20 +3,19 @@ package it.luca.aurora.spark.engine
 import it.luca.aurora.enumeration.Branch
 import it.luca.aurora.exception.NoSpecificationException
 import it.luca.aurora.option.SourceLoadConfig
-import it.luca.aurora.spark.data.{LogRecord, SpecificationRecord, Specifications}
+import it.luca.aurora.spark.data.{SpecificationRecord, Specifications}
 import it.luca.aurora.utils.Utils.{getJavaSQLDateFromNow, getJavaSQLTimestampFromNow, insertElementAtIndex}
 import it.luca.aurora.utils.{ColumnName, DateFormat}
-import org.apache.log4j.Logger
 import org.apache.spark.sql.expressions.Window
 import org.apache.spark.sql.functions._
-import org.apache.spark.sql.{Column, DataFrame, SaveMode}
+import org.apache.spark.sql.{Column, DataFrame, SQLContext, SaveMode}
 
 import java.time.LocalDate
 
-case class SourceLoadEngine(override val propertiesFile: String)
-  extends AbstractEngine(propertiesFile) {
+case class SourceLoadEngine(override protected val sqlContext: SQLContext,
+                            override protected val propertiesFile: String)
+  extends AbstractEngine(sqlContext, propertiesFile) {
 
-  private final val logger = Logger.getLogger(getClass)
   private final var specificationsOpt: Option[Specifications] = None
   private final var trdActualTableNameOpt: Option[String] = None
   private final var rawDfPlusTrustedColumnsOpt: Option[DataFrame] = None

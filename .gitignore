@@ -3,3 +3,4 @@ target/*
 project/target/*
 project/project/target/*
 sql-parser/target/*
+excel-parser/target/*
