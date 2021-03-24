@@ -1,59 +1,53 @@
 package it.luca.aurora.spark.data
 
-import java.sql.{Date, Timestamp}
-import java.time.{Instant, LocalDate}
-
-import it.luca.aurora.utils.{DateFormat, Utils}
+import it.luca.aurora.enumeration.Branch
+import it.luca.aurora.spark.step.AbstractStep
 import org.apache.spark.SparkContext
 
-case class LogRecord(application_id: String,
-                     application_name: String,
-                     application_branch: String,
-                     application_start_time: Timestamp,
-                     application_start_date: Date,
-                     step_finish_time: Timestamp,
-                     step_finish_date: Date,
-                     bancll_name: Option[String],
-                     dt_riferimento: Option[Date],
-                     target_database: String,
-                     target_table: String,
-                     exception_message: Option[String],
-                     application_finish_code: Int,
-                     application_finish_status: String)
+import java.sql.{Date, Timestamp}
+
+case class LogRecord(applicationName: String,
+                     applicationBranch: String,
+                     applicationStartTime: Timestamp,
+                     applicationStartDate: Date,
+                     dataSource: Option[String],
+                     dtBusinessDate: Option[String],
+                     specificationVersion: Option[String],
+                     stepIndex: Int,
+                     stepName: String,
+                     stepEndTime: Timestamp,
+                     stepEndDate: Date,
+                     stepEndCode: Int,
+                     stepEndState: String,
+                     stepExceptionClass: Option[String],
+                     stepExceptionMessage: Option[String])
 
 object LogRecord {
 
-  def apply(sparkContext: SparkContext, branchName: String, bancllNameOpt: Option[String], dtRiferimentoOpt: Option[String],
-            targetDatabase: String, targetTable: String, exceptionMsgOpt: Option[String]): LogRecord = {
+  def apply(sparkContext: SparkContext,
+            branch: Branch.Value,
+            dataSource: Option[String],
+            dtBusinessDate: Option[String],
+            specificationVersion: Option[String],
+            stepIndex: Int,
+            step: AbstractStep[_, _],
+            exceptionOpt: Option[Throwable]): LogRecord = {
 
-    val applicationId: String = sparkContext.applicationId
-    val applicationName: String = sparkContext.appName
-
-    val dtRiferimentoSQLDateOpt: Option[Date] = dtRiferimentoOpt match {
-      case None => None
-      case Some(x) => Some(Date.valueOf(LocalDate.parse(x, DateFormat.DtBusinessDate.formatter)))
-    }
-
-    val applicationStartTime: Timestamp = Timestamp.from(Instant.ofEpochMilli(sparkContext.startTime))
-    val applicationStartDate: Date = new Date(sparkContext.startTime)
-    val applicationEndTime: Timestamp = Utils.getJavaSQLTimestampFromNow
-    val applicationEndDate: Date = Utils.getJavaSQLDateFromNow
-    val applicationFinishCode: Int = if (exceptionMsgOpt.isEmpty) 0 else -1
-    val applicationFinishStatus: String = if (exceptionMsgOpt.isEmpty) "OK" else "KO"
-
-    LogRecord(applicationId,
-      applicationName,
-      branchName,
-      applicationStartTime,
-      applicationStartDate,
-      applicationEndTime,
-      applicationEndDate,
-      bancllNameOpt,
-      dtRiferimentoSQLDateOpt,
-      targetDatabase,
-      targetTable,
-      exceptionMsgOpt,
-      applicationFinishCode,
-      applicationFinishStatus)
+    LogRecord(applicationName = sparkContext.appName,
+      applicationBranch = branch.name,
+      applicationStartTime = new Timestamp(sparkContext.startTime),
+      applicationStartDate = new Date(sparkContext.startTime),
+      dataSource = dataSource,
+      dtBusinessDate = dtBusinessDate,
+      specificationVersion = specificationVersion,
+      stepIndex = stepIndex,
+      stepName = step.name,
+      stepEndTime = new Timestamp(System.currentTimeMillis()),
+      stepEndDate = new Date(System.currentTimeMillis()),
+      stepEndCode = exceptionOpt.map(_ => 0).getOrElse(-1),
+      stepEndState = exceptionOpt.map(_ => "OK").getOrElse("KO"),
+      stepExceptionClass = exceptionOpt.map(_.getClass.getName),
+      stepExceptionMessage = exceptionOpt.map(_.getMessage)
+    )
   }
 }

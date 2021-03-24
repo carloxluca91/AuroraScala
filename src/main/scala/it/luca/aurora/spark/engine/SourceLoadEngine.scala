@@ -104,7 +104,7 @@ case class SourceLoadEngine(override val propertiesFile: String)
 
     val bancllName: String = sourceLoadConfig.bancllName
     val dtRiferimentoOpt: Option[String] = sourceLoadConfig.dtRiferimentoOpt
-    val versionNumberOpt: Option[String] = sourceLoadConfig.versionNumberOpt
+    val versionNumberOpt: Option[String] = sourceLoadConfig.specificationVersion
     val createSourceLoadLogRecord = LogRecord(sparkSession.sparkContext, Branch.SourceLoad.name, Some(bancllName), dtRiferimentoOpt,
       _: String, _: String, _: Option[String])
 

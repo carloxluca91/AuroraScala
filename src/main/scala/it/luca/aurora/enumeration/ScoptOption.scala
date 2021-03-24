@@ -17,6 +17,6 @@ object ScoptOption extends Enumeration {
   val LookupSpecificationFlag: Val = Val('l', "look_up", "Flag for overwriting look up table")
   val CompleteOverwriteFlag: Val = Val('o', "overwrite", "Flag for specifing behavior when reloading tables. " +
     "True: drop and reload. False: truncate and reload")
-  val VersionNumber: Val = Val('v', "version", "Specification version number to be referred to")
+  val SpecificationVersion: Val = Val('v', "version", "Specification version number to be referred to")
 
 }

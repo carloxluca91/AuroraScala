@@ -2,15 +2,15 @@ package it.luca.aurora.spark.engine
 
 import it.luca.aurora.enumeration.{Branch, ScoptOption}
 import it.luca.aurora.option.ReloadConfig
-import it.luca.aurora.spark.data.LogRecord
 import it.luca.aurora.utils.ColumnName
 import it.luca.aurora.utils.Utils.{getJavaSQLDateFromNow, getJavaSQLTimestampFromNow}
 import org.apache.log4j.Logger
 import org.apache.spark.sql.functions.lit
-import org.apache.spark.sql.{DataFrame, SaveMode}
+import org.apache.spark.sql.{DataFrame, SQLContext, SaveMode}
 
-case class ReLoadEngine(override val propertiesFile: String)
-  extends AbstractInitialOrReloadEngine(propertiesFile) {
+case class ReLoadEngine(override protected val sqlContext: SQLContext,
+                        override val propertiesFile: String)
+  extends AbstractEngine(sqlContext, propertiesFile) {
 
   private final val logger = Logger.getLogger(getClass)
   private final val createReLoadLogRecord = LogRecord(sparkSession.sparkContext, Branch.Reload.name, None, None,

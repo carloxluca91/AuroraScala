@@ -18,7 +18,7 @@ object Main extends App with Logging {
       info(s"Successfully parsed first set of arguments (application branch and .properties file) $branchConfig")
       Branch.withId(branchConfig.applicationBranch) match {
 
-        case Branch.InitialLoad => InitialLoadEngine(branchConfig.propertiesFile).run()
+        case Branch.InitialLoad => InitialLoadEngine(branchConfig.propertiesFile).runSteps()
         case Branch.SourceLoad =>
 
           ScoptParser.sourceLoadOptionParser.parse(args, SourceLoadConfig()) match {

@@ -17,7 +17,10 @@ object BranchRunner extends Logging {
     val propertiesFile: String = branchConfig.propertiesFile
     Try {
 
-      val sparkContext: SparkContext = new SparkContext(new SparkConf())
+      val sparkConf: SparkConf = new SparkConf()
+      sparkConf.set("hive.exec.dynamic.partition", "true")
+      sparkConf.set("hive.exec.dynamic.partition.mode", "nonstrict")
+      val sparkContext: SparkContext = new SparkContext(sparkConf)
       val sqlContext: HiveContext = new HiveContext(sparkContext)
       info(s"""Initialized both ${classOf[SparkContext].getSimpleName} and ${classOf[HiveContext].getSimpleName}
            |
@@ -26,7 +29,7 @@ object BranchRunner extends Logging {
            |""".stripMargin)
 
       Branch.withId(branchId) match {
-        case Branch.InitialLoad => InitialLoadEngine(propertiesFile).run()
+        case Branch.InitialLoad => InitialLoadEngine(propertiesFile).runSteps()
         case Branch.Reload =>
 
           ScoptParser.reloadOptionParser.parse(args, ReloadConfig())

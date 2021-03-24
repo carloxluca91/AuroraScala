@@ -56,9 +56,9 @@ object ScoptParser {
       })
       .action((x, c) => c.copy(dtBusinessDate = Some(x)))
 
-    opt[String](ScoptOption.VersionNumber.shortOption, ScoptOption.VersionNumber.longOption)
-      .text(ScoptOption.VersionNumber.optionDescription)
-      .action((x, c) => c.copy(versionNumberOpt = Some(x)))
+    opt[String](ScoptOption.SpecificationVersion.shortOption, ScoptOption.SpecificationVersion.longOption)
+      .text(ScoptOption.SpecificationVersion.optionDescription)
+      .action((x, c) => c.copy(specificationVersion = Some(x)))
   }
 
   val reloadOptionParser: CustomParser[ReloadConfig] = new CustomParser[ReloadConfig] {
