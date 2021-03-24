@@ -1,79 +1,47 @@
 package it.luca.aurora
 
-import it.luca.aurora.option.ScoptParser.{BranchConfig, InitialLoadConfig, ReloadConfig, SourceLoadConfig}
-import it.luca.aurora.option.{Branch, ScoptParser}
+import grizzled.slf4j.Logging
+import it.luca.aurora.enumeration.Branch
+import it.luca.aurora.option.ScoptParser.{InitialLoadConfig, ReloadConfig, SourceLoadConfig}
+import it.luca.aurora.option.{BranchConfig, ScoptParser}
 import it.luca.aurora.spark.engine.{InitialLoadEngine, ReLoadEngine, SourceLoadEngine}
-import org.apache.log4j.Logger
 
-object Main extends App {
+object Main extends App with Logging {
 
-  val logger: Logger = Logger.getRootLogger
-
-  logger.info("Starting application main program")
+  info("Started Aurora - Dataload main class")
 
   // First, parse arguments in order to detect branch to be run
   ScoptParser.branchParser.parse(args, BranchConfig()) match {
 
-    case None => logger.error("Error during parsing of first set of arguments (application branch)")
-    case Some(value) =>
+    case Some(branchConfig) =>
 
-      logger.info("Successfully parsed first set of arguments (application branch)")
-      logger.info(value)
+      info(s"Successfully parsed first set of arguments (application branch and .properties file) $branchConfig")
+      Branch.withId(branchConfig.applicationBranch) match {
 
-      val branchesSet: Set[Branch.Value] = Branch.values
-        .filter(_.name.equalsIgnoreCase(value.applicationBranch))
+        case Branch.InitialLoad => InitialLoadEngine(branchConfig.propertiesFile).run()
+        case Branch.SourceLoad =>
 
-      if (branchesSet.nonEmpty) {
+          ScoptParser.sourceLoadOptionParser.parse(args, SourceLoadConfig()) match {
 
-        // Which branch ?
-        branchesSet.head match {
+            case None => error("Error on second set of arguments")
+            case Some(value) =>
 
-          // [a] InitialLoad
-          case Branch.InitialLoad =>
+              info(s"Successfully parsed second set of arguments $value")
+              SourceLoadEngine(branchConfig.propertiesFile).run(value)
+          }
 
-            logger.info(s"Matched branch '${Branch.InitialLoad.name}'")
-            ScoptParser.initialLoadOptionParser.parse(args, InitialLoadConfig()) match {
+        case Branch.Reload =>
 
-              case None => logger.error("Error during parsing of second set of arguments (branch arguments)")
-              case Some(value) =>
+          ScoptParser.reloadOptionParser.parse(args, ReloadConfig()) match {
 
-                logger.info(value)
-                logger.info("Successfully parsed second set of arguments (branch arguments)")
-                InitialLoadEngine(value.propertiesFile).run()
-                logger.info(s"Successfully executed operations on branch '${Branch.InitialLoad.name}'")
-            }
+            case None => error("Error on second set of arguments")
+            case Some(value) =>
 
-          // [b] SourceLoad
-          case Branch.SourceLoad =>
+              info(s"Successfully parsed second set of arguments $value")
+              ReLoadEngine(value.propertiesFile).run(value)
+          }
+      }
 
-            logger.info(s"Matched branch '${Branch.SourceLoad.name}'")
-            ScoptParser.sourceLoadOptionParser.parse(args, SourceLoadConfig()) match {
-
-              case None => logger.error("Error during parsing of second set of arguments (branch arguments)")
-              case Some(value) =>
-
-                logger.info(value)
-                logger.info("Successfully parsed second set of arguments (branch arguments)")
-                SourceLoadEngine(value.propertiesFile).run(value)
-                logger.info(s"Successfully executed operations on branch '${Branch.SourceLoad.name}'")
-            }
-
-          // [c] ReLoad
-          case Branch.Reload =>
-
-            logger.info(s"Matched branch '${Branch.Reload.name}'")
-            ScoptParser.reloadOptionParser.parse(args, ReloadConfig()) match {
-
-              case None => logger.error("Error during parsing of second set of arguments (branch arguments)")
-              case Some(value) =>
-
-                logger.info(value)
-                logger.info("Successfully parsed second set of arguments (branch arguments)")
-                ReLoadEngine(value.propertiesFile).run(value)
-                logger.info(s"Successfully executed operations on branch '${Branch.Reload.name}'")
-            }
-        }
-
-      } else logger.error(s"Unable to match provided branch: '${value.applicationBranch}'")
+    case None => error("Error during parsing of first set of arguments (application branch)")
   }
 }

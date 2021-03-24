@@ -1,6 +1,6 @@
 package it.luca.aurora.spark.sql.parser
 
-import com.typesafe.scalalogging.LazyLogging
+import grizzled.slf4j.Logging
 import it.luca.aurora.spark.sql.common.{MultipleColumnFunction, OneColumnFunction, SqlFunction}
 import it.luca.aurora.spark.sql.functions._
 import net.sf.jsqlparser.expression._
@@ -12,7 +12,7 @@ import org.apache.spark.sql.functions.{col, lit, when}
 
 import scala.collection.JavaConversions._
 
-object SqlParser extends LazyLogging {
+object SqlParser extends Logging {
 
   def parse(string: String): Column = {
 
@@ -48,7 +48,7 @@ object SqlParser extends LazyLogging {
       case ocf: OneColumnFunction =>
 
         val inputColumn = parse(function.getParameters.getExpressions.get(0))
-        logger.info(s"Parsed input column for ${ocf.getClass.getSimpleName} function")
+        info(s"Parsed input column for ${ocf.getClass.getSimpleName} function")
         ocf.getColumn(inputColumn)
 
       case mcf: MultipleColumnFunction =>
@@ -62,7 +62,7 @@ object SqlParser extends LazyLogging {
         }
 
         val inputColumns: Seq[Column] = inputColumnExpressions.map(parse)
-        logger.info(s"Parsed all of ${inputColumnExpressions.size()} input column(s) for ${mcf.getClass.getSimpleName} function")
+        info(s"Parsed all of ${inputColumnExpressions.size()} input column(s) for ${mcf.getClass.getSimpleName} function")
         mcf.getColumn(inputColumns: _*)
     }
   }
@@ -72,12 +72,12 @@ object SqlParser extends LazyLogging {
     // BinaryExpressions (<, <=, =, <>, >, >=, AND, OR)
     val leftColumn = parse(binaryExpression.getLeftExpression)
     val rightColumn = parse(binaryExpression.getRightExpression)
-    logger.info(s"Parsed both left and right expression of ${classOf[BinaryExpression].getSimpleName} $binaryExpression")
+    info(s"Parsed both left and right expression of ${classOf[BinaryExpression].getSimpleName} $binaryExpression")
     val combinator: (Column, Column) => Column = binaryExpression.getStringExpression.toLowerCase match {
       case "<" => _ < _
       case "<=" => _ <= _
       case "=" => _ === _
-      case "<>" => _ =!= _
+      case "<>" => _ !== _
       case ">=" => _ >= _
       case ">" => _ > _
       case "and" => _ && _
@@ -90,7 +90,7 @@ object SqlParser extends LazyLogging {
   def parseIsNullExpression(isNullExpression: IsNullExpression): Column = {
 
     val leftColumn = parse(isNullExpression.getLeftExpression)
-    logger.info(s"Parsed left expression for ${classOf[IsNullExpression].getSimpleName}")
+    info(s"Parsed left expression for ${classOf[IsNullExpression].getSimpleName}")
     if (isNullExpression.isNot) leftColumn.isNotNull else leftColumn.isNull
   }
 
@@ -102,7 +102,7 @@ object SqlParser extends LazyLogging {
       .getExpressions
       .map(parse)
 
-    logger.info(s"Parsed both left and all of ${inValuesColumns.size()} right expression(s) of ${classOf[InExpression].getSimpleName}")
+    info(s"Parsed both left and all of ${inValuesColumns.size()} right expression(s) of ${classOf[InExpression].getSimpleName}")
     val isInColumn = leftColumn.isin(inValuesColumns: _*)
     if (inExpression.isNot) !isInColumn else isInColumn
   }
@@ -111,7 +111,7 @@ object SqlParser extends LazyLogging {
 
     val whenCases: Seq[(Column, Column)] = caze.getWhenClauses.map(x => (parse(x.getWhenExpression), parse(x.getThenExpression)))
     val elseValue: Column = parse(caze.getElseExpression)
-    logger.info(s"Parsed both all of ${caze.getWhenClauses.size()} ${classOf[WhenClause].getSimpleName}(s) and ElseExpression")
+    info(s"Parsed both all of ${caze.getWhenClauses.size()} ${classOf[WhenClause].getSimpleName}(s) and ElseExpression")
     val firstCase: Column = when(whenCases.head._1, whenCases.head._2)
     whenCases.tail
       .foldLeft(firstCase)((col, tuple2) => col.when(tuple2._1, tuple2._2))

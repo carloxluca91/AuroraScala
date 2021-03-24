@@ -9,6 +9,6 @@ object DateFormat extends Enumeration {
   import scala.language.implicitConversions
   implicit def valueToDateFormatVal(x: Value): Val = x.asInstanceOf[Val]
 
-  val DtRiferimento: Val = Val("yyyy-MM-dd", DateTimeFormatter.ISO_LOCAL_DATE)
+  val DtBusinessDate: Val = Val("yyyy-MM-dd", DateTimeFormatter.ISO_LOCAL_DATE)
 
 }

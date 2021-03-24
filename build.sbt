@@ -10,8 +10,9 @@ val clouderaRepoUrl = "https://repository.cloudera.com/artifactory/cloudera-repo
 
 lazy val commonSettings = Seq(
 
+  javacOptions ++= "-source" :: "1.8" :: "-target" :: "1.7" :: Nil,
+  scalacOptions ++= "-encoding" :: "UTF-8" :: Nil,
   scalaVersion := "2.10.5",
-  scalacOptions ++= "-encoding" :: "UTF-8" :: "-target:jvm-1.7" :: Nil,
   resolvers += "ClouderaRepo" at clouderaRepoUrl,
 
   // Dependencies
@@ -28,7 +29,8 @@ lazy val auroraDataload = (project in file("."))
     commonSettings,
     name := "aurora-dataload",
     version := "0.0.2",
-    libraryDependencies ++= "com.github.scopt" %% "scopt" % scoptVersion :: Nil,
+    libraryDependencies ++= "com.github.scopt" %% "scopt" % scoptVersion ::
+      "org.apache.spark" %% "spark-hive" % sparkVersion % "provided" :: Nil,
 
     // Exclude .properties file from packaging
     (unmanagedResources in Compile) := (unmanagedResources in Compile)

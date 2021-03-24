@@ -1,19 +1,20 @@
 package it.luca.aurora.spark.engine
 
-import java.sql._
-
-import it.luca.aurora.option.Branch
+import grizzled.slf4j.Logging
+import it.luca.aurora.enumeration.Branch
 import it.luca.aurora.spark.data.LogRecord
 import it.luca.aurora.utils.ColumnName
-import org.apache.log4j.Logger
 import org.apache.spark.sql.functions.lit
-import org.apache.spark.sql.{DataFrame, SaveMode}
+import org.apache.spark.sql.{DataFrame, SQLContext, SaveMode}
 
-case class InitialLoadEngine(override val jobPropertiesFile: String)
-  extends AbstractInitialOrReloadEngine(jobPropertiesFile) {
+import java.sql._
 
-  private final val logger = Logger.getLogger(getClass)
-  private final val createInitialLoadLogRecord = LogRecord(sparkSession.sparkContext, Branch.InitialLoad.name, None, None,
+case class InitialLoadEngine(override protected val sqlContext: SQLContext, 
+                             override val propertiesFile: String)
+  extends AbstractEngine(sqlContext, propertiesFile) 
+    with Logging {
+  
+  private final val createInitialLoadLogRecord = LogRecord(sqlContext.sparkContext, Branch.InitialLoad.name, None, None,
     _: String, _: String, _: Option[String])
 
   private final val readTsvAsDataframeAddingVersionNumber: String => DataFrame =
@@ -27,7 +28,7 @@ case class InitialLoadEngine(override val jobPropertiesFile: String)
     val jdbcConnection: Connection = getJDBCConnection
     createDatabaseIfNotExists(pcAuroraDBName, jdbcConnection)
     jdbcConnection.close()
-    logger.info("Successfully closed JDBC connection")
+    info("Successfully closed JDBC connection")
 
     tableLoadingOptionsMap.keys foreach { key =>
 
@@ -51,17 +52,17 @@ case class InitialLoadEngine(override val jobPropertiesFile: String)
       .map(_.toLowerCase)
       .toSeq
 
-    logger.info(s"Existing databases: ${existingDatabases.map(x => s"'$x'").mkString(", ")}")
+    info(s"Existing databases: ${existingDatabases.map(x => s"'$x'").mkString(", ")}")
     val dbToCreateLower: String = dbToCreate.toLowerCase
     if (existingDatabases.contains(dbToCreateLower)) {
 
-      logger.info(s"Database '$dbToCreateLower' already exists. So, not much to do ;)")
+      info(s"Database '$dbToCreateLower' already exists. So, not much to do ;)")
 
     } else {
 
       val createDbStatement: Statement = connection.createStatement()
       createDbStatement.executeUpdate(s"CREATE DATABASE IF NOT EXISTS $dbToCreateLower")
-      logger.info(s"Successfully created database '$dbToCreateLower'")
+      info(s"Successfully created database '$dbToCreateLower'")
     }
   }
 }

@@ -1,20 +1,20 @@
 package it.luca.aurora.spark.engine
 
-import java.time.LocalDate
-
+import it.luca.aurora.enumeration.Branch
 import it.luca.aurora.exception.NoSpecificationException
-import it.luca.aurora.option.Branch
-import it.luca.aurora.option.ScoptParser.SourceLoadConfig
+import it.luca.aurora.option.SourceLoadConfig
 import it.luca.aurora.spark.data.{LogRecord, SpecificationRecord, Specifications}
 import it.luca.aurora.utils.Utils.{getJavaSQLDateFromNow, getJavaSQLTimestampFromNow, insertElementAtIndex}
 import it.luca.aurora.utils.{ColumnName, DateFormat}
 import org.apache.log4j.Logger
-import org.apache.spark.sql.expressions.{UserDefinedFunction, Window}
+import org.apache.spark.sql.expressions.Window
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.{Column, DataFrame, SaveMode}
 
-case class SourceLoadEngine(override val jobPropertiesFile: String)
-  extends AbstractEngine(jobPropertiesFile) {
+import java.time.LocalDate
+
+case class SourceLoadEngine(override val propertiesFile: String)
+  extends AbstractEngine(propertiesFile) {
 
   private final val logger = Logger.getLogger(getClass)
   private final var specificationsOpt: Option[Specifications] = None
@@ -70,7 +70,7 @@ case class SourceLoadEngine(override val jobPropertiesFile: String)
 
           // Read from historical table providing proper filtering
           logger.info(s"Provided dt_riferimento: '$value'. Thus, reading raw data from '$historicalTable'")
-          val dtRiferimentoSQLDate: java.sql.Date =  java.sql.Date.valueOf(LocalDate.parse(value, DateFormat.DtRiferimento.formatter))
+          val dtRiferimentoSQLDate: java.sql.Date =  java.sql.Date.valueOf(LocalDate.parse(value, DateFormat.DtBusinessDate.formatter))
           readFromJDBC(lakeCedacriDBName, historicalTable)
           .filter(col(ColumnName.DtRiferimento.name) === dtRiferimentoSQLDate)
       }
@@ -211,8 +211,6 @@ case class SourceLoadEngine(override val jobPropertiesFile: String)
   }
 
   private def getSpecifications(bancllName: String, versionNumberOpt: Option[String]): Specifications = {
-
-    import sparkSession.implicits._
 
     val tableNameAndFilterColumn: (String, Column) = versionNumberOpt match {
       case None =>

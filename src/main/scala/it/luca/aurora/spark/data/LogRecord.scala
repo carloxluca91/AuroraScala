@@ -31,7 +31,7 @@ object LogRecord {
 
     val dtRiferimentoSQLDateOpt: Option[Date] = dtRiferimentoOpt match {
       case None => None
-      case Some(x) => Some(Date.valueOf(LocalDate.parse(x, DateFormat.DtRiferimento.formatter)))
+      case Some(x) => Some(Date.valueOf(LocalDate.parse(x, DateFormat.DtBusinessDate.formatter)))
     }
 
     val applicationStartTime: Timestamp = Timestamp.from(Instant.ofEpochMilli(sparkContext.startTime))
