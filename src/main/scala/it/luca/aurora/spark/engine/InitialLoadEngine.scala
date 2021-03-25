@@ -18,10 +18,11 @@ case class InitialLoadEngine(override protected val sqlContext: SQLContext,
 
   private val excelPath = jobProperties.getString("hdfs.excel.path")
   private val specificationTableName = jobProperties.getString("hive.table.specification.name")
+  private val specificationSheetIndex: Int = jobProperties.getInt("excel.specification.sheet")
 
   override protected val steps: Seq[Step[_]] = CreateDbStep(dbName, sqlContext) ::
     ReadExcel(excelPath) ::
-    DecodeExcelSheet[SpecificationRow](as[Workbook](JobVariable.ExcelWorkbook), 0, skipHeader = true) ::
+    DecodeExcelSheet[SpecificationRow](as[Workbook](JobVariable.ExcelWorkbook), specificationSheetIndex, skipHeader = true) ::
     ToDataFrame[SpecificationRow](as[Seq[SpecificationRow]](JobVariable.ExcelDecodedBeans), sqlContext, JobVariable.SpecificationDf) ::
     WriteDataFrame(as[DataFrame](JobVariable.SpecificationDf), dbName, specificationTableName, SaveMode.ErrorIfExists, None) :: Nil
 }

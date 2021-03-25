@@ -16,7 +16,7 @@ abstract class AbstractEngine(protected val sqlContext: SQLContext,
   extends Logging {
 
   protected final val jobProperties = new PropertiesConfiguration(propertiesFile)
-  protected final val dbName: String = jobProperties.getString("hive.db.name")
+  protected final val dbName: String = jobProperties.getString("hive.db.trusted.name")
 
   protected val dataSource: Option[String]
   protected val dtBusinessDate: Option[String]
@@ -58,7 +58,7 @@ abstract class AbstractEngine(protected val sqlContext: SQLContext,
 
     val logRecordsDf: DataFrame = logRecords.toDF()
     info(s"Turned ${logRecords.size} into a ${classOf[DataFrame].getSimpleName}")
-    val logTableName = jobProperties.getString("hive.logTable.name")
+    val logTableName = jobProperties.getString("hive.table.dataloadLog.name")
     logRecordsDf.withSqlNamingConvention()
       .withTechnicalColumns()
       .coalesce(1)
@@ -83,13 +83,11 @@ abstract class AbstractEngine(protected val sqlContext: SQLContext,
       } match {
         case Success(_) =>
 
-          // Add "positive" LogRecord
           info(s"Executed step # $index (${step.name})")
           logRecords.append(logRecordFunction(index, step, None))
 
         case Failure(exception) =>
 
-          // Add "negative" LogRecord and return
           error(s"Exception on step # $index (${step.name}). Stack trace: ", exception)
           logRecords.append(logRecordFunction(index, step, Some(exception)))
           return (false, logRecords)
