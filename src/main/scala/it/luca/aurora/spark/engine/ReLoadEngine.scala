@@ -8,9 +8,10 @@ import org.apache.log4j.Logger
 import org.apache.spark.sql.functions.lit
 import org.apache.spark.sql.{DataFrame, SQLContext, SaveMode}
 
+/*
 case class ReLoadEngine(override protected val sqlContext: SQLContext,
                         override val propertiesFile: String)
-  extends AbstractEngine(sqlContext, propertiesFile) {
+  extends AbstractEngine(sqlContext, propertiesFile, Branch.Reload) {
 
   private final val logger = Logger.getLogger(getClass)
   private final val createReLoadLogRecord = LogRecord(sparkSession.sparkContext, Branch.Reload.name, None, None,
@@ -94,3 +95,5 @@ case class ReLoadEngine(override protected val sqlContext: SQLContext,
     }
   }
 }
+
+ */

@@ -1,7 +1,7 @@
 package it.luca.aurora.spark.data
 
 import it.luca.aurora.enumeration.Branch
-import it.luca.aurora.spark.step.AbstractStep
+import it.luca.aurora.spark.step.Step
 import org.apache.spark.SparkContext
 
 import java.sql.{Date, Timestamp}
@@ -30,7 +30,7 @@ object LogRecord {
             dtBusinessDate: Option[String],
             specificationVersion: Option[String],
             stepIndex: Int,
-            step: AbstractStep[_, _],
+            step: Step[_],
             exceptionOpt: Option[Throwable]): LogRecord = {
 
     LogRecord(applicationName = sparkContext.appName,

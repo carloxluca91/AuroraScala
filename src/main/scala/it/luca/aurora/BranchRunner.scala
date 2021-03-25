@@ -2,8 +2,8 @@ package it.luca.aurora
 
 import grizzled.slf4j.Logging
 import it.luca.aurora.enumeration.Branch
-import it.luca.aurora.option.{BranchConfig, ReloadConfig, ScoptParser, SourceLoadConfig}
-import it.luca.aurora.spark.engine.{InitialLoadEngine, ReLoadEngine, SourceLoadEngine}
+import it.luca.aurora.option.BranchConfig
+import it.luca.aurora.spark.engine.InitialLoadEngine
 import org.apache.spark.sql.hive.HiveContext
 import org.apache.spark.{SparkConf, SparkContext}
 
@@ -29,18 +29,24 @@ object BranchRunner extends Logging {
       case Branch.InitialLoad => InitialLoadEngine(sqlContext, propertiesFile).run()
       case Branch.Reload =>
 
+        /*
         ScoptParser.reloadOptionParser.parse(args, ReloadConfig())
           .foreach { x =>
             info(s"Parsed second set of arguments $x")
             ReLoadEngine(sqlContext, propertiesFile).run(x) }
 
+         */
+
       case Branch.SourceLoad =>
 
+        /*
         ScoptParser.sourceLoadOptionParser.parse(args, SourceLoadConfig())
           .foreach {x =>
             info(s"Parsed second set of arguments $x")
             SourceLoadEngine(sqlContext, propertiesFile).run(x)
           }
+
+         */
       }
   }
 }

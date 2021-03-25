@@ -10,11 +10,10 @@ import org.apache.spark.sql.expressions.Window
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.{Column, DataFrame, SQLContext, SaveMode}
 
-import java.time.LocalDate
-
+/*
 case class SourceLoadEngine(override protected val sqlContext: SQLContext,
                             override protected val propertiesFile: String)
-  extends AbstractEngine(sqlContext, propertiesFile) {
+  extends AbstractEngine(sqlContext, propertiesFile, Branch.SourceLoad) {
 
   private final var specificationsOpt: Option[Specifications] = None
   private final var trdActualTableNameOpt: Option[String] = None
@@ -268,3 +267,5 @@ case class SourceLoadEngine(override protected val sqlContext: SQLContext,
     specifications.trdColumns(lookupDf)
   }
 }
+
+ */

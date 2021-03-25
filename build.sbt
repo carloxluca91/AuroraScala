@@ -17,8 +17,8 @@ lazy val commonSettings = Seq(
   resolvers += "ClouderaRepo" at clouderaRepoUrl,
 
   // Dependencies
-  libraryDependencies ++= "org.apache.spark" %% "spark-core" % sparkVersion % "provided" ::
-    "org.apache.spark" %% "spark-sql" % sparkVersion % "provided" ::
+  libraryDependencies ++= "org.apache.spark" %% "spark-core" % sparkVersion :: // % "provided" ::
+    "org.apache.spark" %% "spark-sql" % sparkVersion :: // % "provided" ::
     "org.scalactic" %% "scalactic" % scalaTestVersion ::
     "org.scalatest" %% "scalatest" % scalaTestVersion % "test" ::
     "org.clapper" %% "grizzled-slf4j" % grizzledVersion :: Nil
@@ -45,7 +45,7 @@ lazy val auroraDataload = (project in file("."))
         val oldStrategy = (assemblyMergeStrategy in assembly).value
         oldStrategy(x) }
   )
-  .dependsOn(sqlParser)
+  .dependsOn(sqlParser, excelParser)
 
 lazy val sqlParser = (project in file("sql-parser"))
   .settings(

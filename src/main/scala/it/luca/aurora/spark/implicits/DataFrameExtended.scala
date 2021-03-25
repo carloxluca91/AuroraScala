@@ -31,6 +31,16 @@ class DataFrameExtended(private val df: DataFrame)
     info(s"Saved data to Hive table $fqTableName")
   }
 
+  def withSqlNamingConvention(): DataFrame = {
+
+    val regex: util.matching.Regex = "([A-Z])".r
+    df.columns.foldLeft(df) { case (caseDf, columnName) =>
+
+      val newColumnName: String = regex.replaceAllIn(columnName, m => s"_${m.group(1).toLowerCase}")
+      caseDf.withColumnRenamed(columnName, newColumnName)
+    }
+  }
+
   def withTechnicalColumns(): DataFrame = {
 
     df.withColumn("ts_insert", lit(new Timestamp(System.currentTimeMillis())))
