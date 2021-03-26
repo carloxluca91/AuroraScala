@@ -1,4 +1,4 @@
-package it.luca.aurora.spark.data
+package it.luca.aurora.spark.bean
 
 import it.luca.aurora.enumeration.Branch
 import it.luca.aurora.spark.step.Step
@@ -41,7 +41,7 @@ object LogRecord {
       dtBusinessDate = dtBusinessDate,
       specificationVersion = specificationVersion,
       stepIndex = stepIndex,
-      stepName = step.name,
+      stepName = step.stepName,
       stepEndTime = new Timestamp(System.currentTimeMillis()),
       stepEndDate = new Date(System.currentTimeMillis()),
       stepEndCode = exceptionOpt.map(_ => 0).getOrElse(-1),

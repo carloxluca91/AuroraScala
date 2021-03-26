@@ -1,23 +1,24 @@
 package it.luca.aurora.spark.step
 
-import it.luca.aurora.enumeration.JobVariable
-
 abstract class Step[I](protected val input: I,
-                       val name: String)
+                       val stepName: String)
 
 abstract class IStep[I](override protected val input: I,
-                        override val name: String)
-  extends Step[I](input, name) {
+                        override val stepName: String)
+  extends Step[I](input, stepName) {
 
   def run(): Unit
 
 }
 
 abstract class IOStep[I, O](override protected val input: I,
-                            override val name: String)
-  extends Step[I](input, name) {
+                            override val stepName: String,
+                            protected val outputKey: String)
+  extends Step[I](input, stepName) {
 
-  def run(): (JobVariable.Value, O)
+  protected def stepFunction(input: I): O
+
+  def run(): (String, O) = (outputKey, stepFunction(input))
 }
 
 

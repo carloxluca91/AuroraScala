@@ -8,7 +8,7 @@ import scala.util.{Failure, Success, Try}
 
 package object implicits extends Logging {
 
-  implicit class ExtendedWorkbook(private val workBook: Workbook) {
+  implicit class ExtendedSheet(private val workBook: Workbook) {
 
     def as[T](sheetIndex: Int, skipHeader: Boolean)(implicit rowDecoder: Row => T): Seq[T] = {
 

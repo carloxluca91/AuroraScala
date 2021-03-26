@@ -1,8 +1,8 @@
 package it.luca.aurora.spark.engine
 
 import grizzled.slf4j.Logging
-import it.luca.aurora.enumeration.{Branch, JobVariable}
-import it.luca.aurora.spark.data.LogRecord
+import it.luca.aurora.enumeration.Branch
+import it.luca.aurora.spark.bean.LogRecord
 import it.luca.aurora.spark.step.{IOStep, IStep, Step}
 import org.apache.commons.configuration.PropertiesConfiguration
 import org.apache.spark.sql.{DataFrame, SQLContext, SaveMode}
@@ -33,17 +33,16 @@ abstract class AbstractEngine(protected val sqlContext: SQLContext,
       _: Step[_],
       _: Option[Throwable])
 
-  protected val jobVariables: mutable.Map[JobVariable.Value, Any] = mutable.Map.empty[JobVariable.Value, Any]
+  protected val jobVariables: mutable.Map[String, Any] = mutable.Map.empty[String, Any]
 
-  protected def as[T](jobVariable: JobVariable.Value): T = jobVariables(jobVariable).asInstanceOf[T]
+  protected def as[T](key: String): T = jobVariables(key).asInstanceOf[T]
 
-  private def updateDataframeMap(key: JobVariable.Value, value: Any): Unit = {
+  private def updateJobVariableMap(key: String, value: Any): Unit = {
 
-    val keyName = key.name
     if (jobVariables.contains(key)) {
-      warn(s"Key '$keyName' is already defined. It will be overwritten")
+      warn(s"Key '$key' is already defined. It will be overwritten")
     } else {
-      info(s"Defining new key '$keyName'")
+      info(s"Defining new key '$key'")
     }
     jobVariables(key) = value
     info(s"Successfully updated jobVariables map")
@@ -77,18 +76,18 @@ abstract class AbstractEngine(protected val sqlContext: SQLContext,
         // Pattern match on current step
         step match {
           case iOStep: IOStep[_, _] => val (key, value) = iOStep.run()
-            updateDataframeMap(key, value)
+            updateJobVariableMap(key, value)
           case iStep: IStep[_] => iStep.run()
           }
       } match {
         case Success(_) =>
 
-          info(s"Executed step # $index (${step.name})")
+          info(s"Executed step # $index (${step.stepName})")
           logRecords.append(logRecordFunction(index, step, None))
 
         case Failure(exception) =>
 
-          error(s"Exception on step # $index (${step.name}). Stack trace: ", exception)
+          error(s"Exception on step # $index (${step.stepName}). Stack trace: ", exception)
           logRecords.append(logRecordFunction(index, step, Some(exception)))
           return (false, logRecords)
       }

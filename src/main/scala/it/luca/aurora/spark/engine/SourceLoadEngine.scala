@@ -3,7 +3,7 @@ package it.luca.aurora.spark.engine
 import it.luca.aurora.enumeration.Branch
 import it.luca.aurora.exception.NoSpecificationException
 import it.luca.aurora.option.SourceLoadConfig
-import it.luca.aurora.spark.data.{SpecificationRecord, Specifications}
+//import it.luca.aurora.spark.bean.SpecificationRecord
 import it.luca.aurora.utils.Utils.{getJavaSQLDateFromNow, getJavaSQLTimestampFromNow, insertElementAtIndex}
 import it.luca.aurora.utils.{ColumnName, DateFormat}
 import org.apache.spark.sql.expressions.Window

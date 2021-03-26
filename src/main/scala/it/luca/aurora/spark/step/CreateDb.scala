@@ -4,8 +4,8 @@ import grizzled.slf4j.Logging
 import it.luca.aurora.spark.implicits._
 import org.apache.spark.sql.SQLContext
 
-case class CreateDbStep(override protected val input: String, private val sqlContext: SQLContext)
-  extends IStep[String](input, s"CREATE_DB_$input")
+case class CreateDb(override protected val input: String, private val sqlContext: SQLContext)
+  extends IStep[String](input, stepName = s"CREATE_DB_${input.toUpperCase}")
     with Logging {
 
   override def run(): Unit = {

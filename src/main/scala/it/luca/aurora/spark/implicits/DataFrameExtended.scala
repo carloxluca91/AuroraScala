@@ -6,8 +6,17 @@ import org.apache.spark.sql.{DataFrame, SaveMode}
 
 import java.sql.{Date, Timestamp}
 
-class DataFrameExtended(private val df: DataFrame)
-  extends Logging {
+class DataFrameExtended(private val df: DataFrame) extends Logging {
+
+  def coalesce(numPartitions: Option[Int]): DataFrame = numPartitions.map(df.coalesce).getOrElse(df)
+
+  /**
+   * Save dataframe using .saveAsTable if given dbName.tableName does not exists, using .insertInto otherwise
+   * @param dbName: Hive db name
+   * @param tableName: Hive table name
+   * @param saveMode: dataframe saveMode
+   * @param partitionBy: partitioning columns (if any)
+   */
 
   def saveAsTableOrInsertInto(dbName: String, tableName: String, saveMode: SaveMode, partitionBy: Option[Seq[String]]): Unit = {
 
@@ -31,6 +40,11 @@ class DataFrameExtended(private val df: DataFrame)
     info(s"Saved data to Hive table $fqTableName")
   }
 
+  /**
+   * Rename all dataframe columns using SQL naming convention (e.g. "applicationStartTime" is renamed to "application_start_time")
+   * @return dataframe with renamed columns
+   */
+
   def withSqlNamingConvention(): DataFrame = {
 
     val regex: util.matching.Regex = "([A-Z])".r
@@ -40,6 +54,11 @@ class DataFrameExtended(private val df: DataFrame)
       caseDf.withColumnRenamed(columnName, newColumnName)
     }
   }
+
+  /**
+   * Add common technical columns
+   * @return dataframe with technical columns
+   */
 
   def withTechnicalColumns(): DataFrame = {
 
