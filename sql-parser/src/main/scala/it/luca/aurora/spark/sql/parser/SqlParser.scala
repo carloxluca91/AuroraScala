@@ -1,7 +1,7 @@
 package it.luca.aurora.spark.sql.parser
 
-import grizzled.slf4j.Logging
-import it.luca.aurora.spark.sql.common.{MultipleColumnFunction, OneColumnFunction, SqlFunction}
+import it.luca.aurora.logging.LazyLogging
+import it.luca.aurora.spark.sql.common._
 import it.luca.aurora.spark.sql.functions._
 import net.sf.jsqlparser.expression._
 import net.sf.jsqlparser.expression.operators.relational.{ExpressionList, InExpression, IsNullExpression}
@@ -12,7 +12,7 @@ import org.apache.spark.sql.functions.{col, lit, when}
 
 import scala.collection.JavaConversions._
 
-object SqlParser extends Logging {
+object SqlParser extends LazyLogging {
 
   def parse(string: String): Column = {
 
@@ -48,7 +48,7 @@ object SqlParser extends Logging {
       case ocf: OneColumnFunction =>
 
         val inputColumn = parse(function.getParameters.getExpressions.get(0))
-        info(s"Parsed input column for ${ocf.getClass.getSimpleName} function")
+        log.info(s"Parsed input column for ${ocf.getClass.getSimpleName} function")
         ocf.getColumn(inputColumn)
 
       case mcf: MultipleColumnFunction =>
@@ -62,7 +62,7 @@ object SqlParser extends Logging {
         }
 
         val inputColumns: Seq[Column] = inputColumnExpressions.map(parse)
-        info(s"Parsed all of ${inputColumnExpressions.size()} input column(s) for ${mcf.getClass.getSimpleName} function")
+        log.info(s"Parsed all of ${inputColumnExpressions.size()} input column(s) for ${mcf.getClass.getSimpleName} function")
         mcf.getColumn(inputColumns: _*)
     }
   }
@@ -72,7 +72,7 @@ object SqlParser extends Logging {
     // BinaryExpressions (<, <=, =, <>, >, >=, AND, OR)
     val leftColumn = parse(binaryExpression.getLeftExpression)
     val rightColumn = parse(binaryExpression.getRightExpression)
-    info(s"Parsed both left and right expression of ${classOf[BinaryExpression].getSimpleName} $binaryExpression")
+    log.info(s"Parsed both left and right expression of ${classOf[BinaryExpression].getSimpleName} $binaryExpression")
     val combinator: (Column, Column) => Column = binaryExpression.getStringExpression.toLowerCase match {
       case "<" => _ < _
       case "<=" => _ <= _
@@ -90,7 +90,7 @@ object SqlParser extends Logging {
   def parseIsNullExpression(isNullExpression: IsNullExpression): Column = {
 
     val leftColumn = parse(isNullExpression.getLeftExpression)
-    info(s"Parsed left expression for ${classOf[IsNullExpression].getSimpleName}")
+    log.info(s"Parsed left expression for ${classOf[IsNullExpression].getSimpleName}")
     if (isNullExpression.isNot) leftColumn.isNotNull else leftColumn.isNull
   }
 
@@ -102,7 +102,7 @@ object SqlParser extends Logging {
       .getExpressions
       .map(parse)
 
-    info(s"Parsed both left and all of ${inValuesColumns.size()} right expression(s) of ${classOf[InExpression].getSimpleName}")
+    log.info(s"Parsed both left and all of ${inValuesColumns.size()} right expression(s) of ${classOf[InExpression].getSimpleName}")
     val isInColumn = leftColumn.isin(inValuesColumns: _*)
     if (inExpression.isNot) !isInColumn else isInColumn
   }
@@ -111,7 +111,7 @@ object SqlParser extends Logging {
 
     val whenCases: Seq[(Column, Column)] = caze.getWhenClauses.map(x => (parse(x.getWhenExpression), parse(x.getThenExpression)))
     val elseValue: Column = parse(caze.getElseExpression)
-    info(s"Parsed both all of ${caze.getWhenClauses.size()} ${classOf[WhenClause].getSimpleName}(s) and ElseExpression")
+    log.info(s"Parsed both all of ${caze.getWhenClauses.size()} ${classOf[WhenClause].getSimpleName}(s) and ElseExpression")
     val firstCase: Column = when(whenCases.head._1, whenCases.head._2)
     whenCases.tail
       .foldLeft(firstCase)((col, tuple2) => col.when(tuple2._1, tuple2._2))

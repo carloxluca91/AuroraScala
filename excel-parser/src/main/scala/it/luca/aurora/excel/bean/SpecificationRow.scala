@@ -1,6 +1,7 @@
 package it.luca.aurora.excel.bean
 
 import it.luca.aurora.excel.decode.ExcelRowDecoder
+import it.luca.aurora.excel.implicits._
 import org.apache.poi.ss.usermodel.Row
 
 case class SpecificationRow(sourceId: String,

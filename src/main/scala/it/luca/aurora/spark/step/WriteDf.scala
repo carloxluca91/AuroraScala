@@ -8,7 +8,7 @@ case class WriteDf(override protected val input: DataFrame,
                    private val tableName: String,
                    private val saveMode: SaveMode,
                    private val partitionByOpt: Option[Seq[String]])
-  extends IStep[DataFrame](input, stepName =  s"WRITE_DATAFRAME $dbName.$tableName") {
+  extends IStep[DataFrame](input, stepName =  s"WRITE_DF_${dbName.toUpperCase}.${tableName.toUpperCase}") {
 
   override def run(): Unit = input.saveAsTableOrInsertInto(dbName, tableName, saveMode, partitionByOpt)
 }

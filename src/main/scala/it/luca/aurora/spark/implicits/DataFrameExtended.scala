@@ -1,14 +1,13 @@
 package it.luca.aurora.spark.implicits
 
-import grizzled.slf4j.Logging
+import it.luca.aurora.logging.LazyLogging
 import org.apache.spark.sql.functions.lit
 import org.apache.spark.sql.{DataFrame, SaveMode}
 
 import java.sql.{Date, Timestamp}
 
-class DataFrameExtended(private val df: DataFrame) extends Logging {
-
-  def coalesce(numPartitions: Option[Int]): DataFrame = numPartitions.map(df.coalesce).getOrElse(df)
+class DataFrameExtended(private val df: DataFrame)
+  extends LazyLogging {
 
   /**
    * Save dataframe using .saveAsTable if given dbName.tableName does not exists, using .insertInto otherwise
@@ -21,23 +20,23 @@ class DataFrameExtended(private val df: DataFrame) extends Logging {
   def saveAsTableOrInsertInto(dbName: String, tableName: String, saveMode: SaveMode, partitionBy: Option[Seq[String]]): Unit = {
 
     val fqTableName = s"$dbName.$tableName"
-    info(s"Saving data to Hive table $fqTableName")
+    log.info(s"Saving data to Hive table $fqTableName")
     if (df.sqlContext.tableExistsInDb(tableName, dbName)) {
 
-      info(s"Hive table $fqTableName already exists. Saving data using .insertInto with saveMode $saveMode")
+      log.info(s"Hive table $fqTableName already exists. Saving data using .insertInto with saveMode $saveMode")
       df.write
         .mode(saveMode)
         .insertInto(fqTableName)
     } else {
 
-      warn(s"Hive table $fqTableName does not exist yet. Creating now using .saveAsTable")
+      log.warn(s"Hive table $fqTableName does not exist yet. Creating now using .saveAsTable")
       df.write
         .mode(saveMode)
         .partitionBy(partitionBy)
         .saveAsTable(fqTableName)
     }
 
-    info(s"Saved data to Hive table $fqTableName")
+    log.info(s"Saved data to Hive table $fqTableName")
   }
 
   /**

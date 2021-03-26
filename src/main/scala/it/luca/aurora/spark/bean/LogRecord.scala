@@ -1,7 +1,7 @@
 package it.luca.aurora.spark.bean
 
 import it.luca.aurora.enumeration.Branch
-import it.luca.aurora.spark.step.Step
+import it.luca.aurora.spark.step.{IOStep, Step}
 import org.apache.spark.SparkContext
 
 import java.sql.{Date, Timestamp}
@@ -15,6 +15,8 @@ case class LogRecord(applicationName: String,
                      specificationVersion: Option[String],
                      stepIndex: Int,
                      stepName: String,
+                     stepInputType: String,
+                     stepOutputType: Option[String],
                      stepEndTime: Timestamp,
                      stepEndDate: Date,
                      stepEndCode: Int,
@@ -42,6 +44,12 @@ object LogRecord {
       specificationVersion = specificationVersion,
       stepIndex = stepIndex,
       stepName = step.stepName,
+      stepInputType = step.stepInputType,
+      stepOutputType = step match {
+        case ioStep: IOStep[_, _] => Some(ioStep.stepOutputType)
+        case _ => None
+      },
+
       stepEndTime = new Timestamp(System.currentTimeMillis()),
       stepEndDate = new Date(System.currentTimeMillis()),
       stepEndCode = exceptionOpt.map(_ => 0).getOrElse(-1),

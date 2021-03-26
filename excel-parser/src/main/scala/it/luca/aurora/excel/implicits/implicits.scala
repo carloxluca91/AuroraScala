@@ -1,27 +1,13 @@
 package it.luca.aurora.excel
 
-import grizzled.slf4j.Logging
-import org.apache.poi.ss.usermodel.{Row, Workbook}
+import org.apache.poi.ss.usermodel.{Cell, Row, Workbook}
 
-import scala.collection.JavaConverters._
-import scala.util.{Failure, Success, Try}
+package object implicits {
 
-package object implicits extends Logging {
+  implicit def toExtendedWorkBook(workbook: Workbook): ExtendedWorkbook = new ExtendedWorkbook(workbook)
 
-  implicit class ExtendedSheet(private val workBook: Workbook) {
+  implicit def toExtendedCell(cell: Cell): ExtendedCell = new ExtendedCell(cell)
 
-    def as[T](sheetIndex: Int, skipHeader: Boolean)(implicit rowDecoder: Row => T): Seq[T] = {
+  implicit def toExtendedRow(row: Row): ExtendedRow = new ExtendedRow(row)
 
-      val rowIterator: java.util.Iterator[Row] = workBook.getSheetAt(sheetIndex).rowIterator()
-      if (skipHeader) rowIterator.next()
-      rowIterator.asScala.toSeq.map { r =>
-        Try {rowDecoder(r)} match {
-          case Success(value) => value
-          case Failure(exception) =>
-            error(s"Error while converting row # ${r.getRowNum}. Stack trace: ", exception)
-            throw exception
-        }
-      }
-    }
-  }
 }

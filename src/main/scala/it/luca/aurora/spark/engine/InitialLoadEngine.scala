@@ -1,6 +1,5 @@
 package it.luca.aurora.spark.engine
 
-import grizzled.slf4j.Logging
 import it.luca.aurora.enumeration.Branch
 import it.luca.aurora.excel.bean.SpecificationRow
 import it.luca.aurora.spark.implicits._
@@ -13,8 +12,7 @@ import java.sql.{Date, Timestamp}
 
 case class InitialLoadEngine(override protected val sqlContext: SQLContext, 
                              override protected val propertiesFile: String)
-  extends AbstractEngine(sqlContext, propertiesFile, Branch.InitialLoad)
-    with Logging {
+  extends AbstractEngine(sqlContext, propertiesFile, Branch.InitialLoad) {
 
   override protected val dataSource: Option[String] = None
   override protected val dtBusinessDate: Option[String] = None

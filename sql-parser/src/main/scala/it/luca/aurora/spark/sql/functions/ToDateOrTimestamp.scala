@@ -5,8 +5,8 @@ import net.sf.jsqlparser.expression.{Function, StringValue}
 import org.apache.spark.sql.Column
 import org.apache.spark.sql.functions.{from_unixtime, to_date, unix_timestamp}
 
-case class ToDateOrTimestamp(override protected val function: Function)
-  extends OneColumnFunction(function) {
+case class ToDateOrTimestamp(override val sqlFunction: Function)
+  extends OneColumnFunction(sqlFunction) {
 
   override def getColumn(column: Column): Column = {
 

@@ -5,8 +5,8 @@ import net.sf.jsqlparser.expression.{Function, StringValue}
 import org.apache.spark.sql.Column
 import org.apache.spark.sql.functions.concat_ws
 
-case class ConcatWs(override protected val function: Function)
-  extends MultipleColumnFunction(function) {
+case class ConcatWs(override val sqlFunction: Function)
+  extends MultipleColumnFunction(sqlFunction) {
 
   override def getColumn(columns: Column*): Column = {
 

@@ -1,13 +1,13 @@
 package it.luca.aurora
 
-import grizzled.slf4j.Logging
 import it.luca.aurora.enumeration.Branch
+import it.luca.aurora.logging.LazyLogging
 import it.luca.aurora.option.BranchConfig
 import it.luca.aurora.spark.engine.InitialLoadEngine
 import org.apache.spark.sql.hive.HiveContext
 import org.apache.spark.{SparkConf, SparkContext}
 
-object BranchRunner extends Logging {
+object BranchRunner extends LazyLogging {
 
   def apply(branchConfig: BranchConfig, args: Seq[String]): Unit = {
 
@@ -19,7 +19,7 @@ object BranchRunner extends Logging {
     sparkConf.set("hive.exec.dynamic.partition.mode", "nonstrict")
     val sparkContext = new SparkContext(sparkConf)
     val sqlContext = new HiveContext(sparkContext)
-    info(s"""Initialized both ${classOf[SparkContext].getSimpleName} and ${classOf[HiveContext].getSimpleName}
+    log.info(s"""Initialized both ${classOf[SparkContext].getSimpleName} and ${classOf[HiveContext].getSimpleName}
          |
          |    appName = ${sparkContext.appName},
          |    appId = ${sparkContext.applicationId}
@@ -32,7 +32,7 @@ object BranchRunner extends Logging {
         /*
         ScoptParser.reloadOptionParser.parse(args, ReloadConfig())
           .foreach { x =>
-            info(s"Parsed second set of arguments $x")
+            log.info(s"Parsed second set of arguments $x")
             ReLoadEngine(sqlContext, propertiesFile).run(x) }
 
          */
@@ -42,7 +42,7 @@ object BranchRunner extends Logging {
         /*
         ScoptParser.sourceLoadOptionParser.parse(args, SourceLoadConfig())
           .foreach {x =>
-            info(s"Parsed second set of arguments $x")
+            log.info(s"Parsed second set of arguments $x")
             SourceLoadEngine(sqlContext, propertiesFile).run(x)
           }
 

@@ -1,7 +1,7 @@
 package it.luca.aurora.spark.engine
 
-import grizzled.slf4j.Logging
 import it.luca.aurora.enumeration.Branch
+import it.luca.aurora.logging.LazyLogging
 import it.luca.aurora.spark.bean.LogRecord
 import it.luca.aurora.spark.step.{IOStep, IStep, Step}
 import org.apache.commons.configuration.PropertiesConfiguration
@@ -13,7 +13,7 @@ import scala.util.{Failure, Success, Try}
 abstract class AbstractEngine(protected val sqlContext: SQLContext,
                               protected val propertiesFile: String,
                               protected val branch: Branch.Value)
-  extends Logging {
+  extends LazyLogging {
 
   protected final val jobProperties = new PropertiesConfiguration(propertiesFile)
   protected final val dbName: String = jobProperties.getString("hive.db.trusted.name")
@@ -40,12 +40,12 @@ abstract class AbstractEngine(protected val sqlContext: SQLContext,
   private def updateJobVariableMap(key: String, value: Any): Unit = {
 
     if (jobVariables.contains(key)) {
-      warn(s"Key '$key' is already defined. It will be overwritten")
+      log.warn(s"Key '$key' is already defined. It will be overwritten")
     } else {
-      info(s"Defining new key '$key'")
+      log.info(s"Defining new key '$key'")
     }
     jobVariables(key) = value
-    info(s"Successfully updated jobVariables map")
+    log.info(s"Successfully updated jobVariables map")
   }
 
   def run(): Unit = {
@@ -56,15 +56,15 @@ abstract class AbstractEngine(protected val sqlContext: SQLContext,
     import sqlContext.implicits._
 
     val logRecordsDf: DataFrame = logRecords.toDF()
-    info(s"Turned ${logRecords.size} into a ${classOf[DataFrame].getSimpleName}")
+    log.info(s"Turned ${logRecords.size} into a ${classOf[DataFrame].getSimpleName}")
     val logTableName = jobProperties.getString("hive.table.dataloadLog.name")
     logRecordsDf.withSqlNamingConvention()
       .withTechnicalColumns()
       .coalesce(1)
       .saveAsTableOrInsertInto(dbName, logTableName, SaveMode.Append, None)
 
-    if (jobSucceeded) info(s"Executed whole Spark job ${branch.name}")
-    else warn(s"Unable to fully execute Spark job ${branch.name}")
+    if (jobSucceeded) log.info(s"Executed whole Spark job ${branch.name}")
+    else log.warn(s"Unable to fully execute Spark job ${branch.name}")
   }
 
   private def runSteps(): (Boolean, Seq[LogRecord]) = {
@@ -82,12 +82,12 @@ abstract class AbstractEngine(protected val sqlContext: SQLContext,
       } match {
         case Success(_) =>
 
-          info(s"Executed step # $index (${step.stepName})")
+          log.info(s"Executed step # $index (${step.stepName})")
           logRecords.append(logRecordFunction(index, step, None))
 
         case Failure(exception) =>
 
-          error(s"Exception on step # $index (${step.stepName}). Stack trace: ", exception)
+          log.error(s"Exception on step # $index (${step.stepName}). Stack trace: ", exception)
           logRecords.append(logRecordFunction(index, step, Some(exception)))
           return (false, logRecords)
       }

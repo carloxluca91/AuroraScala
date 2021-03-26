@@ -5,8 +5,8 @@ import net.sf.jsqlparser.expression.{Function, LongValue}
 import org.apache.spark.sql.Column
 import org.apache.spark.sql.functions.substring
 
-case class Substring(override protected val function: Function)
-  extends OneColumnFunction(function) {
+case class Substring(override val sqlFunction: Function)
+  extends OneColumnFunction(sqlFunction) {
 
   override def getColumn(column: Column): Column = {
 

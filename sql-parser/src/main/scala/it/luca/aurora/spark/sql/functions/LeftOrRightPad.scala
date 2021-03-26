@@ -5,8 +5,8 @@ import net.sf.jsqlparser.expression.{Function, LongValue, StringValue}
 import org.apache.spark.sql.Column
 import org.apache.spark.sql.functions.{lpad, rpad}
 
-case class LeftOrRightPad(override protected val function: Function)
-  extends OneColumnFunction(function) {
+case class LeftOrRightPad(override val sqlFunction: Function)
+  extends OneColumnFunction(sqlFunction) {
 
   override def getColumn(column: Column): Column = {
 
