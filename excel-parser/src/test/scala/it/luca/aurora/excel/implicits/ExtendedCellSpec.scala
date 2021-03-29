@@ -1,67 +1,78 @@
 package it.luca.aurora.excel.implicits
 
 import it.luca.aurora.excel.BaseSpec
+import it.luca.aurora.excel.exception.ExcelDecodingException
 import org.apache.poi.ss.usermodel.{Cell, CellType}
+import org.scalamock.scalatest.MockFactory
 
-class ExtendedCellSpec extends BaseSpec {
+class ExtendedCellSpec extends BaseSpec with MockFactory {
 
-  private final val cell: Cell = mock[Cell]
+  private final val mockCell = mock[Cell]
   private final val expectedString = "STRING"
   private final val expectedDouble = 3.14
-  private final val expectedBoolean = false
 
-  s"An ${clazz[ExtendedCell]}" must "correctly return typed content" in {
+  s"An ${clazz[ExtendedCell]}" must s"return typed content" in {
 
-    // String
-    (cell.getStringCellValue: () => String).expects().returning(expectedString)
-    (cell.getCellTypeEnum: () => CellType).expects().returning(CellType.STRING)
-    assertResult(expectedString)(cell.as[String])
-
-    /*
-    // Numeric
-    (cell.getNumericCellValue: () => Double).expects().returning(expectedDouble)
-    (cell.getCellTypeEnum: () => CellType).expects().returning(CellType.NUMERIC)
-    assertResult(expectedDouble)(cell.as[Double])
-
-    // Boolean
-    (cell.getBooleanCellValue: () => Boolean).expects().returning(expectedBoolean)
-    (cell.getCellTypeEnum: () => CellType).expects().returning(CellType.BOOLEAN)
-    assertResult(expectedBoolean)(cell.as[Boolean])
-
-     */
-  }
-
-  it must "correctly return optional typed content" in {
-
-    def assertOpt[T](value: T): Unit = {
-
-      // First call (expecting Some(T))
-      val maybeT: Option[T] = cell.asOption[T]
-      assert(maybeT.nonEmpty && maybeT.get.equals(value))
-
-      // Second call (expecting None)
-      assert(cell.asOption[T].isEmpty)
+    (mockCell.getCellTypeEnum: () => CellType).expects().returning(CellType.STRING)
+    (mockCell.getStringCellValue: () => String).expects().returning(expectedString)
+    assertResult(expectedString) {
+      mockCell.as[String]
     }
 
-    // String
-    (cell.getStringCellValue: () => String).expects().returning(expectedString)
-    (cell.getStringCellValue: () => String).expects().returning(null)
-    (cell.getCellTypeEnum: () => CellType).expects().returning(CellType.STRING).noMoreThanTwice()
-    assertOpt[String](expectedString)
+    (mockCell.getCellTypeEnum: () => CellType).expects().returning(CellType.NUMERIC)
+    (mockCell.getNumericCellValue: () => Double).expects().returning(expectedDouble)
+    assertResult(expectedDouble) {
+      mockCell.as[Double]
+    }
+  }
 
-    /*
-    // Numeric
-    (cell.getNumericCellValue: () => java.lang.Double).expects().returning(expectedDouble)
-    (cell.getNumericCellValue: () => java.lang.Double).expects().returning(null)
-    (cell.getCellTypeEnum: () => CellType).expects().returning(CellType.NUMERIC).noMoreThanTwice()
-    assertOpt[Double](expectedDouble)
+  it must "return typed-converted content" in {
 
-    // Boolean
-    (cell.getBooleanCellValue: () => java.lang.Boolean).expects().returning(expectedBoolean)
-    (cell.getBooleanCellValue: () => java.lang.Boolean).expects().returning(null)
-    (cell.getCellTypeEnum: () => CellType).expects().returning(CellType.BOOLEAN).noMoreThanTwice()
-    assertOpt[Boolean](expectedBoolean)
+    (mockCell.getCellTypeEnum: () => CellType).expects().returning(CellType.NUMERIC)
+    (mockCell.getNumericCellValue: () => Double).expects().returning(expectedDouble)
+    assertResult(expectedDouble.toInt) {
+      mockCell.as[Double, Int](d => d.toInt)
+    }
+  }
 
-     */
+  it must s"throw a ${clazz[ExcelDecodingException]} when requesting wrong data type" in {
+
+    (mockCell.getCellTypeEnum: () => CellType).expects().returning(CellType.NUMERIC).noMoreThanTwice()
+    (mockCell.getRowIndex: () => Int).expects().returning(0)
+    (mockCell.getColumnIndex: () => Int).expects().returning(0)
+    assertThrows[ExcelDecodingException]{
+      mockCell.as[String]
+    }
+  }
+
+  it must "correctly return a typed and non-empty Option" in {
+
+    (mockCell.getCellTypeEnum: () => CellType).expects().returning(CellType.STRING)
+    (mockCell.getStringCellValue: () => String).expects().returning(expectedString)
+    val option = mockCell.asOption[String]
+    assert(option.nonEmpty && option.get.equals(expectedString))
+  }
+
+  it must "correctly return a typed-converted and non-empty Option" in {
+
+    (mockCell.getCellTypeEnum: () => CellType).expects().returning(CellType.NUMERIC)
+    (mockCell.getNumericCellValue: () => Double).expects().returning(expectedDouble)
+    val option = mockCell.asOption[Double, Int](d => d.toInt)
+    assert(option.nonEmpty)
+    val optionValue = option.get
+    assert(optionValue.isInstanceOf[Int])
+    assertResult(expectedDouble.toInt) {
+      optionValue
+    }
+  }
+
+  it must "correctly return an empty Option if requested content is null" in {
+
+    (mockCell.getCellTypeEnum: () => CellType).expects().returning(CellType.STRING)
+    (mockCell.getStringCellValue: () => String).expects().returning(null)
+    assert(mockCell.asOption[String].isEmpty)
+
+    (mockCell.getCellTypeEnum: () => CellType).expects().returning(CellType.BLANK)
+    assert(mockCell.asOption[String].isEmpty)
   }
 }

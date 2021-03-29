@@ -1,13 +1,13 @@
 package it.luca.aurora
 
 import it.luca.aurora.enumeration.Branch
-import it.luca.aurora.logging.LazyLogging
+import it.luca.aurora.logging.Logging
 import it.luca.aurora.option.BranchConfig
 import it.luca.aurora.spark.engine.InitialLoadEngine
 import org.apache.spark.sql.hive.HiveContext
 import org.apache.spark.{SparkConf, SparkContext}
 
-object BranchRunner extends LazyLogging {
+object BranchRunner extends Logging {
 
   def apply(branchConfig: BranchConfig, args: Seq[String]): Unit = {
 

@@ -1,6 +1,6 @@
 package it.luca.aurora.spark.step
 
-import it.luca.aurora.logging.LazyLogging
+import it.luca.aurora.logging.Logging
 import it.luca.aurora.spark.implicits._
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.{DataFrame, SQLContext}
@@ -11,7 +11,7 @@ case class ToDf[T <: Product](override protected val input: Seq[T],
   extends IOStep[Seq[T], DataFrame](input,
     stepName = s"${classOf[T].getSimpleName.toUpperCase}_TO_DATAFRAME",
     outputKey = outputKey)
-    with LazyLogging {
+    with Logging {
 
   override protected def stepFunction(input: Seq[T]): DataFrame = {
 

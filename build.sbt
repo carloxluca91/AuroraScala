@@ -28,7 +28,8 @@ lazy val commonSettings = Seq(
     "org.apache.spark" %% "spark-sql" % sparkVersion % Provided ::
     "org.scalactic" %% "scalactic" % scalaTestVersion ::
     "org.scalatest" %% "scalatest" % scalaTestVersion % Test ::
-    "org.scalamock" %% "scalamock" % scalaMockVersion % Test :: Nil
+    "org.scalamock" %% "scalamock" % scalaMockVersion % Test ::
+    Nil
 )
 
 lazy val auroraDataload = (project in file("."))
@@ -38,7 +39,8 @@ lazy val auroraDataload = (project in file("."))
     name := "aurora-dataload",
     version := "0.3.0",
     libraryDependencies ++= "org.apache.spark" %% "spark-hive" % sparkVersion % Provided ::
-      "com.github.scopt" %% "scopt" % scoptVersion :: Nil,
+      "com.github.scopt" %% "scopt" % scoptVersion ::
+      Nil,
 
     // Exclude .properties file from packaging
     (unmanagedResources in Compile) := (unmanagedResources in Compile)
@@ -59,7 +61,8 @@ lazy val sqlParser = (project in file("sql-parser"))
 
     commonSettings,
     name := "sql-parser",
-    libraryDependencies ++= "com.github.jsqlparser" % "jsqlparser" % jsqlParserVersion :: Nil
+    libraryDependencies ++= "com.github.jsqlparser" % "jsqlparser" % jsqlParserVersion ::
+      Nil
   ).dependsOn(logging)
 
 lazy val excelParser = (project in file("excel-parser"))
@@ -68,7 +71,8 @@ lazy val excelParser = (project in file("excel-parser"))
     commonSettings,
     name := "excel-parser",
     libraryDependencies ++= "org.apache.poi" % "poi" % poiVersion ::
-      "org.apache.poi" % "poi-ooxml" % poiVersion :: Nil
+      "org.apache.poi" % "poi-ooxml" % poiVersion ::
+      Nil
   ).dependsOn(logging)
 
 lazy val logging = (project in file("logging"))

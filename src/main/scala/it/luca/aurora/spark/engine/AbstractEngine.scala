@@ -1,7 +1,7 @@
 package it.luca.aurora.spark.engine
 
 import it.luca.aurora.enumeration.Branch
-import it.luca.aurora.logging.LazyLogging
+import it.luca.aurora.logging.Logging
 import it.luca.aurora.spark.bean.LogRecord
 import it.luca.aurora.spark.step.{IOStep, IStep, Step}
 import org.apache.commons.configuration.PropertiesConfiguration
@@ -13,7 +13,7 @@ import scala.util.{Failure, Success, Try}
 abstract class AbstractEngine(protected val sqlContext: SQLContext,
                               protected val propertiesFile: String,
                               protected val branch: Branch.Value)
-  extends LazyLogging {
+  extends Logging {
 
   protected final val jobProperties = new PropertiesConfiguration(propertiesFile)
   protected final val dbName: String = jobProperties.getString("hive.db.trusted.name")

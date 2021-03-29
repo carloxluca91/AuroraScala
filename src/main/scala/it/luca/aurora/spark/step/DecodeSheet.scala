@@ -2,7 +2,7 @@ package it.luca.aurora.spark.step
 
 
 import it.luca.aurora.excel.implicits._
-import it.luca.aurora.logging.LazyLogging
+import it.luca.aurora.logging.Logging
 import org.apache.poi.ss.usermodel.{Row, Workbook}
 
 case class DecodeSheet[T](override protected val input: Workbook,
@@ -10,7 +10,7 @@ case class DecodeSheet[T](override protected val input: Workbook,
                           private val sheetIndex: Int,
                           private val skipHeader: Boolean)(private implicit val decodeRow: Row => T)
   extends IOStep[Workbook, Seq[T]](input, stepName =  s"DECODE_EXCEL_SHEET_$sheetIndex", outputKey = outputKey)
-    with LazyLogging {
+    with Logging {
 
   override protected def stepFunction(input: Workbook): Seq[T] = {
 

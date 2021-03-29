@@ -1,13 +1,13 @@
 package it.luca.aurora.excel.implicits
 
-import it.luca.aurora.logging.LazyLogging
+import it.luca.aurora.logging.Logging
 import org.apache.poi.ss.usermodel.{Row, Workbook}
 
 import scala.collection.JavaConverters._
 import scala.util.{Failure, Success, Try}
 
 class ExtendedWorkbook(private val workBook: Workbook)
-  extends LazyLogging {
+  extends Logging {
 
   def as[T](sheetIndex: Int, skipHeader: Boolean)(implicit rowDecoder: Row => T): Seq[T] = {
 

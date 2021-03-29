@@ -1,13 +1,13 @@
 package it.luca.aurora.spark.implicits
 
-import it.luca.aurora.logging.LazyLogging
+import it.luca.aurora.logging.Logging
 import org.apache.spark.sql.functions.lit
 import org.apache.spark.sql.{DataFrame, SaveMode}
 
 import java.sql.{Date, Timestamp}
 
 class DataFrameExtended(private val df: DataFrame)
-  extends LazyLogging {
+  extends Logging {
 
   /**
    * Save dataframe using .saveAsTable if given dbName.tableName does not exists, using .insertInto otherwise

@@ -1,12 +1,12 @@
 package it.luca.aurora.spark.step
 
-import it.luca.aurora.logging.LazyLogging
+import it.luca.aurora.logging.Logging
 import it.luca.aurora.spark.implicits._
 import org.apache.spark.sql.SQLContext
 
 case class CreateDb(override protected val input: String, private val sqlContext: SQLContext)
   extends IStep[String](input, stepName = s"CREATE_DB_${input.toUpperCase}")
-    with LazyLogging {
+    with Logging {
 
   override def run(): Unit = {
 

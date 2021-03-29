@@ -15,7 +15,7 @@ object Bean extends ExcelRowDecoder[Bean] {
 
     Bean(f1 = row(0).asOption[String],
       f2 = row(1).as[String],
-      f3 = row(2).asOption[Double].map(_.toInt),
-      f4 = row(3).as[Double].toInt)
+      f3 = row(2).asOption[Double, Int](d => d.toInt),
+      f4 = row(3).as[Double, Int](d => d.toInt))
   }
 }

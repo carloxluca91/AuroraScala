@@ -1,6 +1,6 @@
 package it.luca.aurora.spark.sql.parser
 
-import it.luca.aurora.logging.LazyLogging
+import it.luca.aurora.logging.Logging
 import it.luca.aurora.spark.sql.common._
 import it.luca.aurora.spark.sql.functions._
 import net.sf.jsqlparser.expression._
@@ -12,7 +12,7 @@ import org.apache.spark.sql.functions.{col, lit, when}
 
 import scala.collection.JavaConversions._
 
-object SqlParser extends LazyLogging {
+object SqlParser extends Logging {
 
   def parse(string: String): Column = {
 
