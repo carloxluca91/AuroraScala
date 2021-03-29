@@ -1,7 +1,5 @@
 # Aurora Dataload
 
--------------------------------------------
-
 Scala-based project for running ETL `Spark` jobs configured by means of an Excel file
 
 Spark jobs are responsible for read some raw-layer `Hive` tables, 
