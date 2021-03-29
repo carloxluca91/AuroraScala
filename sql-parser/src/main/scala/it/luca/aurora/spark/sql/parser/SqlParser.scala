@@ -21,12 +21,12 @@ object SqlParser extends Logging {
       case column: schema.Column => col(column.getColumnName)
       case string: StringValue => lit(string.getValue)
       case long: LongValue => lit(long.getValue)
-      case function: Function => parseSqlFunction(function)
+      case parenthesis: Parenthesis => parse(parenthesis.getExpression)
+      case caze: CaseExpression => parseCaseExpression(caze)
       case binaryExpression: BinaryExpression => parseSqlBinaryExpression(binaryExpression)
       case isNullExpression: IsNullExpression => parseIsNullExpression(isNullExpression)
       case inExpression: InExpression => parseInExpression(inExpression)
-      case parenthesis: Parenthesis => parse(parenthesis.getExpression)
-      case caze: CaseExpression => parseCaseExpression(caze)
+      case function: Function => parseSqlFunction(function)
     }
   }
 

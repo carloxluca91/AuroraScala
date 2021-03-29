@@ -10,7 +10,7 @@ object ExcelDecodingException {
   def apply[T](cell: Cell, tClass: Class[T]): ExcelDecodingException = {
 
     val msg = s"Error on decoding cell [${cell.getRowIndex}, ${cell.getColumnIndex}]. " +
-      s"Requested cell content as type ${tClass.getName}, while actual content is ${cell.getCellTypeEnum}"
+      s"Requested cell content as type ${tClass.getName}, while actual content has type ${cell.getCellTypeEnum}"
     ExcelDecodingException(msg)
   }
 }

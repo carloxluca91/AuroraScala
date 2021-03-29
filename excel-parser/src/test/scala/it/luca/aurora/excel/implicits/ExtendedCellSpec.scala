@@ -30,8 +30,10 @@ class ExtendedCellSpec extends BaseSpec with MockFactory {
 
     (mockCell.getCellTypeEnum: () => CellType).expects().returning(CellType.NUMERIC)
     (mockCell.getNumericCellValue: () => Double).expects().returning(expectedDouble)
+    val output = mockCell.as[Double, Int](d => d.toInt)
+    assert(output.isInstanceOf[Int])
     assertResult(expectedDouble.toInt) {
-      mockCell.as[Double, Int](d => d.toInt)
+      output
     }
   }
 
@@ -45,15 +47,18 @@ class ExtendedCellSpec extends BaseSpec with MockFactory {
     }
   }
 
-  it must "correctly return a typed and non-empty Option" in {
+  it must "return a typed and non-empty Option" in {
 
     (mockCell.getCellTypeEnum: () => CellType).expects().returning(CellType.STRING)
     (mockCell.getStringCellValue: () => String).expects().returning(expectedString)
     val option = mockCell.asOption[String]
-    assert(option.nonEmpty && option.get.equals(expectedString))
+    assert(option.nonEmpty)
+    assertResult(expectedString) {
+      option.get
+    }
   }
 
-  it must "correctly return a typed-converted and non-empty Option" in {
+  it must "return a typed-converted and non-empty Option" in {
 
     (mockCell.getCellTypeEnum: () => CellType).expects().returning(CellType.NUMERIC)
     (mockCell.getNumericCellValue: () => Double).expects().returning(expectedDouble)
@@ -66,7 +71,7 @@ class ExtendedCellSpec extends BaseSpec with MockFactory {
     }
   }
 
-  it must "correctly return an empty Option if requested content is null" in {
+  it must "return an empty Option if requested content is null" in {
 
     (mockCell.getCellTypeEnum: () => CellType).expects().returning(CellType.STRING)
     (mockCell.getStringCellValue: () => String).expects().returning(null)
