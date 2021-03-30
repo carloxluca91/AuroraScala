@@ -2,8 +2,8 @@ package it.luca.aurora
 
 import it.luca.aurora.enumeration.Branch
 import it.luca.aurora.logging.Logging
-import it.luca.aurora.option.{BranchConfig, ReloadConfig, ScoptParser}
-import it.luca.aurora.spark.job.{InitialLoadJob, ReloadJob}
+import it.luca.aurora.option.{BranchConfig, ReloadConfig, ScoptParser, DataSourceLoadConfig}
+import it.luca.aurora.spark.job.{InitialLoadJob, ReloadJob, DataSourceLoadJob}
 import org.apache.spark.sql.hive.HiveContext
 import org.apache.spark.{SparkConf, SparkContext}
 
@@ -28,23 +28,20 @@ object BranchRunner extends Logging {
     Branch.withId(branchId) match {
       case Branch.InitialLoad => InitialLoadJob(sqlContext, propertiesFile).run()
       case Branch.Reload =>
-
-        ScoptParser.reloadOptionParser.parse(args, ReloadConfig())
-          .foreach { config =>
-            log.info(s"Parsed second set of arguments $config")
-            ReloadJob(sqlContext, propertiesFile, config).run() }
-
-      /*
+        ScoptParser.reloadOptionParser.parse(args, ReloadConfig()) match {
+          case Some(x) =>
+            log.info(s"Parsed second set of arguments $x")
+            ReloadJob(sqlContext, propertiesFile, x).run()
+          case None => // arguments are bad, error message will have been displayed
+        }
 
       case Branch.SourceLoad =>
-
-        ScoptParser.sourceLoadOptionParser.parse(args, SourceLoadConfig())
-          .foreach {x =>
+        ScoptParser.sourceLoadOptionParser.parse(args, DataSourceLoadConfig()) match {
+          case Some(x) =>
             log.info(s"Parsed second set of arguments $x")
-            SourceLoadEngine(sqlContext, propertiesFile).run(x)
-          }
-
-         */
-      }
+            DataSourceLoadJob(sqlContext, propertiesFile, x).run()
+          case None => // arguments are bad, error message will have been displayed
+        }
+    }
   }
 }

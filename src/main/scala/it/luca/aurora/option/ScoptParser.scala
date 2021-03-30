@@ -39,7 +39,7 @@ object ScoptParser {
       .action((x, c) => c.copy(propertiesFile = x))
   }
 
-  val sourceLoadOptionParser: CustomParser[SourceLoadConfig] = new CustomParser[SourceLoadConfig] {
+  val sourceLoadOptionParser: CustomParser[DataSourceLoadConfig] = new CustomParser[DataSourceLoadConfig] {
 
     opt[String](ScoptOption.DataSource.shortOption, ScoptOption.DataSource.longOption)
       .text(ScoptOption.DataSource.optionDescription)
@@ -58,7 +58,7 @@ object ScoptParser {
 
     opt[String](ScoptOption.SpecificationVersion.shortOption, ScoptOption.SpecificationVersion.longOption)
       .text(ScoptOption.SpecificationVersion.optionDescription)
-      .action((x, c) => c.copy(specificationVersion = Some(x)))
+      .action((x, c) => c.copy(specificationVersion = x))
   }
 
   val reloadOptionParser: CustomParser[ReloadConfig] = new CustomParser[ReloadConfig] {
