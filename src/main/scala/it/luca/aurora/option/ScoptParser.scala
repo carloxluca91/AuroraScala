@@ -65,7 +65,7 @@ object ScoptParser {
 
     opt[Unit](ScoptOption.MappingSpecificationFlag.shortOption, ScoptOption.MappingSpecificationFlag.longOption)
       .text(ScoptOption.MappingSpecificationFlag.optionDescription)
-      .action((_, c) => c.copy(mappingSpecificationFlag = true))
+      .action((_, c) => c.copy(specificationFlag = true))
 
     opt[Unit](ScoptOption.LookupSpecificationFlag.shortOption, ScoptOption.LookupSpecificationFlag.longOption)
       .text(ScoptOption.LookupSpecificationFlag.optionDescription)

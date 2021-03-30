@@ -1,10 +1,10 @@
 package it.luca.aurora.exception
 
-import it.luca.aurora.utils.ColumnName
+import it.luca.aurora.enumeration.ColumnName
 
 case class UnexistingLookupException(exceptionMsg: String)
 extends Throwable(exceptionMsg)
-
+/*
 object UnexistingLookupException {
 
   def apply(colonnaTd: String, tipoLookup: String, lookupId: String): UnexistingLookupException = {
@@ -16,3 +16,5 @@ object UnexistingLookupException {
     UnexistingLookupException(msg)
   }
 }
+
+ */

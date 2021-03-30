@@ -16,6 +16,7 @@ class SqlParserSpec extends BaseSpec {
     }
   }
 
+  /*
   s"A ${SqlParser.getClass.getSimpleName}" must s"parse a ${clazz[CaseExpression]}" in {
 
     val (firstValue, secondValue, eleValue) = ("GT10", "GT2", "BOH")
@@ -23,6 +24,8 @@ class SqlParserSpec extends BaseSpec {
     val expected = when(firstColumn > 10, firstValue).when(firstColumn > 2, secondValue).otherwise(eleValue)
     areEquivalent(string, expected)
   }
+
+   */
 
   it must s"parse a ${clazz[BinaryExpression]}" in {
 

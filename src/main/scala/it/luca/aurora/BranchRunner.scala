@@ -2,8 +2,8 @@ package it.luca.aurora
 
 import it.luca.aurora.enumeration.Branch
 import it.luca.aurora.logging.Logging
-import it.luca.aurora.option.BranchConfig
-import it.luca.aurora.spark.engine.InitialLoadEngine
+import it.luca.aurora.option.{BranchConfig, ReloadConfig, ScoptParser}
+import it.luca.aurora.spark.job.{InitialLoadJob, ReloadJob}
 import org.apache.spark.sql.hive.HiveContext
 import org.apache.spark.{SparkConf, SparkContext}
 
@@ -26,20 +26,18 @@ object BranchRunner extends Logging {
          |""".stripMargin)
 
     Branch.withId(branchId) match {
-      case Branch.InitialLoad => InitialLoadEngine(sqlContext, propertiesFile).run()
+      case Branch.InitialLoad => InitialLoadJob(sqlContext, propertiesFile).run()
       case Branch.Reload =>
 
-        /*
         ScoptParser.reloadOptionParser.parse(args, ReloadConfig())
-          .foreach { x =>
-            log.info(s"Parsed second set of arguments $x")
-            ReLoadEngine(sqlContext, propertiesFile).run(x) }
+          .foreach { config =>
+            log.info(s"Parsed second set of arguments $config")
+            ReloadJob(sqlContext, propertiesFile, config).run() }
 
-         */
+      /*
 
       case Branch.SourceLoad =>
 
-        /*
         ScoptParser.sourceLoadOptionParser.parse(args, SourceLoadConfig())
           .foreach {x =>
             log.info(s"Parsed second set of arguments $x")

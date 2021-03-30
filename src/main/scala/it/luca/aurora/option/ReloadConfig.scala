@@ -2,12 +2,12 @@ package it.luca.aurora.option
 
 import it.luca.aurora.enumeration.ScoptOption
 
-case class ReloadConfig(mappingSpecificationFlag: Boolean = false,
+case class ReloadConfig(specificationFlag: Boolean = false,
                         lookUpFlag: Boolean = false,
                         completeOverwriteFlag: Boolean = false)
   extends BaseConfig {
 
-  protected val scoptOptionMap: Map[ScoptOption.Value, String] = Map(ScoptOption.MappingSpecificationFlag -> mappingSpecificationFlag.toString,
+  protected val scoptOptionMap: Map[ScoptOption.Value, String] = Map(ScoptOption.MappingSpecificationFlag -> specificationFlag.toString,
     ScoptOption.LookupSpecificationFlag -> lookUpFlag.toString,
     ScoptOption.CompleteOverwriteFlag -> completeOverwriteFlag.toString)
 }

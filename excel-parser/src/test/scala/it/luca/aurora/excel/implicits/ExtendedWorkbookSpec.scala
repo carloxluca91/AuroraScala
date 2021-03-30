@@ -14,11 +14,10 @@ class ExtendedWorkbookSpec extends BaseSpec {
 
   s"A ${clazz[ExtendedWorkbook]}" must "correctly decode a sheet into a Seq of beans" in {
 
-    val rows: Seq[Row] = workbook
-      .getSheetAt(0)
+    val rows: Seq[Row] = workbook.getSheetAt(0)
       .rowIterator().asScala.toSeq
 
-    val beans: Seq[Bean] = workbook.as[Bean](0, skipHeader = true)
+    val beans: Seq[Bean] = workbook.as[Bean](0)
     assertResult(rows.size - 1) {
       beans.size
     }

@@ -1,8 +1,9 @@
-package it.luca.aurora.spark.engine
+package it.luca.aurora.spark.job
 
 import it.luca.aurora.enumeration.Branch
 import it.luca.aurora.logging.Logging
 import it.luca.aurora.spark.bean.LogRecord
+import it.luca.aurora.spark.implicits._
 import it.luca.aurora.spark.step.{IOStep, IStep, Step}
 import org.apache.commons.configuration.PropertiesConfiguration
 import org.apache.spark.sql.{DataFrame, SQLContext, SaveMode}
@@ -10,13 +11,12 @@ import org.apache.spark.sql.{DataFrame, SQLContext, SaveMode}
 import scala.collection.mutable
 import scala.util.{Failure, Success, Try}
 
-abstract class AbstractEngine(protected val sqlContext: SQLContext,
-                              protected val propertiesFile: String,
-                              protected val branch: Branch.Value)
+abstract class SparkJob(protected val sqlContext: SQLContext,
+                        protected val propertiesFile: String,
+                        protected val branch: Branch.Value)
   extends Logging {
 
   protected final val jobProperties = new PropertiesConfiguration(propertiesFile)
-  protected final val dbName: String = jobProperties.getString("hive.db.trusted.name")
 
   protected val dataSource: Option[String]
   protected val dtBusinessDate: Option[String]
@@ -37,29 +37,18 @@ abstract class AbstractEngine(protected val sqlContext: SQLContext,
 
   protected def as[T](key: String): T = jobVariables(key).asInstanceOf[T]
 
-  private def updateJobVariableMap(key: String, value: Any): Unit = {
-
-    if (jobVariables.contains(key)) {
-      log.warn(s"Key '$key' is already defined. It will be overwritten")
-    } else {
-      log.info(s"Defining new key '$key'")
-    }
-    jobVariables(key) = value
-    log.info(s"Successfully updated jobVariables map")
-  }
-
   def run(): Unit = {
 
-    val (jobSucceeded, logRecords): (Boolean, Seq[LogRecord]) = runSteps()
-
-    import it.luca.aurora.spark.implicits._
     import sqlContext.implicits._
+
+    val (jobSucceeded, logRecords): (Boolean, Seq[LogRecord]) = runSteps()
+    val dbName: String = jobProperties.getString("hive.db.trusted")
 
     val logRecordsDf: DataFrame = logRecords.toDF()
     log.info(s"Turned ${logRecords.size} into a ${classOf[DataFrame].getSimpleName}")
     val logTableName = jobProperties.getString("hive.table.dataloadLog.name")
-    logRecordsDf.withSqlNamingConvention()
-      .withTechnicalColumns()
+    logRecordsDf.withTechnicalColumns()
+      .withSqlNamingConvention()
       .coalesce(1)
       .saveAsTableOrInsertInto(dbName, logTableName, SaveMode.Append, None)
 
@@ -72,21 +61,29 @@ abstract class AbstractEngine(protected val sqlContext: SQLContext,
     val logRecords: mutable.ListBuffer[LogRecord] = mutable.ListBuffer.empty[LogRecord]
     for ((step, index) <- steps.zip(Stream.from(1))) {
 
+      // Execute current step
       Try {
         // Pattern match on current step
         step match {
-          case iOStep: IOStep[_, _] => val (key, value) = iOStep.run()
-            updateJobVariableMap(key, value)
+          case iOStep: IOStep[_, _] =>
+
+            val (key, value) = iOStep.run()
+            if (jobVariables.contains(key)) {
+              log.warn(s"Key '$key' is already defined. It will be overwritten")
+            } else {
+              log.info(s"Defining new key '$key'")
+            }
+            jobVariables.update(key, value)
+            log.info(s"Successfully updated jobVariables map")
+
           case iStep: IStep[_] => iStep.run()
           }
       } match {
         case Success(_) =>
-
           log.info(s"Executed step # $index (${step.stepName})")
           logRecords.append(logRecordFunction(index, step, None))
 
         case Failure(exception) =>
-
           log.error(s"Exception on step # $index (${step.stepName}). Stack trace: ", exception)
           logRecords.append(logRecordFunction(index, step, Some(exception)))
           return (false, logRecords)
