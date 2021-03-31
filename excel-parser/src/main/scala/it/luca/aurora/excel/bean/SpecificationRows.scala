@@ -1,6 +1,6 @@
 package it.luca.aurora.excel.bean
 
-import it.luca.aurora.excel.exception.{MultipleRwTableException, MultipleTrdTableException}
+import it.luca.aurora.excel.exception.{MultipleRwTableException, MultipleTrdTableException, UndefinedTrdColumnException}
 import it.luca.aurora.spark.sql.parser.SqlParser
 import org.apache.spark.sql.Column
 import org.apache.spark.sql.functions.col
@@ -31,8 +31,10 @@ case class SpecificationRows(private val specifications: Seq[SpecificationRow]) 
 
   val trdColumns: Seq[(String, Column)] = {
     specifications.collect {
-      case s: SpecificationRow if s.inputTransformation.nonEmpty =>
-        (s.intermediateTrdColumn, SqlParser.parse(s.inputTransformation.get))
+      case s: SpecificationRow if !s.flagDiscard && s.trdColumn.nonEmpty =>
+        (s.trdColumn.get, SqlParser.parse(s.inputTransformation.get))
+      case s: SpecificationRow if !s.flagDiscard && s.trdColumn.isEmpty =>
+        throw UndefinedTrdColumnException(s)
     }
   }
 

@@ -15,16 +15,7 @@ case class SpecificationRow(dataSource: String,
                             inputTransformation: Option[String],
                             trdColumn: Option[String],
                             trdColumnType: Option[String],
-                            trdColumnPosition: Option[Int]) {
-
-  def intermediateTrdColumn: String = {
-
-    trdColumn match {
-      case Some(x) => if (rwColumn.equals(x)) s"${x}_tmp$$" else x
-      case None => rwColumn
-    }
-  }
-}
+                            trdColumnPosition: Option[Int])
 
 object SpecificationRow extends ExcelRowDecoder[SpecificationRow] {
 
