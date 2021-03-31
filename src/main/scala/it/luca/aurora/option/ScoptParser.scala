@@ -1,7 +1,6 @@
 package it.luca.aurora.option
 
 import it.luca.aurora.enumeration.{Branch, ScoptOption}
-import it.luca.aurora.utils.DateFormat
 import scopt.OptionParser
 
 import java.text.SimpleDateFormat
@@ -49,10 +48,9 @@ object ScoptParser {
     opt[String](ScoptOption.DtBusinessDate.shortOption, ScoptOption.DtBusinessDate.longOption)
       .text(ScoptOption.DtBusinessDate.optionDescription)
       .validate(x => {
-        if (Try { new SimpleDateFormat(DateFormat.DtBusinessDate.format)
-          .parse(x)}
+        if (Try { new SimpleDateFormat("yyyy-MM-dd").parse(x) }
           .isSuccess) success
-        else failure(s"Cannot parse business date. Provided '$x', should follow format '${DateFormat.DtBusinessDate.format}'")
+        else failure(s"Cannot parse business date. Provided '$x', should follow format yyyy-MM-dd")
       })
       .action((x, c) => c.copy(dtBusinessDate = Some(x)))
 

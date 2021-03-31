@@ -9,8 +9,11 @@ import org.apache.poi.ss.usermodel.{Row, Workbook}
 import org.apache.spark.sql.functions.lit
 import org.apache.spark.sql.{DataFrame, SQLContext, SaveMode}
 
-case class InitialLoadJob(override protected val sqlContext: SQLContext,
-                          override protected val propertiesFile: String)
+import scala.reflect.ClassTag
+import scala.reflect.runtime.universe.TypeTag
+
+case class InitialLoadJob(override val sqlContext: SQLContext,
+                          override val propertiesFile: String)
   extends SparkJob(sqlContext, propertiesFile, Branch.InitialLoad) {
 
   override protected val dataSource: Option[String] = None
@@ -29,15 +32,16 @@ case class InitialLoadJob(override protected val sqlContext: SQLContext,
 
   private val beansDfTransformation: DataFrame => DataFrame = df => {
 
-    df.withColumn(ColumnName.ValidityStartTime, lit(now))
-      .withColumn(ColumnName.ValidityStartDate, lit(toDate(now)))
+    df.withColumn(ColumnName.ValidityStartTime, lit(now()))
+      .withColumn(ColumnName.ValidityStartDate, lit(toDate(now())))
       .withTechnicalColumns()
       .withColumn(ColumnName.Version, lit("0.1"))
       .withSqlNamingConvention()
       .coalesce(1)
   }
 
-  private def initialLoadSteps[T <: Product](sheet: Int, actualTable: String)(implicit rowToT: Row => T): Seq[Step[_]] =
+  private def initialLoadSteps[T <: Product](sheet: Int, actualTable: String)
+                                            (implicit typeTag: TypeTag[T], classTag: ClassTag[T], rowToT: Row => T): Seq[Step[_]] =
 
     DecodeSheet[T](as[Workbook]("WORKBOOK"), "EXCEL_BEANS", sheet) ::
       ToDf[T](as[Seq[T]]("EXCEL_BEANS"), "EXCEL_BEANS_DF", sqlContext) ::

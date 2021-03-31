@@ -2,6 +2,7 @@ package it.luca.aurora.spark.bean
 
 import it.luca.aurora.enumeration.Branch
 import it.luca.aurora.spark.step.{IOStep, Step}
+import it.luca.aurora.utils.Utils.{now, toDate}
 import org.apache.spark.SparkContext
 
 import java.sql.{Date, Timestamp}
@@ -50,8 +51,8 @@ object LogRecord {
         case _ => None
       },
 
-      stepEndTime = new Timestamp(System.currentTimeMillis()),
-      stepEndDate = new Date(System.currentTimeMillis()),
+      stepEndTime = now(),
+      stepEndDate = toDate(now()),
       stepEndCode = exceptionOpt.map(_ => 0).getOrElse(-1),
       stepEndState = exceptionOpt.map(_ => "OK").getOrElse("KO"),
       stepExceptionClass = exceptionOpt.map(_.getClass.getName),

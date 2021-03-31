@@ -4,7 +4,7 @@ import it.luca.aurora.enumeration.ColumnName
 import it.luca.aurora.spark.implicits._
 import org.apache.spark.sql.{DataFrame, SaveMode}
 
-case class WriteDf(override protected val input: DataFrame,
+case class WriteDf(override val input: DataFrame,
                    private val dbName: String,
                    private val tableName: String,
                    private val saveMode: SaveMode,

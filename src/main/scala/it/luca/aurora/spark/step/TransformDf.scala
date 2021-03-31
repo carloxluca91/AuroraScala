@@ -3,8 +3,8 @@ package it.luca.aurora.spark.step
 import it.luca.aurora.logging.Logging
 import org.apache.spark.sql.DataFrame
 
-case class TransformDf(override protected val input: DataFrame,
-                       override protected val outputKey: String,
+case class TransformDf(override val input: DataFrame,
+                       override val outputKey: String,
                        private val dfTransformation: DataFrame => DataFrame)
   extends IOStep[DataFrame, DataFrame](input, stepName =  s"TRANSFORM_DATAFRAME", outputKey = outputKey)
     with Logging {
@@ -14,7 +14,7 @@ case class TransformDf(override protected val input: DataFrame,
     log.info(
       s"""Input dataframe schema
          |
-         |  ${input.schema.treeString()}
+         |  ${input.schema.treeString}
          |  """.stripMargin)
 
     val outputDf = dfTransformation(input)

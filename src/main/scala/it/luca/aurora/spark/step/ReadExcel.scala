@@ -7,8 +7,8 @@ import org.apache.poi.ss.usermodel.{Workbook, WorkbookFactory}
 
 import java.io.FileNotFoundException
 
-case class ReadExcel(override protected val input: String,
-                     override protected val outputKey: String)
+case class ReadExcel(override val input: String,
+                     override val outputKey: String)
   extends IOStep[String, Workbook](input, stepName =  "READ_EXCEL", outputKey = outputKey)
     with Logging {
 

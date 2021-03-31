@@ -5,9 +5,9 @@ import org.apache.spark.sql.DataFrame
 
 import scala.reflect.runtime.universe._
 
-case class FromDfTo[O](override protected val input: DataFrame,
-                       override protected val outputKey: String,
-                       private val dfToO: DataFrame => O)(implicit oTypeTag: TypeTag[O])
+case class Collect[O](override val input: DataFrame,
+                      override val outputKey: String,
+                      private val dfToO: DataFrame => O)(implicit oTypeTag: TypeTag[O])
   extends IOStep[DataFrame, O](input, outputKey, s"FROM_DF_TO_${typeOf[O].getClass.getSimpleName}")
     with Logging {
 

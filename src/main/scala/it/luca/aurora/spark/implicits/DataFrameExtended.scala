@@ -108,8 +108,8 @@ class DataFrameExtended(private val df: DataFrame)
 
   def withTechnicalColumns(): DataFrame = {
 
-    df.withColumn(ColumnName.TsInsert, lit(now))
-      .withColumn(ColumnName.DtInsert, lit(toDate(now)))
+    df.withColumn(ColumnName.TsInsert, lit(now()))
+      .withColumn(ColumnName.DtInsert, lit(toDate(now())))
       .withColumn(ColumnName.ApplicationId, lit(df.sqlContext.sparkContext.applicationId))
       .withColumn(ColumnName.ApplicationUser, lit(df.sqlContext.sparkContext.sparkUser))
       .withColumn(ColumnName.ApplicationType, lit("SPARK"))

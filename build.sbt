@@ -11,6 +11,7 @@ val clouderaRepoUrl = "https://repository.cloudera.com/artifactory/cloudera-repo
 
 lazy val commonSettings = Seq(
 
+  scalaVersion := "2.10.5",
   javacOptions ++= "-source" :: "1.7" ::
     "-target" :: "1.7" ::
     Nil,
@@ -20,7 +21,6 @@ lazy val commonSettings = Seq(
     "-feature" :: "-language:implicitConversions" ::
     Nil,
 
-  scalaVersion := "2.10.5",
   resolvers += "ClouderaRepo" at clouderaRepoUrl,
 
   // Dependencies
@@ -54,7 +54,8 @@ lazy val auroraDataload = (project in file("."))
         val oldStrategy = (assemblyMergeStrategy in assembly).value
         oldStrategy(x) }
   )
-  .dependsOn(sqlParser, excelParser, logging)
+  .dependsOn(logging, excelParser, sqlParser)
+  .aggregate(logging, excelParser, sqlParser)
 
 lazy val sqlParser = (project in file("sql-parser"))
   .settings(

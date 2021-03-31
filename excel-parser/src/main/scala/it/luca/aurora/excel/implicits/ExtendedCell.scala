@@ -19,8 +19,9 @@ class ExtendedCell(private val cell: Cell) {
 
   def as[T, R](cast: T => R)(implicit tTypeTag: TypeTag[T]): R = cast(as[T])
 
-  def asOption[T](implicit tType: TypeTag[T]): Option[T] = {
+  def asOption[T](implicit tTypeTag: TypeTag[T]): Option[T] = {
 
+    val tType = typeOf[T]
     val value = cell.getCellTypeEnum match {
       case CellType.NUMERIC if tType.equals(typeOf[Double]) => cell.getNumericCellValue
       case CellType.STRING if tType.equals(typeOf[String]) => cell.getStringCellValue

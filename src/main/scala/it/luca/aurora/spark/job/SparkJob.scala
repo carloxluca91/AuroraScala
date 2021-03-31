@@ -11,9 +11,9 @@ import org.apache.spark.sql.{DataFrame, SQLContext, SaveMode}
 import scala.collection.mutable
 import scala.util.{Failure, Success, Try}
 
-abstract class SparkJob(protected val sqlContext: SQLContext,
-                        protected val propertiesFile: String,
-                        protected val branch: Branch.Value)
+abstract class SparkJob(val sqlContext: SQLContext,
+                        val propertiesFile: String,
+                        val branch: Branch.Value)
   extends Logging {
 
   protected final val jobProperties = new PropertiesConfiguration(propertiesFile)

@@ -10,9 +10,12 @@ import org.apache.poi.ss.usermodel.{Row, Workbook}
 import org.apache.spark.sql.functions.lit
 import org.apache.spark.sql.{DataFrame, SQLContext, SaveMode}
 
-case class ReloadJob(override protected val sqlContext: SQLContext,
-                     override protected val propertiesFile: String,
-                     protected val reloadConfig: ReloadConfig)
+import scala.reflect.ClassTag
+import scala.reflect.runtime.universe.TypeTag
+
+case class ReloadJob(override val sqlContext: SQLContext,
+                     override val propertiesFile: String,
+                     private val reloadConfig: ReloadConfig)
   extends SparkJob(sqlContext, propertiesFile, Branch.Reload) {
 
   override protected val dataSource: Option[String] = None
@@ -33,8 +36,8 @@ case class ReloadJob(override protected val sqlContext: SQLContext,
 
   private val addValidityEndColumns: DataFrame => DataFrame = df => {
 
-    df.withColumnAfter(ColumnName.ValidityEndTime, lit(now), ColumnName.ValidityStartDate)
-      .withColumnAfter(ColumnName.ValidityEndDate, lit(toDate(now)), ColumnName.ValidityEndTime)
+    df.withColumnAfter(ColumnName.ValidityEndTime, lit(now()), ColumnName.ValidityStartDate)
+      .withColumnAfter(ColumnName.ValidityEndDate, lit(toDate(now())), ColumnName.ValidityEndTime)
       .withTechnicalColumns()
       .withSqlNamingConvention()
       .coalesce(1)
@@ -44,8 +47,8 @@ case class ReloadJob(override protected val sqlContext: SQLContext,
 
     val updatedVersion = f"${oldVersion.toDouble + 0.1}%.1f".replace(",", ".")
     log.info(s"Updating version from $oldVersion to $updatedVersion")
-    df.withColumn(ColumnName.ValidityStartTime, lit(now))
-      .withColumn(ColumnName.ValidityStartDate, lit(toDate(now)))
+    df.withColumn(ColumnName.ValidityStartTime, lit(now()))
+      .withColumn(ColumnName.ValidityStartDate, lit(toDate(now())))
       .withTechnicalColumns()
       .withColumn(ColumnName.Version, lit(updatedVersion))
       .withSqlNamingConvention()
@@ -60,10 +63,10 @@ case class ReloadJob(override protected val sqlContext: SQLContext,
   }
 
   private def reloadSteps[T <: Product](actualTable: String, historicalTable: String, sheet: Int)
-                                       (implicit rowToT: Row => T): Seq[Step[_]] =
+                                       (implicit typeTag: TypeTag[T], classTag: ClassTag[T], rowToT: Row => T): Seq[Step[_]] =
 
     ReadHiveTable(s"$db.$actualTable", "OLD_VERSION_DF", sqlContext) ::
-      FromDfTo[String](as[DataFrame]("OLD_VERSION_DF"), "OLD_VERSION", retrieveDfVersion) ::
+      Collect[String](as[DataFrame]("OLD_VERSION_DF"), "OLD_VERSION", retrieveDfVersion) ::
       TransformDf(as[DataFrame]("OLD_VERSION_DF"), "OLD_VERSION_DF", addValidityEndColumns) ::
       WriteDf(as[DataFrame]("OLD_VERSION_DF"), db, historicalTable, SaveMode.Append, Some(ColumnName.Version :: Nil)) ::
       ReadExcel(excelPath, "WORKBOOK") ::

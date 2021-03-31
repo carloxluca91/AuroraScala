@@ -4,8 +4,8 @@ import it.luca.aurora.option.DataSourceLoadConfig
 import it.luca.aurora.spark.step.Step
 import org.apache.spark.sql.SQLContext
 
-case class DataSourceLoadJob(override protected val sqlContext: SQLContext,
-                             override protected val propertiesFile: String,
+case class DataSourceLoadJob(override val sqlContext: SQLContext,
+                             override val propertiesFile: String,
                              private val config: DataSourceLoadConfig)
   extends SparkJob(sqlContext, propertiesFile, Branch.SourceLoad) {
 

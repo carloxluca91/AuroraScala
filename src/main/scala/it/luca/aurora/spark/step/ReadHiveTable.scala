@@ -3,8 +3,8 @@ package it.luca.aurora.spark.step
 import it.luca.aurora.logging.Logging
 import org.apache.spark.sql.{DataFrame, SQLContext}
 
-case class ReadHiveTable(override protected val input: String,
-                         override protected val outputKey: String,
+case class ReadHiveTable(override val input: String,
+                         override val outputKey: String,
                          private val sqlContext: SQLContext)
   extends IOStep[String, DataFrame](input, outputKey, s"READ_HIVE_TABLE_${input.toUpperCase}")
     with Logging {

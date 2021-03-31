@@ -1,25 +1,29 @@
 package it.luca.aurora.spark.step
 
-abstract class Step[I](protected val input: I,
-                       val stepName: String) {
+import it.luca.aurora.utils.Utils.classFullName
 
-  val stepInputType: String = classOf[I].getName
+import scala.reflect.runtime.universe.TypeTag
+
+abstract class Step[I](val input: I,
+                       val stepName: String)(implicit typeTagI: TypeTag[I]) {
+
+  val stepInputType: String = classFullName[I]
 }
 
-abstract class IStep[I](override protected val input: I,
-                        override val stepName: String)
+abstract class IStep[I](override val input: I,
+                        override val stepName: String)(implicit typeTagI: TypeTag[I])
   extends Step[I](input, stepName) {
 
   def run(): Unit
 
 }
 
-abstract class IOStep[I, O](override protected val input: I,
+abstract class IOStep[I, O](override val input: I,
                             override val stepName: String,
-                            protected val outputKey: String)
+                            protected val outputKey: String) (implicit typeTagI: TypeTag[I], typeTagO: TypeTag[O])
   extends Step[I](input, stepName) {
 
-  val stepOutputType: String = classOf[O].getName
+  val stepOutputType: String = classFullName[O]
 
   protected def stepFunction(input: I): O
 
