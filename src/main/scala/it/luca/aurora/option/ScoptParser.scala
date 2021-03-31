@@ -56,7 +56,7 @@ object ScoptParser {
 
     opt[String](ScoptOption.SpecificationVersion.shortOption, ScoptOption.SpecificationVersion.longOption)
       .text(ScoptOption.SpecificationVersion.optionDescription)
-      .action((x, c) => c.copy(specificationVersion = x))
+      .action((x, c) => c.copy(specificationVersion = Some(x)))
   }
 
   val reloadOptionParser: CustomParser[ReloadConfig] = new CustomParser[ReloadConfig] {

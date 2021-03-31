@@ -26,7 +26,6 @@ case class ToDf[T <: Product](override val input: Seq[T],
          |
          |    ${dataFrame.schema.treeString}
          |    """.stripMargin)
-
     dataFrame
   }
 }

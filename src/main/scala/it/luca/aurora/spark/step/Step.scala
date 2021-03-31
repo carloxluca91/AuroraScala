@@ -20,7 +20,7 @@ abstract class IStep[I](override val input: I,
 
 abstract class IOStep[I, O](override val input: I,
                             override val stepName: String,
-                            protected val outputKey: String) (implicit typeTagI: TypeTag[I], typeTagO: TypeTag[O])
+                            val outputKey: String) (implicit typeTagI: TypeTag[I], typeTagO: TypeTag[O])
   extends Step[I](input, stepName) {
 
   val stepOutputType: String = classFullName[O]

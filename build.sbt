@@ -57,15 +57,6 @@ lazy val auroraDataload = (project in file("."))
   .dependsOn(logging, excelParser, sqlParser)
   .aggregate(logging, excelParser, sqlParser)
 
-lazy val sqlParser = (project in file("sql-parser"))
-  .settings(
-
-    commonSettings,
-    name := "sql-parser",
-    libraryDependencies ++= "com.github.jsqlparser" % "jsqlparser" % jsqlParserVersion ::
-      Nil
-  ).dependsOn(logging)
-
 lazy val excelParser = (project in file("excel-parser"))
   .settings(
 
@@ -73,6 +64,15 @@ lazy val excelParser = (project in file("excel-parser"))
     name := "excel-parser",
     libraryDependencies ++= "org.apache.poi" % "poi" % poiVersion ::
       "org.apache.poi" % "poi-ooxml" % poiVersion ::
+      Nil
+  ).dependsOn(logging, sqlParser)
+
+lazy val sqlParser = (project in file("sql-parser"))
+  .settings(
+
+    commonSettings,
+    name := "sql-parser",
+    libraryDependencies ++= "com.github.jsqlparser" % "jsqlparser" % jsqlParserVersion ::
       Nil
   ).dependsOn(logging)
 

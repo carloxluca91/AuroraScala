@@ -13,6 +13,11 @@ class ExtendedCell(private val cell: Cell) {
     (cell.getCellTypeEnum match {
       case CellType.NUMERIC if tType.equals(typeOf[Double]) => cell.getNumericCellValue
       case CellType.STRING if tType.equals(typeOf[String]) => cell.getStringCellValue
+      case CellType.FORMULA => cell.getCachedFormulaResultTypeEnum match {
+        case CellType.NUMERIC if tType.equals(typeOf[Double]) => cell.getNumericCellValue
+        case CellType.STRING if tType.equals(typeOf[String]) => cell.getStringCellValue
+        case _ => throw ExcelDecodingException(cell, typeOf[T].getClass)
+      }
       case _ => throw ExcelDecodingException(cell, typeOf[T].getClass)
     }).asInstanceOf[T]
   }
@@ -25,6 +30,12 @@ class ExtendedCell(private val cell: Cell) {
     val value = cell.getCellTypeEnum match {
       case CellType.NUMERIC if tType.equals(typeOf[Double]) => cell.getNumericCellValue
       case CellType.STRING if tType.equals(typeOf[String]) => cell.getStringCellValue
+      case CellType.FORMULA => cell.getCachedFormulaResultTypeEnum match {
+        case CellType.NUMERIC if tType.equals(typeOf[Double]) => cell.getNumericCellValue
+        case CellType.STRING if tType.equals(typeOf[String]) => cell.getStringCellValue
+        case CellType.BLANK => null
+        case _ => throw ExcelDecodingException(cell, typeOf[T].getClass)
+      }
       case CellType.BLANK => null
       case _ => throw ExcelDecodingException(cell, typeOf[T].getClass)
     }

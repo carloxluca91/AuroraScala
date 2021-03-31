@@ -66,7 +66,7 @@ case class ReloadJob(override val sqlContext: SQLContext,
                                        (implicit typeTag: TypeTag[T], classTag: ClassTag[T], rowToT: Row => T): Seq[Step[_]] =
 
     ReadHiveTable(s"$db.$actualTable", "OLD_VERSION_DF", sqlContext) ::
-      Collect[String](as[DataFrame]("OLD_VERSION_DF"), "OLD_VERSION", retrieveDfVersion) ::
+      DfTo[String](as[DataFrame]("OLD_VERSION_DF"), "OLD_VERSION", retrieveDfVersion) ::
       TransformDf(as[DataFrame]("OLD_VERSION_DF"), "OLD_VERSION_DF", addValidityEndColumns) ::
       WriteDf(as[DataFrame]("OLD_VERSION_DF"), db, historicalTable, SaveMode.Append, Some(ColumnName.Version :: Nil)) ::
       ReadExcel(excelPath, "WORKBOOK") ::

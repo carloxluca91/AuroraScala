@@ -40,10 +40,6 @@ class DataFrameExtended(private val df: DataFrame)
     log.info(s"Saved data to Hive table $fqTableName")
   }
 
-  def select(columnName: ColumnName.Value): DataFrame = df.select(columnName.name)
-
-  def withColumn(colName: ColumnName.Value, column: Column): DataFrame = df.withColumn(colName.name, column)
-
   /**
    * Add a column next right to another
    * @param colName: new column name
@@ -54,10 +50,6 @@ class DataFrameExtended(private val df: DataFrame)
 
   def withColumnAfter(colName: String, column: Column, afterColName: String): DataFrame = {
     withColumnAt(colName, column, df.columns.indexOf(afterColName) + 1)
-  }
-
-  def withColumnAfter(colName: ColumnName.Value, column: Column, afterColName: ColumnName.Value): DataFrame = {
-    withColumnAt(colName.name, column, df.columns.indexOf(afterColName.name) + 1)
   }
 
   /**
@@ -87,19 +79,22 @@ class DataFrameExtended(private val df: DataFrame)
     withColumnAt(colName, column, df.columns.indexOf(beforeColName))
   }
 
+  private def renameColumns(regex: util.matching.Regex, matchF: util.matching.Regex.Match => String): DataFrame = {
+
+    df.columns.foldLeft(df) { case (caseDf, columnName) =>
+      val newColumnName: String = regex.replaceAllIn(columnName, matchF)
+      caseDf.withColumnRenamed(columnName, newColumnName)
+    }
+  }
+
+  def withJavaNamingConvention(): DataFrame = renameColumns("_([a-z])".r, m => s"${m.group(1).toUpperCase}")
+
   /**
    * Rename all dataframe columns using SQL naming convention
    * @return dataframe with renamed columns (e.g. "applicationStartTime" is renamed to "application_start_time")
    */
 
-  def withSqlNamingConvention(): DataFrame = {
-
-    val regex: util.matching.Regex = "([A-Z])".r
-    df.columns.foldLeft(df) { case (caseDf, columnName) =>
-      val newColumnName: String = regex.replaceAllIn(columnName, m => s"_${m.group(1).toLowerCase}")
-      caseDf.withColumnRenamed(columnName, newColumnName)
-    }
-  }
+  def withSqlNamingConvention(): DataFrame = renameColumns("([A-Z])".r, m => s"_${m.group(1).toLowerCase}")
 
   /**
    * Add common technical columns

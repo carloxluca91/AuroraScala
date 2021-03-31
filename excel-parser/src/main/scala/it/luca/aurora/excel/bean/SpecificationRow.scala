@@ -4,32 +4,41 @@ import it.luca.aurora.excel.decode.ExcelRowDecoder
 import it.luca.aurora.excel.implicits._
 import org.apache.poi.ss.usermodel.Row
 
-case class SpecificationRow(sourceId: String,
-                            rwDataSource: String,
-                            trdDataSource: String,
+case class SpecificationRow(dataSource: String,
+                            rwTable: String,
+                            trdTable: String,
                             rwColumn: String,
                             rwColumnType: String,
                             rwColumnPosition: Int,
                             flagDiscard: Boolean,
-                            qualityCheck: Option[String],
-                            transformation: Option[String],
+                            inputCheck: Option[String],
+                            inputTransformation: Option[String],
                             trdColumn: Option[String],
                             trdColumnType: Option[String],
-                            trdColumnPosition: Option[Int])
+                            trdColumnPosition: Option[Int]) {
+
+  def intermediateTrdColumn: String = {
+
+    trdColumn match {
+      case Some(x) => if (rwColumn.equals(x)) s"${x}_tmp$$" else x
+      case None => rwColumn
+    }
+  }
+}
 
 object SpecificationRow extends ExcelRowDecoder[SpecificationRow] {
 
   override implicit def decode(row: Row): SpecificationRow = {
 
-    SpecificationRow(sourceId = row(0).as[String],
-      rwDataSource = row(1).as[String],
-      trdDataSource = row(2).as[String],
+    SpecificationRow(dataSource = row(0).as[String],
+      rwTable = row(1).as[String],
+      trdTable = row(2).as[String],
       rwColumn = row(3).as[String],
       rwColumnType = row(4).as[String],
       rwColumnPosition = row(5).as[Double, Int](d => d.toInt),
       flagDiscard = row(6).asOption[String].exists(_.equalsIgnoreCase("y")),
-      qualityCheck = row(7).asOption[String],
-      transformation = row(8).asOption[String],
+      inputCheck = row(7).asOption[String],
+      inputTransformation = row(8).asOption[String],
       trdColumn = row(9).asOption[String],
       trdColumnType = row(10).asOption[String],
       trdColumnPosition = row(11).asOption[Double, Int](d => d.toInt)
