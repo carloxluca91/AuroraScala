@@ -4,6 +4,7 @@ import it.luca.aurora.enumeration.Branch
 import it.luca.aurora.logging.Logging
 import it.luca.aurora.spark.bean.LogRecord
 import it.luca.aurora.spark.implicits._
+import it.luca.aurora.utils.classSimpleName
 import it.luca.aurora.spark.step.{IOStep, IStep, Step}
 import org.apache.commons.configuration.PropertiesConfiguration
 import org.apache.spark.sql.{DataFrame, SQLContext, SaveMode}
@@ -23,6 +24,16 @@ abstract class SparkJob(val sqlContext: SQLContext,
   protected val specificationVersion: Option[String]
   protected val steps: Seq[Step[_]]
 
+  // Excel properties
+  protected final val excelPath: String = jobProperties.getString("excel.hdfs.path")
+  protected final val specificationSheet: Int = jobProperties.getInt("excel.specification.sheet")
+  protected final val lookupSheet: Int = jobProperties.getInt("excel.lookup.sheet")
+
+  // Hive properties
+  protected final val trustedDb: String = jobProperties.getString("hive.db.trusted")
+  protected final val specificationActual: String = jobProperties.getString("hive.table.specification.actual")
+  protected final val lookupActual: String = jobProperties.getString("hive.table.lookup.actual")
+
   private final val logRecordFunction: (Int, Step[_], Option[Throwable]) => LogRecord =
     LogRecord(sparkContext = sqlContext.sparkContext,
       branch = branch,
@@ -33,9 +44,7 @@ abstract class SparkJob(val sqlContext: SQLContext,
       _: Step[_],
       _: Option[Throwable])
 
-  protected val jobVariables: mutable.Map[String, Any] = mutable.Map.empty[String, Any]
-
-  protected def as[T](key: String): T = jobVariables(key).asInstanceOf[T]
+  private val jobVariables: mutable.Map[String, Any] = mutable.Map.empty[String, Any]
 
   def run(): Unit = {
 
@@ -43,9 +52,8 @@ abstract class SparkJob(val sqlContext: SQLContext,
 
     val (jobSucceeded, logRecords): (Boolean, Seq[LogRecord]) = runSteps()
     val dbName: String = jobProperties.getString("hive.db.trusted")
-
     val logRecordsDf: DataFrame = logRecords.toDF()
-    log.info(s"Turned ${logRecords.size} into a ${classOf[DataFrame].getSimpleName}")
+    log.info(s"Turned ${logRecords.size} ${classSimpleName[LogRecord]}(s) into a ${classOf[DataFrame].getSimpleName}")
     val logTableName = jobProperties.getString("hive.table.dataloadLog.name")
     logRecordsDf.withTechnicalColumns()
       .withSqlNamingConvention()
@@ -63,11 +71,9 @@ abstract class SparkJob(val sqlContext: SQLContext,
 
       // Execute current step
       Try {
-        // Pattern match on current step
         step match {
           case iOStep: IOStep[_, _] =>
-
-            val (key, value) = iOStep.run()
+            val (key, value) = iOStep.run(jobVariables)
             if (jobVariables.contains(key)) {
               log.warn(s"Key '$key' is already defined. It will be overwritten")
             } else {
@@ -76,7 +82,7 @@ abstract class SparkJob(val sqlContext: SQLContext,
             jobVariables.update(key, value)
             log.info(s"Successfully updated jobVariables map")
 
-          case iStep: IStep[_] => iStep.run()
+          case iStep: IStep[_] => iStep.run(jobVariables)
           }
       } match {
         case Success(_) =>

@@ -8,6 +8,6 @@ case class DataSourceLoadConfig(dataSource: String = "N.P.",
   extends BaseConfig {
 
   protected val scoptOptionMap: Map[ScoptOption.Value, String] = Map(ScoptOption.DataSource -> dataSource,
-    ScoptOption.DtBusinessDate -> dtBusinessDate.orNull,
+    ScoptOption.DtBusinessDate -> dtBusinessDate.getOrElse("LATEST"),
     ScoptOption.SpecificationVersion -> specificationVersion.getOrElse("LATEST"))
 }

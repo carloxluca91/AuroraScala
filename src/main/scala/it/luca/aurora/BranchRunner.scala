@@ -21,8 +21,9 @@ object BranchRunner extends Logging {
     val sqlContext = new HiveContext(sparkContext)
     log.info(s"""Initialized both ${classOf[SparkContext].getSimpleName} and ${classOf[HiveContext].getSimpleName}
          |
-         |    appName = ${sparkContext.appName},
-         |    appId = ${sparkContext.applicationId}
+         |    appName: ${sparkContext.appName}
+         |    appId: ${sparkContext.applicationId}
+         |    appUser: ${sparkContext.sparkUser}
          |""".stripMargin)
 
     Branch.withId(branchId) match {
@@ -35,7 +36,7 @@ object BranchRunner extends Logging {
           case None => // arguments are bad, error message will have been displayed
         }
 
-      case Branch.SourceLoad =>
+      case Branch.DataSourceLoad =>
         ScoptParser.sourceLoadOptionParser.parse(args, DataSourceLoadConfig()) match {
           case Some(x) =>
             log.info(s"Parsed second set of arguments $x")

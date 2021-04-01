@@ -10,7 +10,7 @@ object Branch extends Enumeration {
 
   val InitialLoad: Val = Val("INITIAL_LOAD")
   val Reload: Val = Val("RELOAD")
-  val SourceLoad: Val = Val("SOURCE_LOAD")
+  val DataSourceLoad: Val = Val("DATASOURCE_LOAD")
 
   def exists(id: String): Boolean = Branch.values.exists(_.name.equalsIgnoreCase(id))
 

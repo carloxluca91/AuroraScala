@@ -2,30 +2,31 @@ package it.luca.aurora.spark.step
 
 import it.luca.aurora.logging.Logging
 import it.luca.aurora.spark.implicits._
-import it.luca.aurora.utils.Utils.classSimpleName
+import it.luca.aurora.utils.classSimpleName
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.{DataFrame, SQLContext}
 
+import scala.collection.mutable
 import scala.reflect.ClassTag
 import scala.reflect.runtime.universe.TypeTag
 
-case class ToDf[T <: Product](override val input: Seq[T],
-                              override val outputKey: String,
-                              private val sqlContext: SQLContext)(implicit classTag: ClassTag[T], typeTag: TypeTag[T])
-  extends IOStep[Seq[T], DataFrame](input, stepName = s"${classSimpleName[T].toUpperCase}_TO_DATAFRAME",
-    outputKey = outputKey)
+case class ToDf[T <: Product](private val beansKey: String,
+                              private val sqlContext: SQLContext,
+                              override val outputKey: String)(implicit classTag: ClassTag[T], typeTag: TypeTag[T])
+  extends IOStep[Seq[T], DataFrame](s"${classSimpleName[T].toUpperCase}_TO_DF", outputKey)
     with Logging {
 
-  override protected def stepFunction(input: Seq[T]): DataFrame = {
+  override def run(variables: mutable.Map[String, Any]): (String, DataFrame) = {
 
     val tClassName = classSimpleName[T]
-    log.info(s"Converting ${input.size} $tClassName(s) to ${classOf[DataFrame].getSimpleName}")
-    val rddOfT: RDD[T] = sqlContext.sparkContext.parallelize(input, 1)
+    val beans = variables(beansKey).asInstanceOf[Seq[T]]
+    log.info(s"Converting ${beans.size} $tClassName(s) to ${classSimpleName[DataFrame]}")
+    val rddOfT: RDD[T] = sqlContext.sparkContext.parallelize(beans, 1)
     val dataFrame: DataFrame = sqlContext.createDataFrame(rddOfT).withSqlNamingConvention()
-    log.info(s"""Converted ${input.size} $tClassName(s) to ${classOf[DataFrame].getSimpleName}. Schema
-         |
-         |    ${dataFrame.schema.treeString}
-         |    """.stripMargin)
-    dataFrame
+    log.info(s"""Converted ${beans.size} $tClassName(s) to ${classOf[DataFrame].getSimpleName}. Schema
+                |
+                |${dataFrame.schema.treeString}
+                |""".stripMargin)
+    (outputKey, dataFrame)
   }
 }

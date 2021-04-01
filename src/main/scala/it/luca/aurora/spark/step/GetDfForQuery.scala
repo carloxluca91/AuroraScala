@@ -3,20 +3,22 @@ package it.luca.aurora.spark.step
 import it.luca.aurora.logging.Logging
 import org.apache.spark.sql.{DataFrame, SQLContext}
 
-case class GetDfForQuery(override val input: String,
-                         override val outputKey: String,
-                         private val sqlContext: SQLContext)
-  extends IOStep[String, DataFrame](input, "EXECUTE_QUERY", outputKey)
+import scala.collection.mutable
+
+case class GetDfForQuery(private val query: String,
+                         private val sqlContext: SQLContext,
+                         override val outputKey: String)
+  extends IOStep[String, DataFrame]("EXECUTE_QUERY", outputKey)
     with Logging {
 
-  override protected def stepFunction(input: String): DataFrame = {
+  override def run(variables: mutable.Map[String, Any]): (String, DataFrame) = {
 
-    val output = sqlContext.sql(input)
+    val output = sqlContext.sql(query)
     log.info(
-      s"""Executed query: $input. Retrieved dataframe schema
+      s"""Executed query: $query. Retrieved dataframe schema
          |
          |    ${output.schema.treeString}
          |""".stripMargin)
-    output
+    (outputKey, output)
   }
 }

@@ -1,15 +1,27 @@
 package it.luca.aurora.spark.step
 
-import it.luca.aurora.enumeration.ColumnName
 import it.luca.aurora.spark.implicits._
 import org.apache.spark.sql.{DataFrame, SaveMode}
 
-case class WriteDf(override val input: DataFrame,
-                   private val dbName: String,
-                   private val tableName: String,
-                   private val saveMode: SaveMode,
-                   private val partitionByOpt: Option[Seq[ColumnName.Value]])
-  extends IStep[DataFrame](input, stepName =  s"WRITE_DF_${dbName.toUpperCase}.${tableName.toUpperCase}") {
+import scala.collection.mutable
 
-  override def run(): Unit = input.saveAsTableOrInsertInto(dbName, tableName, saveMode, partitionByOpt.map(_.map(_.name)))
+case class WriteDf(private val inputDfKey: String,
+                   private val dbName: String,
+                   private val tableNameOrInputKey: String,
+                   private val isTableName: Boolean,
+                   private val saveMode: SaveMode,
+                   private val partitionByOpt: Option[Seq[String]])
+  extends IStep[DataFrame](s"WRITE_TABLE_${dbName.toUpperCase}.${tableNameOrInputKey.toUpperCase}") {
+
+  override def run(variables: mutable.Map[String, Any]): Unit = {
+
+    val dfToWrite = variables(inputDfKey).asInstanceOf[DataFrame]
+    val tableName = if (isTableName) {
+      tableNameOrInputKey
+    } else {
+      variables(tableNameOrInputKey).asInstanceOf[String]
+    }
+
+    dfToWrite.saveAsTableOrInsertInto(dbName, tableName, saveMode, partitionByOpt)
+  }
 }

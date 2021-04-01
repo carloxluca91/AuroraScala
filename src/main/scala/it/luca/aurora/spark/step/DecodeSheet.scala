@@ -1,25 +1,26 @@
 package it.luca.aurora.spark.step
 
-
 import it.luca.aurora.excel.implicits._
 import it.luca.aurora.logging.Logging
-import it.luca.aurora.utils.Utils.classSimpleName
+import it.luca.aurora.utils.classSimpleName
 import org.apache.poi.ss.usermodel.{Row, Workbook}
 
+import scala.collection.mutable
 import scala.reflect.runtime.universe.TypeTag
 
-case class DecodeSheet[T](override val input: Workbook,
-                          override val outputKey: String,
-                          private val sheetIndex: Int)(implicit typeTag: TypeTag[T], val decodeRow: Row => T)
-  extends IOStep[Workbook, Seq[T]](input, stepName =  s"DECODE_EXCEL_SHEET_$sheetIndex", outputKey = outputKey)
+case class DecodeSheet[T](private val workbookKey: String,
+                          private val sheetIndex: Int,
+                          override val outputKey: String)(implicit typeTag: TypeTag[T], val decodeRow: Row => T)
+  extends IOStep[Workbook, Seq[T]](s"DECODE_EXCEL_SHEET_$sheetIndex", outputKey)
     with Logging {
 
-  override protected def stepFunction(input: Workbook): Seq[T] = {
+  override def run(variables: mutable.Map[String, Any]): (String, Seq[T]) = {
 
     val tClassName = classSimpleName[T]
+    val workbook = variables(workbookKey).asInstanceOf[Workbook]
     log.info(s"Decoding sheet # $sheetIndex as a Seq of $tClassName")
-    val tSeq: Seq[T] = input.as[T](sheetIndex)
+    val tSeq: Seq[T] = workbook.as[T](sheetIndex)
     log.info(s"Decoded sheet # $sheetIndex as ${tSeq.size} $tClassName(s)")
-    tSeq
+    (outputKey, tSeq)
   }
 }

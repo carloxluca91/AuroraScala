@@ -8,6 +8,5 @@ case class ReloadConfig(specificationFlag: Boolean = false,
   extends BaseConfig {
 
   protected val scoptOptionMap: Map[ScoptOption.Value, String] = Map(ScoptOption.MappingSpecificationFlag -> specificationFlag.toString,
-    ScoptOption.LookupSpecificationFlag -> lookUpFlag.toString,
-    ScoptOption.CompleteOverwriteFlag -> completeOverwriteFlag.toString)
+    ScoptOption.LookupSpecificationFlag -> lookUpFlag.toString)
 }

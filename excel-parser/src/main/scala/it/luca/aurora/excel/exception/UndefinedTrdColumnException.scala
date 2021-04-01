@@ -7,10 +7,10 @@ case class UndefinedTrdColumnException(msg: String)
 
 object UndefinedTrdColumnException {
 
-  def apply(row: SpecificationRow): UndefinedTrdColumnException = {
+  def apply(specifications: Seq[SpecificationRow]): UndefinedTrdColumnException = {
 
-    val msg = s"Invalid specification for raw column ${row.rwColumn}. " +
-      s"Flag discard is ${row.flagDiscard}, but related trusted column is not defined"
+    val msg = s"Invalid specification for raw column(s) ${specifications.map(_.rwColumn).mkString(", ")}. " +
+      s"Trusted columns are defined, but related trusted position or type are not"
     UndefinedTrdColumnException(msg)
   }
 }

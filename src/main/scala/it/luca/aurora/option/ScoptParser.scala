@@ -1,6 +1,6 @@
 package it.luca.aurora.option
 
-import it.luca.aurora.enumeration.{Branch, ScoptOption}
+import it.luca.aurora.enumeration.{Branch, DateFormat, ScoptOption}
 import scopt.OptionParser
 
 import java.text.SimpleDateFormat
@@ -14,7 +14,6 @@ object ScoptParser {
     override def errorOnUnknownArgument = false
 
     override def reportWarning(msg: String): Unit = {}
-
   }
 
   val branchParser: CustomParser[BranchConfig] = new CustomParser[BranchConfig] {
@@ -48,9 +47,9 @@ object ScoptParser {
     opt[String](ScoptOption.DtBusinessDate.shortOption, ScoptOption.DtBusinessDate.longOption)
       .text(ScoptOption.DtBusinessDate.optionDescription)
       .validate(x => {
-        if (Try { new SimpleDateFormat("yyyy-MM-dd").parse(x) }
+        if (Try { new SimpleDateFormat(DateFormat.DateDefault).parse(x) }
           .isSuccess) success
-        else failure(s"Cannot parse business date. Provided '$x', should follow format yyyy-MM-dd")
+        else failure(s"Cannot parse business date. Provided '$x', should follow format ${DateFormat.DateDefault}")
       })
       .action((x, c) => c.copy(dtBusinessDate = Some(x)))
 
@@ -68,9 +67,5 @@ object ScoptParser {
     opt[Unit](ScoptOption.LookupSpecificationFlag.shortOption, ScoptOption.LookupSpecificationFlag.longOption)
       .text(ScoptOption.LookupSpecificationFlag.optionDescription)
       .action((_, c) => c.copy(lookUpFlag = true))
-
-    opt[Unit](ScoptOption.CompleteOverwriteFlag.shortOption, ScoptOption.CompleteOverwriteFlag.longOption)
-      .text(ScoptOption.CompleteOverwriteFlag.optionDescription)
-      .action((_, c) => c.copy(completeOverwriteFlag = true))
   }
 }

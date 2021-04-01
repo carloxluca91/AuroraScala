@@ -10,7 +10,7 @@ abstract class BaseConfig {
 
     val givenArguments: String = scoptOptionMap.map { case (key, value) =>
       s"    -${key.shortOption}, --${key.longOption} (${key.optionDescription}) = $value"
-    }.mkString(",\n")
+    }.mkString("\n")
 
     s"""
        |

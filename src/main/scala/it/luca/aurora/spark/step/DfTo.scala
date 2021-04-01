@@ -1,21 +1,23 @@
 package it.luca.aurora.spark.step
 
 import it.luca.aurora.logging.Logging
-import it.luca.aurora.utils.Utils.classSimpleName
+import it.luca.aurora.utils.classSimpleName
 import org.apache.spark.sql.DataFrame
 
+import scala.collection.mutable
 import scala.reflect.runtime.universe._
 
-case class DfTo[O](override val input: DataFrame,
-                   override val outputKey: String,
-                   private val dfToO: DataFrame => O)(implicit oTypeTag: TypeTag[O])
-  extends IOStep[DataFrame, O](input, outputKey, s"FROM_DF_TO_${classSimpleName[O].toUpperCase}")
+case class DfTo[O](private val dfKey: String,
+                   private val dfToO: DataFrame => O,
+                   override val outputKey: String)(implicit oTypeTag: TypeTag[O])
+  extends IOStep[DataFrame, O]( s"FROM_DF_TO_${classSimpleName[O].toUpperCase}", outputKey)
     with Logging {
 
-  override protected def stepFunction(input: DataFrame): O = {
+  override def run(variables: mutable.Map[String, Any]): (String, O) = {
 
-    val output: O = dfToO(input)
+    val inputDf: DataFrame = variables(dfKey).asInstanceOf[DataFrame]
+    val output = dfToO(inputDf)
     log.info(s"Retrieved value: $output (class: ${output.getClass.getSimpleName})")
-    output
+    (outputKey, output)
   }
 }

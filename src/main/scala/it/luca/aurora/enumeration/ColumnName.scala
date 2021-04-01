@@ -9,6 +9,7 @@ object ColumnName extends Enumeration {
   val ApplicationId: Val = Val("application_id")
   val ApplicationType: Val = Val("application_type")
   val ApplicationUser: Val = Val("application_user")
+  val DtBusinessDate: Val = Val("dt_business_date")
   val DtInsert: Val = Val("dt_insert")
   val FailedChecksNum: Val = Val("failed_checks_num")
   val FailedChecksDesc: Val = Val("failed_checks_desc")

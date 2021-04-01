@@ -10,12 +10,13 @@ case class SpecificationRow(dataSource: String,
                             rwColumn: String,
                             rwColumnType: String,
                             rwColumnPosition: Int,
-                            flagDiscard: Boolean,
+                            rwColumnDescription: Option[String],
                             inputCheck: Option[String],
                             inputTransformation: Option[String],
                             trdColumn: Option[String],
                             trdColumnType: Option[String],
-                            trdColumnPosition: Option[Int])
+                            trdColumnPosition: Option[Int],
+                            primaryKey: Boolean)
 
 object SpecificationRow extends ExcelRowDecoder[SpecificationRow] {
 
@@ -27,12 +28,13 @@ object SpecificationRow extends ExcelRowDecoder[SpecificationRow] {
       rwColumn = row(3).as[String],
       rwColumnType = row(4).as[String],
       rwColumnPosition = row(5).as[Double, Int](d => d.toInt),
-      flagDiscard = row(6).asOption[String].exists(_.equalsIgnoreCase("y")),
+      rwColumnDescription = row(6).asOption[String],
       inputCheck = row(7).asOption[String],
       inputTransformation = row(8).asOption[String],
       trdColumn = row(9).asOption[String],
       trdColumnType = row(10).asOption[String],
-      trdColumnPosition = row(11).asOption[Double, Int](d => d.toInt)
+      trdColumnPosition = row(11).asOption[Double, Int](d => d.toInt),
+      primaryKey = row(12).asOption[String].exists(_.equalsIgnoreCase("y"))
     )
   }
 }

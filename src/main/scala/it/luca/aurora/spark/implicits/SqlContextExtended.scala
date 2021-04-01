@@ -8,7 +8,7 @@ class SqlContextExtended(private val sqlContext: SQLContext) {
   def existsDb(dbName: String): Boolean = {
 
     sqlContext.sql("SHOW DATABASES")
-      .filter(lower(col("databaseName")) === dbName.toLowerCase)
+      .filter(lower(col("result")) === dbName.toLowerCase)
       .count() == 1
   }
 

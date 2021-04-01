@@ -1,8 +1,8 @@
 package it.luca.aurora.spark.implicits
 
-import it.luca.aurora.enumeration.ColumnName
+import it.luca.aurora.enumeration.{ColumnName, DateFormat}
 import it.luca.aurora.logging.Logging
-import it.luca.aurora.utils.Utils.{now, toDate}
+import it.luca.aurora.utils.{now, toDate}
 import org.apache.spark.sql.functions.{col, lit}
 import org.apache.spark.sql.{Column, DataFrame, SaveMode}
 
@@ -23,7 +23,7 @@ class DataFrameExtended(private val df: DataFrame)
     log.info(
       s"""Saving data to Hive table $fqTableName
          |
-         |    ${df.schema.treeString}
+         |${df.schema.treeString}
          |""".stripMargin)
     val writer = df.write.mode(saveMode)
     if (df.sqlContext.tableExistsInDb(tableName, dbName)) {
@@ -104,7 +104,7 @@ class DataFrameExtended(private val df: DataFrame)
   def withTechnicalColumns(): DataFrame = {
 
     df.withColumn(ColumnName.TsInsert, lit(now()))
-      .withColumn(ColumnName.DtInsert, lit(toDate(now())))
+      .withColumn(ColumnName.DtInsert, lit(toDate(now(), DateFormat.DateDefault)))
       .withColumn(ColumnName.ApplicationId, lit(df.sqlContext.sparkContext.applicationId))
       .withColumn(ColumnName.ApplicationUser, lit(df.sqlContext.sparkContext.sparkUser))
       .withColumn(ColumnName.ApplicationType, lit("SPARK"))
