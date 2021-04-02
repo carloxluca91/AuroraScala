@@ -6,6 +6,8 @@ import it.luca.aurora.utils.{now, toDate}
 import org.apache.spark.sql.functions.{col, lit}
 import org.apache.spark.sql.{Column, DataFrame, SaveMode}
 
+import java.sql.Connection
+
 class DataFrameExtended(private val df: DataFrame)
   extends Logging {
 
@@ -17,7 +19,10 @@ class DataFrameExtended(private val df: DataFrame)
    * @param partitionBy: partitioning columns (if any)
    */
 
-  def saveAsTableOrInsertInto(dbName: String, tableName: String, saveMode: SaveMode, partitionBy: Option[Seq[String]]): Unit = {
+  def saveAsTableOrInsertInto(dbName: String, tableName: String,
+                              saveMode: SaveMode,
+                              partitionBy: Option[Seq[String]],
+                              connection: Connection): Unit = {
 
     val fqTableName = s"$dbName.$tableName"
     log.info(
@@ -25,19 +30,30 @@ class DataFrameExtended(private val df: DataFrame)
          |
          |${df.schema.treeString}
          |""".stripMargin)
-    val writer = df.write.mode(saveMode)
-    if (df.sqlContext.tableExistsInDb(tableName, dbName)) {
+
+    // Decide to use whether .saveAsTable or .insertInto, as well as which Impala statement must be issued
+    val impalaStatement = if (df.sqlContext.tableExistsInDb(tableName, dbName)) {
 
       log.info(s"Hive table $fqTableName already exists. Saving data using .insertInto with saveMode $saveMode")
-      writer.insertInto(fqTableName)
+      df.write.mode(saveMode)
+        .insertInto(fqTableName)
+      saveMode match {
+        case SaveMode.Append => s"REFRESH $fqTableName"
+        case SaveMode.Overwrite => s"INVALIDATE METADATA $fqTableName"
+      }
     } else {
 
       log.warn(s"Hive table $fqTableName does not exist yet. Creating now using .saveAsTable")
-      writer.partitionBy(partitionBy)
+      df.write.mode(saveMode)
+        .partitionBy(partitionBy)
         .saveAsTable(fqTableName)
+      s"INVALIDATE METADATA $fqTableName"
     }
 
+    // Issue Impala statement
     log.info(s"Saved data to Hive table $fqTableName")
+    connection.createStatement().executeUpdate(impalaStatement)
+    log.info(s"Executed statement '$impalaStatement'")
   }
 
   /**

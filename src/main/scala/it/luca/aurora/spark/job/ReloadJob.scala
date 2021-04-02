@@ -48,12 +48,14 @@ case class ReloadJob(override val sqlContext: SQLContext,
     ReadHiveTable(s"$trustedDb.$actualTable", isTableName = true, sqlContext, "OLD_VERSION_DF") ::
       DfTo[String]("OLD_VERSION_DF", retrieveVersion, "OLD_VERSION") ::
       TransformDf("OLD_VERSION_DF", withValidityEndCols, "OLD_VERSION_DF") ::
-      WriteDf("OLD_VERSION_DF", trustedDb, historicalTable, isTableName = true, SaveMode.Append, Some(ColumnName.Version :: Nil)) ::
+      WriteDf("OLD_VERSION_DF", trustedDb, historicalTable, isTableName = true,
+        SaveMode.Append, Some(ColumnName.Version :: Nil), connection) ::
       ReadExcel(excelPath, "WORKBOOK") ::
       DecodeSheet[T]("WORKBOOK", sheet, "EXCEL_BEANS") ::
       ToDf[T]("EXCEL_BEANS", sqlContext, "EXCEL_BEANS_DF") ::
       UpdateDfVersion("EXCEL_BEANS_DF", "OLD_VERSION", "EXCEL_BEANS_DF") ::
-      WriteDf("SPECIFICATION_DF", trustedDb, actualTable, isTableName = true, SaveMode.Overwrite, None) :: Nil
+      WriteDf("SPECIFICATION_DF", trustedDb, actualTable, isTableName = true,
+        SaveMode.Overwrite, None, connection) :: Nil
 
   override protected val steps: Seq[Step[_]] = (if (reloadConfig.specificationFlag) {
     reloadSteps[SpecificationRow](specificationActual, specificationHistorical, specificationSheet)

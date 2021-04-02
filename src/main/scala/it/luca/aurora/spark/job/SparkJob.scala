@@ -1,5 +1,6 @@
 package it.luca.aurora.spark.job
 
+import com.cloudera.impala.jdbc.DataSource
 import it.luca.aurora.enumeration.Branch
 import it.luca.aurora.logging.Logging
 import it.luca.aurora.spark.bean.LogRecord
@@ -9,6 +10,7 @@ import it.luca.aurora.spark.step.{IOStep, IStep, Step}
 import org.apache.commons.configuration.PropertiesConfiguration
 import org.apache.spark.sql.{DataFrame, SQLContext, SaveMode}
 
+import java.sql.Connection
 import scala.collection.mutable
 import scala.util.{Failure, Success, Try}
 
@@ -34,7 +36,23 @@ abstract class SparkJob(val sqlContext: SQLContext,
   protected final val specificationActual: String = jobProperties.getString("hive.table.specification.actual")
   protected final val lookupActual: String = jobProperties.getString("hive.table.lookup.actual")
 
-  private final val logRecordFunction: (Int, Step[_], Option[Throwable]) => LogRecord =
+  // Impala properties
+  private val driverClass = jobProperties.getString("impala.jdbc.driverClass")
+  private val impalaUrl = jobProperties.getString("impala.jdbc.url")
+
+  private def getImpalaJdbcConnection: Connection = {
+
+    Class.forName(driverClass)
+    val dataSource = new DataSource
+    dataSource.setURL(impalaUrl)
+    val connection = dataSource.getConnection
+    log.info(s"Connected to JDBC Url $impalaUrl using driver $driverClass")
+    connection
+  }
+
+  protected val connection: Connection = getImpalaJdbcConnection
+
+  private final val logRecordForStep: (Int, Step[_], Option[Throwable]) => LogRecord =
     LogRecord(sparkContext = sqlContext.sparkContext,
       branch = branch,
       dataSource = dataSource,
@@ -58,7 +76,7 @@ abstract class SparkJob(val sqlContext: SQLContext,
     logRecordsDf.withTechnicalColumns()
       .withSqlNamingConvention()
       .coalesce(1)
-      .saveAsTableOrInsertInto(dbName, logTableName, SaveMode.Append, None)
+      .saveAsTableOrInsertInto(dbName, logTableName, SaveMode.Append, None, connection)
 
     if (jobSucceeded) log.info(s"Executed whole Spark job ${branch.name}")
     else log.warn(s"Unable to fully execute Spark job ${branch.name}")
@@ -87,11 +105,11 @@ abstract class SparkJob(val sqlContext: SQLContext,
       } match {
         case Success(_) =>
           log.info(s"Executed step # $index (${step.description})")
-          logRecords.append(logRecordFunction(index, step, None))
+          logRecords.append(logRecordForStep(index, step, None))
 
         case Failure(exception) =>
           log.error(s"Exception on step # $index (${step.description}). Stack trace: ", exception)
-          logRecords.append(logRecordFunction(index, step, Some(exception)))
+          logRecords.append(logRecordForStep(index, step, Some(exception)))
           return (false, logRecords)
       }
     }

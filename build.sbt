@@ -5,6 +5,7 @@ val scoptVersion = "3.3.0"
 val jsqlParserVersion = "4.0"
 val scalaMockVersion = "4.1.0"
 val poiVersion = "3.17"
+val impalaDriverVersion = "2.6.15"
 
 // Additional repositories
 val clouderaRepoUrl = "https://repository.cloudera.com/artifactory/cloudera-repos/"
@@ -38,8 +39,10 @@ lazy val auroraDataload = (project in file("."))
     commonSettings,
     name := "aurora-dataload",
     version := "0.3.0",
+    resolvers += Resolver.mavenLocal,
     libraryDependencies ++= "org.apache.spark" %% "spark-hive" % sparkVersion % Provided ::
       "com.github.scopt" %% "scopt" % scoptVersion ::
+      "com.cloudera.impala" % "impala-jdbc-41" %  impalaDriverVersion ::
       Nil,
 
     // Exclude .properties file from packaging

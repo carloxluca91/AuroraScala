@@ -94,5 +94,6 @@ case class DataSourceLoadJob(override val sqlContext: SQLContext,
     ReadHiveTable("RW_DATA_SOURCE", isTableName = false, sqlContext, "RW_DF") ::
     TransformDfUsingSpecifications("RW_DF", "SPECIFICATION_ROWS", errorDfTransformation, "RW_ERROR_DF") ::
     TransformDfUsingSpecifications("RW_DF", "SPECIFICATION_ROWS", trustedDfTransformation, "TRUSTED_CLEAN_DF") ::
-    WriteDf("RW_ERROR_DF", rawDb, "RW_DATA_SOURCE", isTableName = false, SaveMode.Append, Some(ColumnName.DtBusinessDate :: Nil)) :: Nil
+    WriteDf("RW_ERROR_DF", rawDb, "RW_DATA_SOURCE", isTableName = false,
+      SaveMode.Append, Some(ColumnName.DtBusinessDate :: Nil), connection) :: Nil
 }
