@@ -10,7 +10,7 @@ case class TransformDfUsingSpecifications(private val inputDfKey: String,
                                           private val specificationInputKey: String,
                                           private val dfTransformation: (DataFrame, SpecificationRows) => DataFrame,
                                           override val outputKey: String)
-  extends IOStep[(DataFrame, SpecificationRows), DataFrame](s"TRANSFORM_DF_USING_SPECIFICATIONS", outputKey)
+  extends IOStep[(DataFrame, SpecificationRows), DataFrame]("Transform DataFrame according to specifications", outputKey)
     with Logging {
 
   override def run(variables: mutable.Map[String, Any]): (String, DataFrame) = {

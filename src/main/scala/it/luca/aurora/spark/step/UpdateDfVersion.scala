@@ -12,7 +12,7 @@ import scala.collection.mutable
 case class UpdateDfVersion(private val inputDfKey: String,
                            private val inputVersionKey: String,
                            override val outputKey: String)
-  extends IOStep[DataFrame, DataFrame](s"UPDATE_DF_VERSION", outputKey)
+  extends IOStep[DataFrame, DataFrame](s"Update ${ColumnName.Version} column on a DataFrame", outputKey)
     with Logging {
 
   override def run(variables: mutable.Map[String, Any]): (String, DataFrame) = {

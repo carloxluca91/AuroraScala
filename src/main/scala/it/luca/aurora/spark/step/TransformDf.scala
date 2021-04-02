@@ -8,7 +8,7 @@ import scala.collection.mutable
 case class TransformDf(private val inputDfKey: String,
                        private val dfTransformation: DataFrame => DataFrame,
                        override val outputKey: String)
-  extends IOStep[DataFrame, DataFrame](s"TRANSFORM_DF",outputKey)
+  extends IOStep[DataFrame, DataFrame]("Transform DataFrame",outputKey)
     with Logging {
 
   override def run(variables: mutable.Map[String, Any]): (String, DataFrame) = {

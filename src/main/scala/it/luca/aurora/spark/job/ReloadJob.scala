@@ -26,14 +26,14 @@ case class ReloadJob(override val sqlContext: SQLContext,
   private val specificationHistorical: String = jobProperties.getString("hive.table.specification.historical")
   private val lookupHistorical: String = jobProperties.getString("hive.table.lookup.historical")
 
-  private val retrieveDfVersion: DataFrame => String = df => {
+  private val retrieveVersion: DataFrame => String = df => {
 
     df.select(ColumnName.Version)
       .distinct().collect().head
       .getAs[String](0)
   }
 
-  private val addValidityEndColumns: DataFrame => DataFrame = df => {
+  private val withValidityEndCols: DataFrame => DataFrame = df => {
 
     df.withColumnAfter(ColumnName.ValidityEndTime, lit(now()), ColumnName.ValidityStartDate)
       .withColumnAfter(ColumnName.ValidityEndDate, lit(toDate(now(), DateFormat.DateDefault)), ColumnName.ValidityEndTime)
@@ -46,8 +46,8 @@ case class ReloadJob(override val sqlContext: SQLContext,
                                        (implicit typeTag: TypeTag[T], classTag: ClassTag[T], rowToT: Row => T): Seq[Step[_]] =
 
     ReadHiveTable(s"$trustedDb.$actualTable", isTableName = true, sqlContext, "OLD_VERSION_DF") ::
-      DfTo[String]("OLD_VERSION_DF", retrieveDfVersion, "OLD_VERSION") ::
-      TransformDf("OLD_VERSION_DF", addValidityEndColumns, "OLD_VERSION_DF") ::
+      DfTo[String]("OLD_VERSION_DF", retrieveVersion, "OLD_VERSION") ::
+      TransformDf("OLD_VERSION_DF", withValidityEndCols, "OLD_VERSION_DF") ::
       WriteDf("OLD_VERSION_DF", trustedDb, historicalTable, isTableName = true, SaveMode.Append, Some(ColumnName.Version :: Nil)) ::
       ReadExcel(excelPath, "WORKBOOK") ::
       DecodeSheet[T]("WORKBOOK", sheet, "EXCEL_BEANS") ::

@@ -11,7 +11,7 @@ import scala.reflect.runtime.universe.TypeTag
 case class DecodeSheet[T](private val workbookKey: String,
                           private val sheetIndex: Int,
                           override val outputKey: String)(implicit typeTag: TypeTag[T], val decodeRow: Row => T)
-  extends IOStep[Workbook, Seq[T]](s"DECODE_EXCEL_SHEET_$sheetIndex", outputKey)
+  extends IOStep[Workbook, Seq[T]](s"Decodes Excel sheet # $sheetIndex", outputKey)
     with Logging {
 
   override def run(variables: mutable.Map[String, Any]): (String, Seq[T]) = {

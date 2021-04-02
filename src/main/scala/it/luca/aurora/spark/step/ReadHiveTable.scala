@@ -9,7 +9,7 @@ case class ReadHiveTable(private val tableNameOrInputKey: String,
                          private val isTableName: Boolean,
                          private val sqlContext: SQLContext,
                          override val outputKey: String)
-  extends IOStep[String, DataFrame](s"READ_TABLE_${tableNameOrInputKey.toUpperCase}", outputKey)
+  extends IOStep[String, DataFrame]("Retrieve table from Hive DB", outputKey)
     with Logging {
 
   override def run(variables: mutable.Map[String, Any]): (String, DataFrame) = {

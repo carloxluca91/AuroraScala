@@ -86,11 +86,11 @@ abstract class SparkJob(val sqlContext: SQLContext,
           }
       } match {
         case Success(_) =>
-          log.info(s"Executed step # $index (${step.stepName})")
+          log.info(s"Executed step # $index (${step.description})")
           logRecords.append(logRecordFunction(index, step, None))
 
         case Failure(exception) =>
-          log.error(s"Exception on step # $index (${step.stepName}). Stack trace: ", exception)
+          log.error(s"Exception on step # $index (${step.description}). Stack trace: ", exception)
           logRecords.append(logRecordFunction(index, step, Some(exception)))
           return (false, logRecords)
       }

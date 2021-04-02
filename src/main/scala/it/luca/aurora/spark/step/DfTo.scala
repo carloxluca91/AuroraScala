@@ -10,7 +10,7 @@ import scala.reflect.runtime.universe._
 case class DfTo[O](private val dfKey: String,
                    private val dfToO: DataFrame => O,
                    override val outputKey: String)(implicit oTypeTag: TypeTag[O])
-  extends IOStep[DataFrame, O]( s"FROM_DF_TO_${classSimpleName[O].toUpperCase}", outputKey)
+  extends IOStep[DataFrame, O]( s"Retrieves a ${classSimpleName[O]} from a DataFrame", outputKey)
     with Logging {
 
   override def run(variables: mutable.Map[String, Any]): (String, O) = {

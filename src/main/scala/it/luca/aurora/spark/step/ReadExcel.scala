@@ -11,7 +11,7 @@ import scala.collection.mutable
 
 case class ReadExcel(private val excelPath: String,
                      override val outputKey: String)
-  extends IOStep[String, Workbook]("READ_EXCEL", outputKey)
+  extends IOStep[String, Workbook]("Read Excel (.xlsx) file", outputKey)
     with Logging {
 
   override def run(variables: mutable.Map[String, Any]): (String, Workbook) = {

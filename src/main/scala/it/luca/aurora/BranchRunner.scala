@@ -2,8 +2,9 @@ package it.luca.aurora
 
 import it.luca.aurora.enumeration.Branch
 import it.luca.aurora.logging.Logging
-import it.luca.aurora.option.{BranchConfig, ReloadConfig, ScoptParser, DataSourceLoadConfig}
-import it.luca.aurora.spark.job.{InitialLoadJob, ReloadJob, DataSourceLoadJob}
+import it.luca.aurora.option.{BranchConfig, DataSourceLoadConfig, ReloadConfig, ScoptParser}
+import it.luca.aurora.spark.job.{DataSourceLoadJob, InitialLoadJob, ReloadJob}
+import it.luca.aurora.utils.classSimpleName
 import org.apache.spark.sql.hive.HiveContext
 import org.apache.spark.{SparkConf, SparkContext}
 
@@ -19,11 +20,11 @@ object BranchRunner extends Logging {
     sparkConf.set("hive.exec.dynamic.partition.mode", "nonstrict")
     val sparkContext = new SparkContext(sparkConf)
     val sqlContext = new HiveContext(sparkContext)
-    log.info(s"""Initialized both ${classOf[SparkContext].getSimpleName} and ${classOf[HiveContext].getSimpleName}
+    log.info(s"""Initialized both ${classSimpleName[SparkContext]} and ${classSimpleName[HiveContext]}
          |
+         |    appUser: ${sparkContext.sparkUser}
          |    appName: ${sparkContext.appName}
          |    appId: ${sparkContext.applicationId}
-         |    appUser: ${sparkContext.sparkUser}
          |""".stripMargin)
 
     Branch.withId(branchId) match {

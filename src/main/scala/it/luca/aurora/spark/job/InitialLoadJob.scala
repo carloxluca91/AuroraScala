@@ -20,7 +20,7 @@ case class InitialLoadJob(override val sqlContext: SQLContext,
   override protected val dtBusinessDate: Option[String] = None
   override protected val specificationVersion: Option[String] = None
 
-  private val beansDfTransformation: DataFrame => DataFrame = df => {
+  private val withValidityStartCols: DataFrame => DataFrame = df => {
 
     df.withColumn(ColumnName.ValidityStartTime, lit(now()))
       .withColumn(ColumnName.ValidityStartDate, lit(toDate(now(), DateFormat.DateDefault)))
@@ -35,8 +35,8 @@ case class InitialLoadJob(override val sqlContext: SQLContext,
 
     DecodeSheet[T]("WORKBOOK", sheet, "EXCEL_BEANS") ::
       ToDf[T]("EXCEL_BEANS", sqlContext, "EXCEL_BEANS_DF") ::
-      TransformDf("EXCEL_BEANS_DF", beansDfTransformation, "EXCEL_BEANS_DF") ::
-      WriteDf("EXCEL_BEANS_DF", trustedDb, actualTable, isTableName = true, SaveMode.Overwrite, None) :: Nil
+      TransformDf("EXCEL_BEANS_DF", withValidityStartCols, "EXCEL_BEANS_DF") ::
+      WriteDf("EXCEL_BEANS_DF", trustedDb, actualTable, isTableName = true, SaveMode.Overwrite, Some(ColumnName.Version :: Nil)) :: Nil
 
 
   override protected val steps: Seq[Step[_]] = CreateDbIfNotExists(trustedDb, sqlContext) ::
