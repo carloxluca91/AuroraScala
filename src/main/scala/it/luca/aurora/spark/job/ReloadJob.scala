@@ -54,7 +54,7 @@ case class ReloadJob(override val sqlContext: SQLContext,
       DecodeSheet[T]("WORKBOOK", sheet, "EXCEL_BEANS") ::
       ToDf[T]("EXCEL_BEANS", sqlContext, "EXCEL_BEANS_DF") ::
       UpdateDfVersion("EXCEL_BEANS_DF", "OLD_VERSION", "EXCEL_BEANS_DF") ::
-      WriteDf("SPECIFICATION_DF", trustedDb, actualTable, isTableName = true,
+      WriteDf("EXCEL_BEANS_DF", trustedDb, actualTable, isTableName = true,
         SaveMode.Overwrite, None, connection) :: Nil
 
   override protected val steps: Seq[Step[_]] = (if (reloadConfig.specificationFlag) {

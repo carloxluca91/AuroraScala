@@ -32,14 +32,13 @@ class DataFrameExtended(private val df: DataFrame)
          |""".stripMargin)
 
     // Decide to use whether .saveAsTable or .insertInto, as well as which Impala statement must be issued
-    val impalaStatement = if (df.sqlContext.tableExistsInDb(tableName, dbName)) {
+    val impalaStatement: String = if (df.sqlContext.tableExistsInDb(tableName, dbName)) {
 
       log.info(s"Hive table $fqTableName already exists. Saving data using .insertInto with saveMode $saveMode")
-      df.write.mode(saveMode)
-        .insertInto(fqTableName)
+      df.write.mode(saveMode).insertInto(fqTableName)
       saveMode match {
-        case SaveMode.Append => s"REFRESH $fqTableName"
         case SaveMode.Overwrite => s"INVALIDATE METADATA $fqTableName"
+        case _ => s"REFRESH $fqTableName"
       }
     } else {
 

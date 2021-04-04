@@ -1,21 +1,26 @@
 #!/bin/bash
 
-log "INFO" "Starting run_branch.sh script"
+log "INFO" "Starting run_branch_new.sh script"
 
 # Parse options
-while getopts ":b:d:s:" option; do
-  case "$option" in
-    b) branch=$OPTARG ;;
-    d) businessDate=$OPTARG ;;
-    s) dataSource=$OPTARG ;;
-    *) log "WARNING" "Unknown option: $option" ;;
+reloadFlags=""
+while [[ "$#" -gt 0 ]];
+do
+  case "$1" in
+    -b|--branch) branch="$2"; shift ;;
+    -d|--dt_business_date) businessDate="$2"; shift ;;
+    -s|--source) dataSource="$2"; shift ;;
+    -m) reloadFlags="$reloadFlags -m" ;;
+    -l) reloadFlags="$reloadFlags -l" ;;
+    *) log "WARNING" "Unknown parameter passed: $1"; ;;
   esac
+  shift
 done
 
 # If -b option has not been given, do not start the application
 if [[ -z $branch ]];
 then
-  log "ERROR" "Undefined branch (-b) option. Cannot start application";
+  log "ERROR" "Branch option (-b) is unset. Cannot start application";
 else
 
   appName="Aurora Dataload - $branch"
@@ -37,6 +42,8 @@ else
       -b (Application branch): $branch
       -d (Ingestion businessDate): $businessDate
       -s (Ingestion dataSource): $dataSource
+      -m (Override specifications)
+      -l (Override lookup)
       "
 
   # Spark submit parameters
@@ -48,13 +55,15 @@ else
   jarPath="$hdfsAppPath/lib/aurora-dataload-0.3.0.jar"
   jobPropertiesPath="$hdfsAppPath/lib/$jobPropertiesFileName"
   log4jPropertiesPath="$hdfsAppPath/lib/$log4jPropertiesFileName"
-  mainClassParams="-b $branch -p $jobPropertiesFileName $dataSourceOption $businessDateOption"
+  impalaJdbcDriverJarPath="$hdfsAppPath/lib/impala-jdbc-driver.jar"
+  mainClassParams="-b $branch -p $jobPropertiesFileName $dataSourceOption $businessDateOption $reloadFlags"
 
   log "INFO" "Spark submit parameters:
 
     app name: $appName
     app .properties file HDFS path: $jobPropertiesPath
     app log4j.properties file HDFS path (for logging): $log4jPropertiesPath
+    Impal JDBC driver jar path: $impalaJdbcDriverJarPath
     app jar HDFS path: $jarPath
     app main class: $mainClass
     main class parameters: $mainClassParams
@@ -69,9 +78,9 @@ touch "$logFilePath"
 spark-submit --master yarn --deploy-mode cluster --queue $queue \
   --files "$jobPropertiesPath,$log4jPropertiesPath,/etc/hive/conf/hive-site.xml" \
   --driver-java-options "-Dlog4j.configuration=$log4jPropertiesFileName" \
+  --jars $impalaJdbcDriverJarPath \
   --name "$appName" \
-  --class "$mainClass" \
-  $jarPath \
-  -b "$branch" -p "$jobPropertiesFileName" $dataSourceOption $businessDateOption > "$logFilePath" 2>&1
+  --class "$mainClass" $jarPath \
+  -b "$branch" -p "$jobPropertiesFileName" $dataSourceOption $businessDateOption $reloadFlags > "$logFilePath" 2>&1
 
 log "INFO" "Successfully run run_branch.sh script"

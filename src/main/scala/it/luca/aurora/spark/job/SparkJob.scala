@@ -1,6 +1,5 @@
 package it.luca.aurora.spark.job
 
-import com.cloudera.impala.jdbc.DataSource
 import it.luca.aurora.enumeration.Branch
 import it.luca.aurora.logging.Logging
 import it.luca.aurora.spark.bean.LogRecord
@@ -10,7 +9,7 @@ import it.luca.aurora.spark.step.{IOStep, IStep, Step}
 import org.apache.commons.configuration.PropertiesConfiguration
 import org.apache.spark.sql.{DataFrame, SQLContext, SaveMode}
 
-import java.sql.Connection
+import java.sql.{Connection, DriverManager}
 import scala.collection.mutable
 import scala.util.{Failure, Success, Try}
 
@@ -43,9 +42,7 @@ abstract class SparkJob(val sqlContext: SQLContext,
   private def getImpalaJdbcConnection: Connection = {
 
     Class.forName(driverClass)
-    val dataSource = new DataSource
-    dataSource.setURL(impalaUrl)
-    val connection = dataSource.getConnection
+    val connection = DriverManager.getConnection(impalaUrl)
     log.info(s"Connected to JDBC Url $impalaUrl using driver $driverClass")
     connection
   }
