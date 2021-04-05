@@ -12,7 +12,7 @@ class SqlContextExtended(private val sqlContext: SQLContext) {
       .count() == 1
   }
 
-  def tableExistsInDb(tableName: String, dbName: String): Boolean = {
+  def existsTable(tableName: String, dbName: String): Boolean = {
 
     sqlContext.tableNames(dbName)
       .map(_.toLowerCase)

@@ -13,7 +13,7 @@ import scala.reflect.runtime.universe.TypeTag
 case class ToDf[T <: Product](private val beansKey: String,
                               private val sqlContext: SQLContext,
                               override val outputKey: String)(implicit classTag: ClassTag[T], typeTag: TypeTag[T])
-  extends IOStep[Seq[T], DataFrame](s"Convert some ${classSimpleName[T]}(s) to a DataFrame", outputKey)
+  extends IOStep[Seq[T], DataFrame](s"Convert a Seq of ${classSimpleName[T]}(s) to a DataFrame", outputKey)
     with Logging {
 
   override def run(variables: mutable.Map[String, Any]): (String, DataFrame) = {

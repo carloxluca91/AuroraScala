@@ -21,6 +21,6 @@ case class WriteDf(private val inputDfKey: String,
 
     val dfToWrite = variables(inputDfKey).asInstanceOf[DataFrame]
     val tableName = if (isTableName) tableNameOrInputKey else variables(tableNameOrInputKey).asInstanceOf[String]
-    dfToWrite.saveAsTableOrInsertInto(dbName, tableName, saveMode, partitionByOpt, connection)
+    dfToWrite.saveAsOrInsertInto(dbName, tableName, saveMode, partitionByOpt, connection)
   }
 }

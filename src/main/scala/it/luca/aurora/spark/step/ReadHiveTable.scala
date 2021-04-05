@@ -24,7 +24,7 @@ case class ReadHiveTable(private val tableNameOrInputKey: String,
     log.info(
       s"""Read Hive table $tableNameOrInputKey with schema
          |
-         |    ${output.schema.treeString}
+         |${output.schema.treeString}
          |""".stripMargin)
     (outputKey, output)
   }

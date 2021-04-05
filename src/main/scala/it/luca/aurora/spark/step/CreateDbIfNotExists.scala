@@ -8,7 +8,7 @@ import scala.collection.mutable
 
 case class CreateDbIfNotExists(private val dbName: String,
                                private val sqlContext: SQLContext)
-  extends IStep[String](s"Creates Hive DB $dbName")
+  extends IStep[String](s"Create Hive DB $dbName")
     with Logging {
 
   override def run(variables: mutable.Map[String, Any]): Unit = {

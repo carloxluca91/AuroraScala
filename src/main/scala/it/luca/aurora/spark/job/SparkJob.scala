@@ -73,7 +73,7 @@ abstract class SparkJob(val sqlContext: SQLContext,
     logRecordsDf.withTechnicalColumns()
       .withSqlNamingConvention()
       .coalesce(1)
-      .saveAsTableOrInsertInto(dbName, logTableName, SaveMode.Append, None, connection)
+      .saveAsOrInsertInto(dbName, logTableName, SaveMode.Append, None, connection)
 
     if (jobSucceeded) log.info(s"Executed whole Spark job ${branch.name}")
     else log.warn(s"Unable to fully execute Spark job ${branch.name}")

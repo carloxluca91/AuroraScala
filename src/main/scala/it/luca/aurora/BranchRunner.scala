@@ -5,8 +5,8 @@ import it.luca.aurora.logging.Logging
 import it.luca.aurora.option.{BranchConfig, DataSourceLoadConfig, ReloadConfig, ScoptParser}
 import it.luca.aurora.spark.job.{DataSourceLoadJob, InitialLoadJob, ReloadJob}
 import it.luca.aurora.utils.classSimpleName
+import org.apache.spark.SparkContext
 import org.apache.spark.sql.hive.HiveContext
-import org.apache.spark.{SparkConf, SparkContext}
 
 object BranchRunner extends Logging {
 
@@ -15,11 +15,10 @@ object BranchRunner extends Logging {
     val branchId: String = branchConfig.applicationBranch
     val propertiesFile: String = branchConfig.propertiesFile
 
-    val sparkConf = new SparkConf()
-    sparkConf.set("hive.exec.dynamic.partition", "true")
-    sparkConf.set("hive.exec.dynamic.partition.mode", "nonstrict")
-    val sparkContext = new SparkContext(sparkConf)
-    val sqlContext = new HiveContext(sparkContext)
+    val sparkContext = new SparkContext()
+    val hiveContext = new HiveContext(sparkContext)
+    hiveContext.setConf("hive.exec.dynamic.partition", "true")
+    hiveContext.setConf("hive.exec.dynamic.partition.mode", "nonstrict")
     log.info(s"""Initialized both ${classSimpleName[SparkContext]} and ${classSimpleName[HiveContext]}
          |
          |    appUser: ${sparkContext.sparkUser}
@@ -28,12 +27,12 @@ object BranchRunner extends Logging {
          |""".stripMargin)
 
     Branch.withId(branchId) match {
-      case Branch.InitialLoad => InitialLoadJob(sqlContext, propertiesFile).run()
+      case Branch.InitialLoad => InitialLoadJob(hiveContext, propertiesFile).run()
       case Branch.Reload =>
         ScoptParser.reloadOptionParser.parse(args, ReloadConfig()) match {
           case Some(x) =>
             log.info(s"Parsed second set of arguments $x")
-            ReloadJob(sqlContext, propertiesFile, x).run()
+            ReloadJob(hiveContext, propertiesFile, x).run()
           case None => // arguments are bad, error message will have been displayed
         }
 
@@ -41,7 +40,7 @@ object BranchRunner extends Logging {
         ScoptParser.sourceLoadOptionParser.parse(args, DataSourceLoadConfig()) match {
           case Some(x) =>
             log.info(s"Parsed second set of arguments $x")
-            DataSourceLoadJob(sqlContext, propertiesFile, x).run()
+            DataSourceLoadJob(hiveContext, propertiesFile, x).run()
           case None => // arguments are bad, error message will have been displayed
         }
     }

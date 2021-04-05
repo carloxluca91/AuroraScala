@@ -26,7 +26,7 @@ then
   log "ERROR" "Neither -m or -l flag has been triggered. Thus, Spark job will not be triggered"
 else
   log "INFO" "Triggered flags: $specificationFlag $lookupFlag"
-  . run_branch_new.sh -b RELOAD $specificationFlag $lookupFlag
+  . run_branch.sh -b RELOAD $specificationFlag $lookupFlag
 fi
 
 log "INFO" "Successfully run $scriptName script"

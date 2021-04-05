@@ -32,5 +32,4 @@ package object utils {
       case "double" => DataTypes.DoubleType
     }
   }
-
 }

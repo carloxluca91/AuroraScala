@@ -4,48 +4,80 @@ import it.luca.aurora.enumeration.{ColumnName, DateFormat}
 import it.luca.aurora.logging.Logging
 import it.luca.aurora.utils.{now, toDate}
 import org.apache.spark.sql.functions.{col, lit}
-import org.apache.spark.sql.{Column, DataFrame, SaveMode}
+import org.apache.spark.sql.types.StructField
+import org.apache.spark.sql.{Column, DataFrame, DataFrameWriter, SaveMode}
 
 import java.sql.Connection
 
 class DataFrameExtended(private val df: DataFrame)
   extends Logging {
 
+  def getCreateTableStatement(dbName: String, tableName: String, partitionBy: Seq[String]): String = {
+
+    val isAPartitioningCol: StructField => Boolean = s => partitionBy.contains(s.name)
+    val columnSqlDefinition: StructField => String = s => s"${s.name} ${s.dataType.simpleString}"
+    val tableDefinitionColumns: String = df.schema.fields.filterNot { isAPartitioningCol }
+      .map { columnSqlDefinition }
+      .mkString(",\n  ")
+    val partitioningClause: String = df.schema.fields.filter { isAPartitioningCol }
+      .map { columnSqlDefinition }
+      .mkString(", ")
+
+    s"""CREATE TABLE IF NOT EXISTS $dbName.$tableName (
+       |
+       |  $tableDefinitionColumns
+       |)
+       |PARTITIONED BY ($partitioningClause)
+       |STORED AS PARQUET
+       |""".stripMargin
+  }
+
   /**
    * Save dataframe using .saveAsTable if given dbName.tableName does not exists, using .insertInto otherwise
    * @param dbName: Hive db name
    * @param tableName: Hive table name
    * @param saveMode: dataframe saveMode
-   * @param partitionBy: partitioning columns (if any)
+   * @param partitionByOpt: partitioning columns (if any)
    */
 
-  def saveAsTableOrInsertInto(dbName: String, tableName: String,
-                              saveMode: SaveMode,
-                              partitionBy: Option[Seq[String]],
-                              connection: Connection): Unit = {
+  def saveAsOrInsertInto(dbName: String, tableName: String,
+                         saveMode: SaveMode,
+                         partitionByOpt: Option[Seq[String]],
+                         connection: Connection): Unit = {
 
-    val fqTableName = s"$dbName.$tableName"
+    val (sqlContext, fqTableName) = (df.sqlContext, s"$dbName.$tableName")
+    val dfWriter: DataFrameWriter = df.write.mode(saveMode).partitionBy(partitionByOpt)
     log.info(
       s"""Saving data to Hive table $fqTableName
          |
          |${df.schema.treeString}
          |""".stripMargin)
 
-    // Decide to use whether .saveAsTable or .insertInto, as well as which Impala statement must be issued
-    val impalaStatement: String = if (df.sqlContext.tableExistsInDb(tableName, dbName)) {
-
+    val impalaStatement: String = if (sqlContext.existsTable(tableName, dbName)) {
       log.info(s"Hive table $fqTableName already exists. Saving data using .insertInto with saveMode $saveMode")
-      df.write.mode(saveMode).insertInto(fqTableName)
+      dfWriter.insertInto(fqTableName)
       saveMode match {
         case SaveMode.Overwrite => s"INVALIDATE METADATA $fqTableName"
         case _ => s"REFRESH $fqTableName"
       }
     } else {
 
-      log.warn(s"Hive table $fqTableName does not exist yet. Creating now using .saveAsTable")
-      df.write.mode(saveMode)
-        .partitionBy(partitionBy)
-        .saveAsTable(fqTableName)
+      log.warn(s"Hive table $fqTableName does not exist yet")
+      if (partitionByOpt.isDefined) {
+
+        // We need to pre-create Hive table using HiveQL
+        val createTable: String = getCreateTableStatement(dbName, tableName, partitionByOpt.get)
+        log.info(
+          s"""Creating Hive table $fqTableName using statement
+             |
+             |$createTable
+             |""".stripMargin)
+
+        sqlContext.sql(createTable)
+        log.info(s"Created Hive table $fqTableName")
+        dfWriter.insertInto(fqTableName)
+      } else dfWriter.saveAsTable(fqTableName)
+
       s"INVALIDATE METADATA $fqTableName"
     }
 
