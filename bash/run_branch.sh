@@ -3,12 +3,18 @@
 log "INFO" "Starting run_branch_new.sh script"
 
 # Parse options
+branchShort="-b"
+branchLong="--branch"
+dataSourceShort="-s"
+dataSourceLong="--data_source"
+businessDateShort="-d"
+businessDateLong="--dt_business_date"
 while [[ "$#" -gt 0 ]];
 do
   case "$1" in
-    -b|--branch) branch="$2"; shift ;;
-    -d|--dt_business_date) businessDate="$2"; shift ;;
-    -s|--source) dataSource="$2"; shift ;;
+    "$branchShort"|"$branchLong") branch="$2"; shift ;;
+    "$businessDateShort"|"$businessDateLong") businessDate="$2"; shift ;;
+    "$dataSourceShort"|"$dataSourceLong") dataSource="$2"; shift ;;
     *) log "WARNING" "Unknown parameter passed: $1"; ;;
   esac
   shift
@@ -17,31 +23,29 @@ done
 # If -b option has not been given, do not start the application
 if [[ -z $branch ]];
 then
-  log "ERROR" "Branch option (-b) is unset. Cannot start application";
+  log "ERROR" "Branch option ($branchShort, $branchLong) is unset. Cannot start application";
 else
 
   appName="Aurora Dataload - $branch"
   # Check if -s option has been given
   if [[ -n $dataSource ]];
   then
-    dataSourceOption="-s $dataSource"
+    dataSourceOption="$dataSourceShort $dataSource"
     # Check if -d options has been given
     if [[ -z $businessDate ]];
     then
       businessDate="$(date "+%Y-%m-%d")"
     fi
-    businessDateOption="-d $businessDate"
+    businessDateOption="$businessDateShort $businessDate"
     appName="$appName ($dataSource, $businessDate)"
   fi
 
   log "INFO" "Supported options (with given arguments if any)
 
-      -b (Application branch): $branch
-      -d (Ingestion businessDate): $businessDate
-      -s (Ingestion dataSource): $dataSource
-      -m (Override specifications)
-      -l (Override lookup)
-      "
+      $branchShort, $branchLong (Application branch): $branch
+      $dataSourceShort, $dataSourceLong (DataSource to be ingested): $dataSource
+      $businessDateShort, $businessDateLong (DataSource partition to be ingested): $businessDate
+  "
 
   # Spark submit parameters
   queue=root.users.cloudera
@@ -80,4 +84,4 @@ spark-submit --master yarn --deploy-mode cluster --queue $queue \
   --class "$mainClass" $jarPath \
   -b "$branch" -p "$jobPropertiesFileName" $dataSourceOption $businessDateOption > "$logFilePath" 2>&1
 
-log "INFO" "Successfully run run_branch.sh script"
+log "INFO" "End of script run_branch.sh"

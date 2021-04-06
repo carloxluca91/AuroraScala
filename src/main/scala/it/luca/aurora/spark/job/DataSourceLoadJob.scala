@@ -28,16 +28,17 @@ case class DataSourceLoadJob(override val sqlContext: SQLContext,
 
   private def getHiveQlQuery(actualTable: String, historicalTable: String): String = {
 
+    val dataSource = config.dataSource.trim.toLowerCase
     if (specificationVersion.equals(Some(Latest))) {
       s"""SELECT *
          |FROM $trustedDb.$actualTable
-         |WHERE TRIM(LOWER(${ColumnName.DataSource})) = '${config.dataSource}'
+         |WHERE TRIM(LOWER(${ColumnName.DataSource.name})) = '$dataSource'
          |""".stripMargin
     } else {
       s"""SELECT *
          |FROM $trustedDb.$historicalTable
          |WHERE VERSION = '$specificationVersion'
-         |AND TRIM(LOWER(${ColumnName.DataSource})) = '${config.dataSource}'
+         |AND TRIM(LOWER(${ColumnName.DataSource.name})) = '$dataSource'
          |""".stripMargin
     }
   }

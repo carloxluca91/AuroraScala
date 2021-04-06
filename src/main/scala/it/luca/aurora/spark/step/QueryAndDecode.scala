@@ -22,6 +22,7 @@ case class QueryAndDecode[T <: Product](private val query: String,
       .withJavaNamingConvention()
       .as[T].collect().toSeq
 
+    log.info(s"Retrieved ${beans.length} ${className[T]} using query $query")
     (outputKey, beans)
   }
 }

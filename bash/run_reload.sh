@@ -12,4 +12,4 @@ log "INFO" "Starting $scriptName script"
 
 . run_branch.sh -b RELOAD
 
-log "INFO" "Successfully run $scriptName script"
+log "INFO" "End of script $scriptName"

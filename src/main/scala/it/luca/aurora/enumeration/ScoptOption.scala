@@ -14,5 +14,5 @@ object ScoptOption extends Enumeration {
   // DataSourceLoad branch additional options
   val DataSource: Val = Val('s', "source", "Datasource to be ingested")
   val DtBusinessDate: Val = Val('d', "date", "Working business date")
-  val SpecificationVersion: Val = Val('v', "version", "Specification version number to be referred to")
+  val SpecificationVersion: Val = Val('v', "version", "Specification version to be referred to")
 }
