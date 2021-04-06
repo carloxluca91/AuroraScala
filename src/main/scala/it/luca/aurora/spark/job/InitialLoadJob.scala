@@ -1,10 +1,10 @@
 package it.luca.aurora.spark.job
 
-import it.luca.aurora.core.utils.{now, toDate}
 import it.luca.aurora.enumeration.{Branch, ColumnName, DateFormat}
-import it.luca.aurora.excel.bean.{MappingRow, SpecificationRow}
+import it.luca.aurora.spark.bean.{MappingRow, SpecificationRow}
 import it.luca.aurora.spark.implicits._
 import it.luca.aurora.spark.step._
+import it.luca.aurora.utils.{now, toDate}
 import org.apache.poi.ss.usermodel.Row
 import org.apache.spark.sql.functions.lit
 import org.apache.spark.sql.{DataFrame, SQLContext, SaveMode}

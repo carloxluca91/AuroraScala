@@ -1,10 +1,9 @@
 package it.luca.aurora
 
-import it.luca.aurora.core.Logging
-import it.luca.aurora.core.utils.className
 import it.luca.aurora.enumeration.Branch
 import it.luca.aurora.option.{BranchConfig, DataSourceLoadConfig, ScoptParser}
 import it.luca.aurora.spark.job.{DataSourceLoadJob, InitialLoadJob, ReloadJob}
+import it.luca.aurora.utils.className
 import org.apache.spark.SparkContext
 import org.apache.spark.sql.hive.HiveContext
 

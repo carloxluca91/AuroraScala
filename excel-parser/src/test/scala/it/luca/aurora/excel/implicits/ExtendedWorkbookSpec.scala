@@ -1,6 +1,6 @@
 package it.luca.aurora.excel.implicits
 
-import it.luca.aurora.core.CustomSpec
+import it.luca.aurora.CustomSpec
 import it.luca.aurora.excel.bean.Bean
 import org.apache.poi.ss.usermodel.{Row, Workbook, WorkbookFactory}
 
@@ -12,7 +12,7 @@ class ExtendedWorkbookSpec extends CustomSpec {
     .create(classOf[ExtendedCellSpec]
       .getClassLoader.getResourceAsStream("test.xlsx"))
 
-  s"A ${clazz[ExtendedWorkbook]}" must "correctly decode a sheet into a Seq of beans" in {
+  s"A ${className[ExtendedWorkbook]}" must "correctly decode a sheet into a Seq of beans" in {
 
     val rows: Seq[Row] = workbook.getSheetAt(0)
       .rowIterator().asScala.toSeq

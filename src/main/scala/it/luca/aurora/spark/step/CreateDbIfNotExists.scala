@@ -1,6 +1,6 @@
 package it.luca.aurora.spark.step
 
-import it.luca.aurora.core.Logging
+import it.luca.aurora.Logging
 import it.luca.aurora.spark.implicits._
 import org.apache.spark.sql.SQLContext
 

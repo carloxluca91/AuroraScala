@@ -1,6 +1,6 @@
 package it.luca.aurora.excel.implicits
 
-import it.luca.aurora.core.CustomSpec
+import it.luca.aurora.CustomSpec
 import it.luca.aurora.excel.exception.ExcelDecodingException
 import org.apache.poi.ss.usermodel.{Cell, CellType}
 import org.scalamock.scalatest.MockFactory
@@ -11,7 +11,7 @@ class ExtendedCellSpec extends CustomSpec with MockFactory {
   private final val expectedString = "STRING"
   private final val expectedDouble = 3.14
 
-  s"An ${clazz[ExtendedCell]}" must s"return typed content" in {
+  s"An ${className[ExtendedCell]}" must s"return typed content" in {
 
     (mockCell.getCellTypeEnum: () => CellType).expects().returning(CellType.STRING)
     (mockCell.getStringCellValue: () => String).expects().returning(expectedString)
@@ -37,7 +37,7 @@ class ExtendedCellSpec extends CustomSpec with MockFactory {
     }
   }
 
-  it must s"throw a ${clazz[ExcelDecodingException]} when requesting wrong data type" in {
+  it must s"throw a ${className[ExcelDecodingException]} when requesting wrong data type" in {
 
     (mockCell.getCellTypeEnum: () => CellType).expects().returning(CellType.NUMERIC).noMoreThanTwice()
     (mockCell.getRowIndex: () => Int).expects().returning(0)

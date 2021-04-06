@@ -1,11 +1,11 @@
 package it.luca.aurora.spark.job
 
-import it.luca.aurora.core.Logging
-import it.luca.aurora.core.utils.className
+import it.luca.aurora.Logging
 import it.luca.aurora.enumeration.Branch
 import it.luca.aurora.spark.bean.LogRecord
 import it.luca.aurora.spark.implicits._
 import it.luca.aurora.spark.step.{IOStep, IStep, Step}
+import it.luca.aurora.utils.className
 import org.apache.commons.configuration.PropertiesConfiguration
 import org.apache.spark.sql.{DataFrame, SQLContext, SaveMode}
 

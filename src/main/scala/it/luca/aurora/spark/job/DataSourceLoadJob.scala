@@ -1,14 +1,14 @@
 package it.luca.aurora.spark.job
 
-import it.luca.aurora.enumeration.{Branch, ColumnName}
-import it.luca.aurora.excel.bean.{SpecificationRow, SpecificationRows}
+import it.luca.aurora.enumeration.{Branch, ColumnName, DateFormat}
+import it.luca.aurora.exception.{MultipleMappingsException, NoMappingException, NoSpecificationException}
 import it.luca.aurora.option.DataSourceLoadConfig
+import it.luca.aurora.spark.bean.{MappingRow, SpecificationRow, SpecificationRows}
 import it.luca.aurora.spark.implicits._
 import it.luca.aurora.spark.step._
-import org.apache.spark.sql.functions._
+import it.luca.aurora.utils.{now, toDate}
+import org.apache.spark.sql.functions.{col, concat_ws, lit, size, split, when}
 import org.apache.spark.sql.{Column, DataFrame, SQLContext, SaveMode}
-
-import scala.collection.mutable
 
 case class DataSourceLoadJob(override val sqlContext: SQLContext,
                              override val propertiesFile: String,
@@ -22,34 +22,24 @@ case class DataSourceLoadJob(override val sqlContext: SQLContext,
   override protected val specificationVersion: Option[String] = Some(config.specificationVersion.getOrElse(Latest))
 
   // Hive properties
+  private val mappingHistorical: String = jobProperties.getString("hive.table.mapping.historical")
   private val specificationHistorical: String = jobProperties.getString("hive.table.specification.historical")
   private val rawDb: String = jobProperties.getString("hive.db.raw")
 
-  private def specificationReadQuery(): String = {
+  private def getHiveQlQuery(actualTable: String, historicalTable: String): String = {
 
     if (specificationVersion.equals(Some(Latest))) {
       s"""SELECT *
-         |FROM $trustedDb.$specificationActual
-         |WHERE TRIM(LOWER(data_source)) = '${config.dataSource}'
+         |FROM $trustedDb.$actualTable
+         |WHERE TRIM(LOWER(${ColumnName.DataSource})) = '${config.dataSource}'
          |""".stripMargin
     } else {
       s"""SELECT *
-         |FROM $trustedDb.$specificationHistorical
+         |FROM $trustedDb.$historicalTable
          |WHERE VERSION = '$specificationVersion'
-         |AND TRIM(LOWER(data_source)) = '${config.dataSource}'
+         |AND TRIM(LOWER(${ColumnName.DataSource})) = '${config.dataSource}'
          |""".stripMargin
     }
-  }
-
-  private val decodeSpecificationDf: DataFrame => SpecificationRows = df => {
-
-    import sqlContext.implicits._
-
-    val beans: Seq[SpecificationRow] = df.withJavaNamingConvention()
-      .as[SpecificationRow].collect().toSeq
-    val (beanSize, beanClassName) = (beans.size, classOf[SpecificationRow].getSimpleName)
-    log.info(s"Decoded given DataFrame as $beanSize $beanClassName(s)")
-    SpecificationRows(beans)
   }
 
   private val trustedDfTransformation: (DataFrame, SpecificationRows) => DataFrame = (df, specificationRows) => {
@@ -82,18 +72,28 @@ case class DataSourceLoadJob(override val sqlContext: SQLContext,
       .withSqlNamingConvention()
   }
 
-  override protected val steps: Seq[Step[_]] = GetDfForQuery(specificationReadQuery(), sqlContext, "SPECIFICATION_DF") ::
-    DfTo[SpecificationRows]("SPECIFICATION_DF", decodeSpecificationDf, "SPECIFICATION_ROWS") ::
-    new IOStep[SpecificationRows, String]("GET_RW_DATA_SOURCE", "RW_DATA_SOURCE") {
+  override protected val steps: Seq[Step[_]] = {
 
-      override def run(variables: mutable.Map[String, Any]): (String, String) = {
-        val specificationRows = variables("SPECIFICATION_ROWS").asInstanceOf[SpecificationRows]
-        (outputKey, s"$rawDb.aaa")
-      }
-    } ::
-    ReadHiveTable("RW_DATA_SOURCE", isTableName = false, sqlContext, "RW_DF") ::
-    TransformDfUsingSpecifications("RW_DF", "SPECIFICATION_ROWS", errorDfTransformation, "RW_ERROR_DF") ::
-    TransformDfUsingSpecifications("RW_DF", "SPECIFICATION_ROWS", trustedDfTransformation, "TRUSTED_CLEAN_DF") ::
-    WriteDf("RW_ERROR_DF", rawDb, "RW_DATA_SOURCE", isTableName = false,
-      SaveMode.Append, Some(ColumnName.DtBusinessDate :: Nil), impalaJdbcConnection) :: Nil
+    // Retrieve MappingRow for given dataSource
+    (QueryAndDecode[MappingRow](getHiveQlQuery(mappingActual, mappingHistorical), sqlContext, "MAPPING_BEANS") ::
+      FromTo[Seq[MappingRow], MappingRow]("MAPPING_BEANS", beans => beans.size match {
+        case 0 => throw NoMappingException(config.dataSource)
+        case 1 => beans.head
+        case _ => throw MultipleMappingsException(beans)
+      }, "MAPPING_ROW") ::
+
+      // Retrieve SpecificationRows for given dataSource
+      QueryAndDecode[SpecificationRow](getHiveQlQuery(specificationActual, specificationHistorical), sqlContext, "SPECIFICATION_BEANS") ::
+      FromTo[Seq[SpecificationRow], SpecificationRows]("SPECIFICATION_BEANS", beans => beans.size match {
+        case 0 => throw NoSpecificationException(config.dataSource)
+        case _ => SpecificationRows.from(beans)
+      }, "SPECIFICATION_ROWS") ::
+
+      // Read input raw-layer data and transform them
+      ReadRawData("MAPPING_ROW", config.dtBusinessDate.getOrElse(toDate(now(), DateFormat.DateDefault)), sqlContext, "RW_DF") ::
+      TransformDfWrtSpecifications("RW_DF", "SPECIFICATION_ROWS", errorDfTransformation, "RW_ERROR_DF") ::
+      TransformDfWrtSpecifications("RW_DF", "SPECIFICATION_ROWS", trustedDfTransformation, "TRUSTED_CLEAN_DF") ::
+      WriteDf("RW_ERROR_DF", rawDb, "RW_DATA_SOURCE", isTableName = false,
+        SaveMode.Append, Some(ColumnName.DtBusinessDate :: Nil), impalaJdbcConnection) :: Nil)
+  }
 }

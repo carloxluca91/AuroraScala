@@ -1,7 +1,7 @@
 package it.luca.aurora.spark.step
 
-import it.luca.aurora.core.Logging
-import it.luca.aurora.core.utils.{now, toDate}
+import it.luca.aurora.Logging
+import it.luca.aurora.utils.{now, toDate}
 import it.luca.aurora.enumeration.{ColumnName, DateFormat}
 import it.luca.aurora.spark.implicits._
 import org.apache.spark.sql.DataFrame

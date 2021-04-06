@@ -1,7 +1,7 @@
 package it.luca.aurora.spark.step
 
-import it.luca.aurora.core.Logging
-import it.luca.aurora.core.utils.className
+import it.luca.aurora.Logging
+import it.luca.aurora.utils.className
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.{FileSystem, Path}
 import org.apache.poi.ss.usermodel.{Workbook, WorkbookFactory}

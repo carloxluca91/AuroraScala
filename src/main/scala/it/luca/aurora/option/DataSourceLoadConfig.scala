@@ -1,9 +1,10 @@
 package it.luca.aurora.option
 
-import it.luca.aurora.enumeration.ScoptOption
+import it.luca.aurora.enumeration.{DateFormat, ScoptOption}
+import it.luca.aurora.utils.{now, toDate}
 
 case class DataSourceLoadConfig(dataSource: String = "N.P.",
-                                dtBusinessDate: Option[String] = None,
+                                dtBusinessDate: Option[String] = Some(toDate(now(), DateFormat.DateDefault)),
                                 specificationVersion: Option[String] = None)
   extends BaseConfig {
 

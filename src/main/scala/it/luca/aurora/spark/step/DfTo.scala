@@ -1,7 +1,7 @@
 package it.luca.aurora.spark.step
 
-import it.luca.aurora.core.Logging
-import it.luca.aurora.core.utils.className
+import it.luca.aurora.Logging
+import it.luca.aurora.utils.className
 import org.apache.spark.sql.DataFrame
 
 import scala.collection.mutable
@@ -17,7 +17,7 @@ case class DfTo[O](private val dfKey: String,
 
     val inputDf: DataFrame = variables(dfKey).asInstanceOf[DataFrame]
     val output = dfToO(inputDf)
-    log.info(s"Retrieved value: $output (class: ${output.getClass.getSimpleName})")
+    log.info(s"Retrieved value: $output (class: $stepOutputType)")
     (outputKey, output)
   }
 }

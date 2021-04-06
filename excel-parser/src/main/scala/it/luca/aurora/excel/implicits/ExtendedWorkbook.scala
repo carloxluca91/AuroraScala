@@ -1,6 +1,6 @@
 package it.luca.aurora.excel.implicits
 
-import it.luca.aurora.core.Logging
+import it.luca.aurora.Logging
 import org.apache.poi.ss.usermodel.{Row, Workbook}
 
 import scala.collection.JavaConverters._

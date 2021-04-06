@@ -1,6 +1,5 @@
 package it.luca.aurora
 
-import it.luca.aurora.core.Logging
 import it.luca.aurora.option.{BranchConfig, ScoptParser}
 
 object Main

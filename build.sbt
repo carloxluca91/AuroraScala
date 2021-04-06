@@ -1,5 +1,6 @@
 // Dependencies version
 val sparkVersion = "1.6.0-cdh5.13.0"
+val sparkAvroVersion = "2.0.1"
 val scalaTestVersion = "3.2.0"
 val scoptVersion = "3.3.0"
 val jsqlParserVersion = "4.0"
@@ -33,10 +34,10 @@ lazy val commonSettings = Seq(
 lazy val core = (project in file("core"))
   .settings(commonSettings)
 
-lazy val sqlParser = (project in file("sql-parser"))
+lazy val sparkSql = (project in file("spark-sql"))
   .settings(
     commonSettings,
-    name := "sql-parser",
+    name := "spark-sql",
     libraryDependencies ++= "com.github.jsqlparser" % "jsqlparser" % jsqlParserVersion :: Nil
   )
   .dependsOn(core % "compile->compile;test->test")
@@ -48,7 +49,7 @@ lazy val excelParser = (project in file("excel-parser"))
     libraryDependencies ++= "org.apache.poi" % "poi" % poiVersion ::
       "org.apache.poi" % "poi-ooxml" % poiVersion :: Nil
   )
-  .dependsOn(core % "compile->compile;test->test", sqlParser)
+  .dependsOn(core % "compile->compile;test->test")
 
 lazy val auroraDataload = (project in file("."))
   .settings(
@@ -56,6 +57,7 @@ lazy val auroraDataload = (project in file("."))
     name := "aurora-dataload",
     version := "0.3.0",
     libraryDependencies ++= "org.apache.spark" %% "spark-hive" % sparkVersion % Provided ::
+      "com.databricks" %% "spark-avro" % sparkAvroVersion ::
       "com.github.scopt" %% "scopt" % scoptVersion ::
       Nil,
 
@@ -69,7 +71,11 @@ lazy val auroraDataload = (project in file("."))
       case PathList("META-INF", _*) => MergeStrategy.discard
       case x =>
         val oldStrategy = (assemblyMergeStrategy in assembly).value
-        oldStrategy(x) }
+        oldStrategy(x) },
+
+    // Assembly options: speedup ?
+    assemblyOption in assembly := (assemblyOption in assembly).value.copy(cacheUnzip = false),
+    assemblyOption in assembly := (assemblyOption in assembly).value.copy(cacheOutput = false)
   )
-  .dependsOn(core % "compile->compile;test->test", sqlParser, excelParser)
-  .aggregate(core, sqlParser, excelParser)
+  .dependsOn(core % "compile->compile;test->test", sparkSql, excelParser)
+  .aggregate(core, sparkSql, excelParser)
