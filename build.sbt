@@ -12,19 +12,16 @@ val clouderaRepoUrl = "https://repository.cloudera.com/artifactory/cloudera-repo
 
 lazy val commonSettings = Seq(
 
+  organization := "it.luca",
   scalaVersion := "2.10.5",
   javacOptions ++= "-source" :: "1.7" ::
-    "-target" :: "1.7" ::
-    Nil,
-
+    "-target" :: "1.7" :: Nil,
   scalacOptions ++= "-encoding" :: "UTF-8" ::
     "-target:jvm-1.7" ::
-    "-feature" :: "-language:implicitConversions" ::
-    Nil,
-
-  resolvers += "ClouderaRepo" at clouderaRepoUrl,
+    "-feature" :: "-language:implicitConversions" :: Nil,
 
   // Dependencies
+  resolvers += "ClouderaRepo" at clouderaRepoUrl,
   libraryDependencies ++= "org.apache.spark" %% "spark-core" % sparkVersion % Provided ::
     "org.apache.spark" %% "spark-sql" % sparkVersion % Provided ::
     "org.scalactic" %% "scalactic" % scalaTestVersion ::
@@ -33,9 +30,28 @@ lazy val commonSettings = Seq(
     Nil
 )
 
+lazy val core = (project in file("core"))
+  .settings(commonSettings)
+
+lazy val sqlParser = (project in file("sql-parser"))
+  .settings(
+    commonSettings,
+    name := "sql-parser",
+    libraryDependencies ++= "com.github.jsqlparser" % "jsqlparser" % jsqlParserVersion :: Nil
+  )
+  .dependsOn(core % "compile->compile;test->test")
+
+lazy val excelParser = (project in file("excel-parser"))
+  .settings(
+    commonSettings,
+    name := "excel-parser",
+    libraryDependencies ++= "org.apache.poi" % "poi" % poiVersion ::
+      "org.apache.poi" % "poi-ooxml" % poiVersion :: Nil
+  )
+  .dependsOn(core % "compile->compile;test->test", sqlParser)
+
 lazy val auroraDataload = (project in file("."))
   .settings(
-
     commonSettings,
     name := "aurora-dataload",
     version := "0.3.0",
@@ -55,27 +71,5 @@ lazy val auroraDataload = (project in file("."))
         val oldStrategy = (assemblyMergeStrategy in assembly).value
         oldStrategy(x) }
   )
-  .dependsOn(logging, excelParser, sqlParser)
-  .aggregate(logging, excelParser, sqlParser)
-
-lazy val excelParser = (project in file("excel-parser"))
-  .settings(
-
-    commonSettings,
-    name := "excel-parser",
-    libraryDependencies ++= "org.apache.poi" % "poi" % poiVersion ::
-      "org.apache.poi" % "poi-ooxml" % poiVersion ::
-      Nil
-  ).dependsOn(logging, sqlParser)
-
-lazy val sqlParser = (project in file("sql-parser"))
-  .settings(
-
-    commonSettings,
-    name := "sql-parser",
-    libraryDependencies ++= "com.github.jsqlparser" % "jsqlparser" % jsqlParserVersion ::
-      Nil
-  ).dependsOn(logging)
-
-lazy val logging = (project in file("logging"))
-  .settings(commonSettings)
+  .dependsOn(core % "compile->compile;test->test", sqlParser, excelParser)
+  .aggregate(core, sqlParser, excelParser)

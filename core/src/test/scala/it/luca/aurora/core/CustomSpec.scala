@@ -1,11 +1,11 @@
-package it.luca.aurora.excel
+package it.luca.aurora.core
 
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should
 
 import scala.reflect.runtime.universe._
 
-abstract class BaseSpec
+abstract class CustomSpec
   extends AnyFlatSpec
     with should.Matchers {
 

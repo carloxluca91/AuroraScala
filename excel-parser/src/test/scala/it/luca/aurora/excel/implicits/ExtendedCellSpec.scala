@@ -1,11 +1,11 @@
 package it.luca.aurora.excel.implicits
 
-import it.luca.aurora.excel.BaseSpec
+import it.luca.aurora.core.CustomSpec
 import it.luca.aurora.excel.exception.ExcelDecodingException
 import org.apache.poi.ss.usermodel.{Cell, CellType}
 import org.scalamock.scalatest.MockFactory
 
-class ExtendedCellSpec extends BaseSpec with MockFactory {
+class ExtendedCellSpec extends CustomSpec with MockFactory {
 
   private final val mockCell = mock[Cell]
   private final val expectedString = "STRING"

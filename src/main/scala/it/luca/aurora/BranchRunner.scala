@@ -1,14 +1,15 @@
 package it.luca.aurora
 
+import it.luca.aurora.core.Logging
+import it.luca.aurora.core.utils.classSimpleName
 import it.luca.aurora.enumeration.Branch
-import it.luca.aurora.logging.Logging
 import it.luca.aurora.option.{BranchConfig, DataSourceLoadConfig, ReloadConfig, ScoptParser}
 import it.luca.aurora.spark.job.{DataSourceLoadJob, InitialLoadJob, ReloadJob}
-import it.luca.aurora.utils.classSimpleName
 import org.apache.spark.SparkContext
 import org.apache.spark.sql.hive.HiveContext
 
-object BranchRunner extends Logging {
+object BranchRunner
+  extends Logging {
 
   def apply(branchConfig: BranchConfig, args: Seq[String]): Unit = {
 

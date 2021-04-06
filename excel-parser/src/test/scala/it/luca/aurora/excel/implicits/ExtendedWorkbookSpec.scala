@@ -1,12 +1,12 @@
 package it.luca.aurora.excel.implicits
 
-import it.luca.aurora.excel.BaseSpec
+import it.luca.aurora.core.CustomSpec
 import it.luca.aurora.excel.bean.Bean
 import org.apache.poi.ss.usermodel.{Row, Workbook, WorkbookFactory}
 
 import scala.collection.JavaConverters._
 
-class ExtendedWorkbookSpec extends BaseSpec {
+class ExtendedWorkbookSpec extends CustomSpec {
 
   private final val workbook: Workbook = WorkbookFactory
     .create(classOf[ExtendedCellSpec]

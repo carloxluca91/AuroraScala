@@ -1,13 +1,19 @@
 package it.luca.aurora.spark.sql.parser
 
+import it.luca.aurora.core.CustomSpec
 import it.luca.aurora.spark.sql.functions._
-import net.sf.jsqlparser.expression.{BinaryExpression, CaseExpression}
+import net.sf.jsqlparser.expression.BinaryExpression
 import net.sf.jsqlparser.expression.operators.relational.IsNullExpression
 import org.apache.spark.sql.Column
 import org.apache.spark.sql.functions._
 import org.scalatest
 
-class SqlParserSpec extends BaseSpec {
+class SqlParserSpec extends CustomSpec {
+
+  private val firstColumnName = "first_col"
+  private val secondColumnName = "second_col"
+  private val firstColumn = col(firstColumnName)
+  private val secondColumn = col(secondColumnName)
 
   private def areEquivalent(string: String, expectedColumn: Column): scalatest.Assertion = {
 

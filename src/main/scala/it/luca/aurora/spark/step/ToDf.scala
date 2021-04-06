@@ -1,8 +1,8 @@
 package it.luca.aurora.spark.step
 
-import it.luca.aurora.logging.Logging
+import it.luca.aurora.core.Logging
+import it.luca.aurora.core.utils.classSimpleName
 import it.luca.aurora.spark.implicits._
-import it.luca.aurora.utils.classSimpleName
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.{DataFrame, SQLContext}
 
@@ -23,7 +23,7 @@ case class ToDf[T <: Product](private val beansKey: String,
     log.info(s"Converting ${beans.size} $tClassName(s) to ${classSimpleName[DataFrame]}")
     val rddOfT: RDD[T] = sqlContext.sparkContext.parallelize(beans, 1)
     val dataFrame: DataFrame = sqlContext.createDataFrame(rddOfT).withSqlNamingConvention()
-    log.info(s"""Converted ${beans.size} $tClassName(s) to ${classOf[DataFrame].getSimpleName}. Schema
+    log.info(s"""Converted ${beans.size} $tClassName(s) to ${classSimpleName[DataFrame]}. Schema
                 |
                 |${dataFrame.schema.treeString}
                 |""".stripMargin)

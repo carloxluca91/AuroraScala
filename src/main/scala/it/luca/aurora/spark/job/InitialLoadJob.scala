@@ -1,10 +1,10 @@
 package it.luca.aurora.spark.job
 
+import it.luca.aurora.core.utils.{now, toDate}
 import it.luca.aurora.enumeration.{Branch, ColumnName, DateFormat}
-import it.luca.aurora.excel.bean.{LookupRow, SpecificationRow}
+import it.luca.aurora.excel.bean.{MappingRow, SpecificationRow}
 import it.luca.aurora.spark.implicits._
 import it.luca.aurora.spark.step._
-import it.luca.aurora.utils.{now, toDate}
 import org.apache.poi.ss.usermodel.Row
 import org.apache.spark.sql.functions.lit
 import org.apache.spark.sql.{DataFrame, SQLContext, SaveMode}
@@ -37,11 +37,11 @@ case class InitialLoadJob(override val sqlContext: SQLContext,
       ToDf[T]("EXCEL_BEANS", sqlContext, "EXCEL_BEANS_DF") ::
       TransformDf("EXCEL_BEANS_DF", withValidityStartCols, "EXCEL_BEANS_DF") ::
       WriteDf("EXCEL_BEANS_DF", trustedDb, actualTable, isTableName = true,
-        SaveMode.Overwrite, None, connection) :: Nil
+        SaveMode.Overwrite, None, impalaJdbcConnection) :: Nil
 
   override protected val steps: Seq[Step[_]] = CreateDbIfNotExists(trustedDb, sqlContext) ::
     ReadExcel(excelPath, "WORKBOOK") :: Nil ++
-    initialLoadSteps[SpecificationRow](specificationSheet, specificationActual) ++
-    initialLoadSteps[LookupRow](lookupSheet, lookupActual)
+    initialLoadSteps[MappingRow](mappingSheet, mappingActual) ++
+    initialLoadSteps[SpecificationRow](specificationSheet, specificationActual)
 }
 

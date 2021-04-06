@@ -1,8 +1,8 @@
 package it.luca.aurora.spark.step
 
+import it.luca.aurora.core.Logging
+import it.luca.aurora.core.utils.classSimpleName
 import it.luca.aurora.excel.implicits._
-import it.luca.aurora.logging.Logging
-import it.luca.aurora.utils.classSimpleName
 import org.apache.poi.ss.usermodel.{Row, Workbook}
 
 import scala.collection.mutable

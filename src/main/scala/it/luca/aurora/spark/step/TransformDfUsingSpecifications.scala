@@ -1,7 +1,7 @@
 package it.luca.aurora.spark.step
 
 import it.luca.aurora.excel.bean.SpecificationRows
-import it.luca.aurora.logging.Logging
+import it.luca.aurora.core.Logging
 import org.apache.spark.sql.DataFrame
 
 import scala.collection.mutable

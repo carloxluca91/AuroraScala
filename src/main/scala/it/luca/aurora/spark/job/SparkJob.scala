@@ -1,10 +1,10 @@
 package it.luca.aurora.spark.job
 
+import it.luca.aurora.core.Logging
+import it.luca.aurora.core.utils.classSimpleName
 import it.luca.aurora.enumeration.Branch
-import it.luca.aurora.logging.Logging
 import it.luca.aurora.spark.bean.LogRecord
 import it.luca.aurora.spark.implicits._
-import it.luca.aurora.utils.classSimpleName
 import it.luca.aurora.spark.step.{IOStep, IStep, Step}
 import org.apache.commons.configuration.PropertiesConfiguration
 import org.apache.spark.sql.{DataFrame, SQLContext, SaveMode}
@@ -28,26 +28,23 @@ abstract class SparkJob(val sqlContext: SQLContext,
   // Excel properties
   protected final val excelPath: String = jobProperties.getString("excel.hdfs.path")
   protected final val specificationSheet: Int = jobProperties.getInt("excel.specification.sheet")
-  protected final val lookupSheet: Int = jobProperties.getInt("excel.lookup.sheet")
+  protected final val mappingSheet: Int = jobProperties.getInt("excel.mapping.sheet")
 
   // Hive properties
   protected final val trustedDb: String = jobProperties.getString("hive.db.trusted")
   protected final val specificationActual: String = jobProperties.getString("hive.table.specification.actual")
-  protected final val lookupActual: String = jobProperties.getString("hive.table.lookup.actual")
+  protected final val mappingActual: String = jobProperties.getString("hive.table.mapping.actual")
 
-  // Impala properties
-  private val driverClass = jobProperties.getString("impala.jdbc.driverClass")
-  private val impalaUrl = jobProperties.getString("impala.jdbc.url")
+  // Impala JDBC connection
+  protected val impalaJdbcConnection: Connection = {
 
-  private def getImpalaJdbcConnection: Connection = {
-
-    Class.forName(driverClass)
-    val connection = DriverManager.getConnection(impalaUrl)
-    log.info(s"Connected to JDBC Url $impalaUrl using driver $driverClass")
+    val driverClass = jobProperties.getString("impala.jdbc.driverClass")
+    val impalaUrl = jobProperties.getString("impala.jdbc.url")
+    Class.forName (driverClass)
+    val connection = DriverManager.getConnection (impalaUrl)
+    log.info (s"Connected to JDBC Url $impalaUrl using driver $driverClass")
     connection
   }
-
-  protected val connection: Connection = getImpalaJdbcConnection
 
   private final val logRecordForStep: (Int, Step[_], Option[Throwable]) => LogRecord =
     LogRecord(sparkContext = sqlContext.sparkContext,
@@ -57,7 +54,8 @@ abstract class SparkJob(val sqlContext: SQLContext,
       specificationVersion = specificationVersion,
       _: Int,
       _: Step[_],
-      _: Option[Throwable])
+      _: Option[Throwable],
+      yarnUIUrl = jobProperties.getString("yarn.ui.url"))
 
   private val jobVariables: mutable.Map[String, Any] = mutable.Map.empty[String, Any]
 
@@ -65,15 +63,19 @@ abstract class SparkJob(val sqlContext: SQLContext,
 
     import sqlContext.implicits._
 
+    // Convert the sequence of LogRecords to a DataFrame
     val (jobSucceeded, logRecords): (Boolean, Seq[LogRecord]) = runSteps()
-    val dbName: String = jobProperties.getString("hive.db.trusted")
     val logRecordsDf: DataFrame = logRecords.toDF()
     log.info(s"Turned ${logRecords.size} ${classSimpleName[LogRecord]}(s) into a ${classOf[DataFrame].getSimpleName}")
-    val logTableName = jobProperties.getString("hive.table.dataloadLog.name")
+
+    // Insert LogRecords DataFrame
+    val dbName: String = jobProperties.getString("hive.db.trusted")
+    val logTableName: String = jobProperties.getString("hive.table.dataloadLog.name")
+    sqlContext.createDbIfNotExists(dbName)
     logRecordsDf.withTechnicalColumns()
       .withSqlNamingConvention()
       .coalesce(1)
-      .saveAsOrInsertInto(dbName, logTableName, SaveMode.Append, None, connection)
+      .saveAsOrInsertInto(dbName, logTableName, SaveMode.Append, None, impalaJdbcConnection)
 
     if (jobSucceeded) log.info(s"Executed whole Spark job ${branch.name}")
     else log.warn(s"Unable to fully execute Spark job ${branch.name}")

@@ -1,11 +1,11 @@
 package it.luca.aurora.spark.step
 
-import it.luca.aurora.utils.classFullName
-
 import scala.collection.mutable
-import scala.reflect.runtime.universe.TypeTag
+import scala.reflect.runtime.universe.{TypeTag, typeOf}
 
 abstract class Step[I](val description: String)(implicit typeTagI: TypeTag[I]) {
+
+  protected final def classFullName[T](implicit typeTag: TypeTag[T]): String = typeOf[T].typeSymbol.fullName
 
   val stepClassName: String = getClass.getName
   val stepInputType: String = classFullName[I]

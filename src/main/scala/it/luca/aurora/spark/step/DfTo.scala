@@ -1,7 +1,7 @@
 package it.luca.aurora.spark.step
 
-import it.luca.aurora.logging.Logging
-import it.luca.aurora.utils.classSimpleName
+import it.luca.aurora.core.Logging
+import it.luca.aurora.core.utils.classSimpleName
 import org.apache.spark.sql.DataFrame
 
 import scala.collection.mutable

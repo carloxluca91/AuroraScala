@@ -1,6 +1,7 @@
 package it.luca.aurora.spark.sql.parser
 
-import it.luca.aurora.logging.Logging
+import it.luca.aurora.core.Logging
+import it.luca.aurora.core.utils.classSimpleName
 import it.luca.aurora.spark.sql.common._
 import it.luca.aurora.spark.sql.functions._
 import net.sf.jsqlparser.expression._
@@ -12,7 +13,8 @@ import org.apache.spark.sql.functions.{col, lit, when}
 
 import scala.collection.JavaConversions._
 
-object SqlParser extends Logging {
+object SqlParser
+  extends Logging {
 
   def parse(string: String): Column = {
 
@@ -72,7 +74,7 @@ object SqlParser extends Logging {
     // BinaryExpressions (<, <=, =, <>, >, >=, AND, OR)
     val leftColumn = parse(binaryExpression.getLeftExpression)
     val rightColumn = parse(binaryExpression.getRightExpression)
-    log.info(s"Parsed both left and right expression of ${classOf[BinaryExpression].getSimpleName} $binaryExpression")
+    log.info(s"Parsed both left and right expression of ${classSimpleName[BinaryExpression]} $binaryExpression")
     val combinator: (Column, Column) => Column = binaryExpression.getStringExpression.toLowerCase match {
       case "<" => _ < _
       case "<=" => _ <= _
@@ -90,7 +92,7 @@ object SqlParser extends Logging {
   def parseIsNullExpression(isNullExpression: IsNullExpression): Column = {
 
     val leftColumn = parse(isNullExpression.getLeftExpression)
-    log.info(s"Parsed left expression for ${classOf[IsNullExpression].getSimpleName}")
+    log.info(s"Parsed left expression for ${classSimpleName[IsNullExpression]}")
     if (isNullExpression.isNot) leftColumn.isNotNull else leftColumn.isNull
   }
 
@@ -102,7 +104,7 @@ object SqlParser extends Logging {
       .getExpressions
       .map(parse)
 
-    log.info(s"Parsed both left and all of ${inValuesColumns.size()} right expression(s) of ${classOf[InExpression].getSimpleName}")
+    log.info(s"Parsed both left and all of ${inValuesColumns.size()} right expression(s) of ${classSimpleName[InExpression]}")
     val isInColumn = leftColumn.isin(inValuesColumns: _*)
     if (inExpression.isNot) !isInColumn else isInColumn
   }
@@ -111,7 +113,7 @@ object SqlParser extends Logging {
 
     val whenCases: Seq[(Column, Column)] = caze.getWhenClauses.map(x => (parse(x.getWhenExpression), parse(x.getThenExpression)))
     val elseValue: Column = parse(caze.getElseExpression)
-    log.info(s"Parsed both all of ${caze.getWhenClauses.size()} ${classOf[WhenClause].getSimpleName}(s) and ElseExpression")
+    log.info(s"Parsed both all of ${caze.getWhenClauses.size()} ${classSimpleName[WhenClause]}(s) and ElseExpression")
     val firstCase: Column = when(whenCases.head._1, whenCases.head._2)
     whenCases.tail
       .foldLeft(firstCase)((col, tuple2) => col.when(tuple2._1, tuple2._2))
