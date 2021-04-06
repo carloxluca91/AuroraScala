@@ -6,7 +6,7 @@ import scala.reflect.runtime.universe.{TypeTag, typeOf}
 
 package object utils {
 
-  def classSimpleName[T](implicit typeTag: TypeTag[T]): String = typeOf[T].typeSymbol.name.toString
+  def className[T](implicit typeTag: TypeTag[T]): String = typeOf[T].typeSymbol.name.toString
 
   def now(): Timestamp = new Timestamp(System.currentTimeMillis())
 

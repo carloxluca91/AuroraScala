@@ -1,7 +1,7 @@
 package it.luca.aurora.excel.bean
 
 import it.luca.aurora.core.Logging
-import it.luca.aurora.core.utils.classSimpleName
+import it.luca.aurora.core.utils.className
 import it.luca.aurora.excel.exception.UndefinedTrdColumnException
 import it.luca.aurora.spark.sql.parser.SqlParser
 import org.apache.spark.sql.Column
@@ -49,7 +49,7 @@ object SpecificationRows extends Logging {
       throw UndefinedTrdColumnException(trdColumnsNotFullyDefined)
     }
 
-    log.info(s"Validated all of ${specifications.size} ${classSimpleName[SpecificationRow]}(s)")
+    log.info(s"Validated all of ${specifications.size} ${className[SpecificationRow]}(s)")
     SpecificationRows(specifications)
   }
 }

@@ -3,7 +3,6 @@ package it.luca.aurora.spark.job
 import it.luca.aurora.core.utils.{now, toDate}
 import it.luca.aurora.enumeration.{Branch, ColumnName, DateFormat}
 import it.luca.aurora.excel.bean.{MappingRow, SpecificationRow}
-import it.luca.aurora.option.ReloadConfig
 import it.luca.aurora.spark.implicits._
 import it.luca.aurora.spark.step._
 import org.apache.poi.ss.usermodel.Row
@@ -14,8 +13,7 @@ import scala.reflect.ClassTag
 import scala.reflect.runtime.universe.TypeTag
 
 case class ReloadJob(override val sqlContext: SQLContext,
-                     override val propertiesFile: String,
-                     private val reloadConfig: ReloadConfig)
+                     override val propertiesFile: String)
   extends SparkJob(sqlContext, propertiesFile, Branch.Reload) {
 
   override protected val dataSource: Option[String] = None
@@ -51,16 +49,12 @@ case class ReloadJob(override val sqlContext: SQLContext,
       WriteDf("OLD_VERSION_DF", trustedDb, historicalTable, isTableName = true,
         SaveMode.Append, Some(ColumnName.Version :: Nil), impalaJdbcConnection) ::
       ReadExcel(excelPath, "WORKBOOK") ::
-      DecodeSheet[T]("WORKBOOK", sheet, "EXCEL_BEANS") ::
-      ToDf[T]("EXCEL_BEANS", sqlContext, "EXCEL_BEANS_DF") ::
+      SheetToDf[T]("WORKBOOK", sheet, sqlContext, "EXCEL_BEANS_DF") ::
       UpdateDfVersion("EXCEL_BEANS_DF", "OLD_VERSION", "EXCEL_BEANS_DF") ::
       WriteDf("EXCEL_BEANS_DF", trustedDb, actualTable, isTableName = true,
         SaveMode.Overwrite, None, impalaJdbcConnection) :: Nil
 
-  override protected val steps: Seq[Step[_]] = (if (reloadConfig.specificationFlag) {
-    reloadSteps[SpecificationRow](specificationActual, specificationHistorical, specificationSheet)
-  } else Nil) ++
-    (if (reloadConfig.lookUpFlag) {
-    reloadSteps[MappingRow](mappingActual, mappingHistorical, mappingSheet)
-  } else Nil)
+  override protected val steps: Seq[Step[_]] =
+    reloadSteps[MappingRow](mappingActual, mappingHistorical, mappingSheet) ++
+      reloadSteps[SpecificationRow](specificationActual, specificationHistorical, specificationSheet)
 }

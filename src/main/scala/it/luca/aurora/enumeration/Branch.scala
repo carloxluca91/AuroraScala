@@ -2,9 +2,8 @@ package it.luca.aurora.enumeration
 
 object Branch extends Enumeration {
 
-  protected case class Val(name: String) extends super.Val
-
-  import scala.language.implicitConversions
+  protected case class Val(name: String)
+    extends super.Val
 
   implicit def valueToBranchVal(x: Value): Val = x.asInstanceOf[Val]
 

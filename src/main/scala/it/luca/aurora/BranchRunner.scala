@@ -1,9 +1,9 @@
 package it.luca.aurora
 
 import it.luca.aurora.core.Logging
-import it.luca.aurora.core.utils.classSimpleName
+import it.luca.aurora.core.utils.className
 import it.luca.aurora.enumeration.Branch
-import it.luca.aurora.option.{BranchConfig, DataSourceLoadConfig, ReloadConfig, ScoptParser}
+import it.luca.aurora.option.{BranchConfig, DataSourceLoadConfig, ScoptParser}
 import it.luca.aurora.spark.job.{DataSourceLoadJob, InitialLoadJob, ReloadJob}
 import org.apache.spark.SparkContext
 import org.apache.spark.sql.hive.HiveContext
@@ -20,7 +20,7 @@ object BranchRunner
     val hiveContext = new HiveContext(sparkContext)
     hiveContext.setConf("hive.exec.dynamic.partition", "true")
     hiveContext.setConf("hive.exec.dynamic.partition.mode", "nonstrict")
-    log.info(s"""Initialized both ${classSimpleName[SparkContext]} and ${classSimpleName[HiveContext]}
+    log.info(s"""Initialized both ${className[SparkContext]} and ${className[HiveContext]}
          |
          |    appUser: ${sparkContext.sparkUser}
          |    appName: ${sparkContext.appName}
@@ -29,16 +29,9 @@ object BranchRunner
 
     Branch.withId(branchId) match {
       case Branch.InitialLoad => InitialLoadJob(hiveContext, propertiesFile).run()
-      case Branch.Reload =>
-        ScoptParser.reloadOptionParser.parse(args, ReloadConfig()) match {
-          case Some(x) =>
-            log.info(s"Parsed second set of arguments $x")
-            ReloadJob(hiveContext, propertiesFile, x).run()
-          case None => // arguments are bad, error message will have been displayed
-        }
-
+      case Branch.Reload => ReloadJob(hiveContext, propertiesFile).run()
       case Branch.DataSourceLoad =>
-        ScoptParser.sourceLoadOptionParser.parse(args, DataSourceLoadConfig()) match {
+        ScoptParser.dataSourceLoadParser.parse(args, DataSourceLoadConfig()) match {
           case Some(x) =>
             log.info(s"Parsed second set of arguments $x")
             DataSourceLoadJob(hiveContext, propertiesFile, x).run()

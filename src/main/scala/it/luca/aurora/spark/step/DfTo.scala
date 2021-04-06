@@ -1,7 +1,7 @@
 package it.luca.aurora.spark.step
 
 import it.luca.aurora.core.Logging
-import it.luca.aurora.core.utils.classSimpleName
+import it.luca.aurora.core.utils.className
 import org.apache.spark.sql.DataFrame
 
 import scala.collection.mutable
@@ -10,7 +10,7 @@ import scala.reflect.runtime.universe._
 case class DfTo[O](private val dfKey: String,
                    private val dfToO: DataFrame => O,
                    override val outputKey: String)(implicit oTypeTag: TypeTag[O])
-  extends IOStep[DataFrame, O]( s"Retrieve a ${classSimpleName[O]} from a DataFrame", outputKey)
+  extends IOStep[DataFrame, O]( s"Retrieve a ${className[O]} from a DataFrame", outputKey)
     with Logging {
 
   override def run(variables: mutable.Map[String, Any]): (String, O) = {

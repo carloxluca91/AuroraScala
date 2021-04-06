@@ -3,15 +3,12 @@
 log "INFO" "Starting run_branch_new.sh script"
 
 # Parse options
-reloadFlags=""
 while [[ "$#" -gt 0 ]];
 do
   case "$1" in
     -b|--branch) branch="$2"; shift ;;
     -d|--dt_business_date) businessDate="$2"; shift ;;
     -s|--source) dataSource="$2"; shift ;;
-    -m) reloadFlags="$reloadFlags -m" ;;
-    -l) reloadFlags="$reloadFlags -l" ;;
     *) log "WARNING" "Unknown parameter passed: $1"; ;;
   esac
   shift
@@ -56,7 +53,7 @@ else
   jobPropertiesPath="$hdfsAppPath/lib/$jobPropertiesFileName"
   log4jPropertiesPath="$hdfsAppPath/lib/$log4jPropertiesFileName"
   impalaJdbcDriverJarPath="$hdfsAppPath/lib/impala-jdbc-driver.jar"
-  mainClassParams="-b $branch -p $jobPropertiesFileName $dataSourceOption $businessDateOption $reloadFlags"
+  mainClassParams="-b $branch -p $jobPropertiesFileName $dataSourceOption"
 
   log "INFO" "Spark submit parameters:
 
@@ -81,6 +78,6 @@ spark-submit --master yarn --deploy-mode cluster --queue $queue \
   --jars $impalaJdbcDriverJarPath \
   --name "$appName" \
   --class "$mainClass" $jarPath \
-  -b "$branch" -p "$jobPropertiesFileName" $dataSourceOption $businessDateOption $reloadFlags > "$logFilePath" 2>&1
+  -b "$branch" -p "$jobPropertiesFileName" $dataSourceOption $businessDateOption > "$logFilePath" 2>&1
 
 log "INFO" "Successfully run run_branch.sh script"

@@ -1,7 +1,7 @@
 package it.luca.aurora.spark.job
 
 import it.luca.aurora.core.Logging
-import it.luca.aurora.core.utils.classSimpleName
+import it.luca.aurora.core.utils.className
 import it.luca.aurora.enumeration.Branch
 import it.luca.aurora.spark.bean.LogRecord
 import it.luca.aurora.spark.implicits._
@@ -66,7 +66,7 @@ abstract class SparkJob(val sqlContext: SQLContext,
     // Convert the sequence of LogRecords to a DataFrame
     val (jobSucceeded, logRecords): (Boolean, Seq[LogRecord]) = runSteps()
     val logRecordsDf: DataFrame = logRecords.toDF()
-    log.info(s"Turned ${logRecords.size} ${classSimpleName[LogRecord]}(s) into a ${classOf[DataFrame].getSimpleName}")
+    log.info(s"Turned ${logRecords.size} ${className[LogRecord]}(s) into a ${className[DataFrame]}")
 
     // Insert LogRecords DataFrame
     val dbName: String = jobProperties.getString("hive.db.trusted")

@@ -1,7 +1,7 @@
 package it.luca.aurora.spark.step
 
 import it.luca.aurora.core.Logging
-import it.luca.aurora.core.utils.classSimpleName
+import it.luca.aurora.core.utils.className
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.{FileSystem, Path}
 import org.apache.poi.ss.usermodel.{Workbook, WorkbookFactory}
@@ -19,7 +19,7 @@ case class ReadExcel(private val excelPath: String,
     val path = new Path(excelPath)
     val fs: FileSystem = FileSystem.get(new Configuration())
     log.info("Opened HDFS connection")
-    val workbookClassName = classSimpleName[Workbook]
+    val workbookClassName = className[Workbook]
     if (fs.exists(path) && fs.isFile(path)) {
 
       val excelFileStatus = fs.getFileStatus(path)

@@ -33,11 +33,10 @@ case class InitialLoadJob(override val sqlContext: SQLContext,
   private def initialLoadSteps[T <: Product](sheet: Int, actualTable: String)
                                             (implicit typeTag: TypeTag[T], classTag: ClassTag[T], rowToT: Row => T): Seq[Step[_]] =
 
-    DecodeSheet[T]("WORKBOOK", sheet, "EXCEL_BEANS") ::
-      ToDf[T]("EXCEL_BEANS", sqlContext, "EXCEL_BEANS_DF") ::
-      TransformDf("EXCEL_BEANS_DF", withValidityStartCols, "EXCEL_BEANS_DF") ::
-      WriteDf("EXCEL_BEANS_DF", trustedDb, actualTable, isTableName = true,
-        SaveMode.Overwrite, None, impalaJdbcConnection) :: Nil
+   SheetToDf[T]("WORKBOOK", sheet, sqlContext, "EXCEL_BEANS_DF") ::
+     TransformDf("EXCEL_BEANS_DF", withValidityStartCols, "EXCEL_BEANS_DF") ::
+     WriteDf("EXCEL_BEANS_DF", trustedDb, actualTable, isTableName = true,
+       SaveMode.Overwrite, None, impalaJdbcConnection) :: Nil
 
   override protected val steps: Seq[Step[_]] = CreateDbIfNotExists(trustedDb, sqlContext) ::
     ReadExcel(excelPath, "WORKBOOK") :: Nil ++
